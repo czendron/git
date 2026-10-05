@@ -1,0 +1,644 @@
+<title>Usina de Virais</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: letreiro de ônibus — trilho de navegação à esquerda (vira faixa no topo no celular), bancada de trabalho à direita */
+:root{
+  --paper:#f6f4ee; --panel:#ffffff; --ink:#17181c; --muted:#5d6068; --line:#dcd8cc;
+  --sign:#ffd21f; --sign-ink:#17181c; --sign-soft:#fff3bf;
+  --ok:#1f8a4c; --warn:#b26a00; --bad:#c0362c; --info:#2457c5;
+  --f-display:"Bungee","Arial Black",Impact,sans-serif;
+  --f-body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#121317; --panel:#1b1d22; --ink:#ecebe6; --muted:#a3a5ab; --line:#2e3138;
+  --sign:#ffd21f; --sign-ink:#17181c; --sign-soft:#3a3315;
+  --ok:#4cc581; --warn:#f0a83a; --bad:#ff7a6e; --info:#7ea6ff; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#121317; --panel:#1b1d22; --ink:#ecebe6; --muted:#a3a5ab; --line:#2e3138;
+  --sign:#ffd21f; --sign-ink:#17181c; --sign-soft:#3a3315;
+  --ok:#4cc581; --warn:#f0a83a; --bad:#ff7a6e; --info:#7ea6ff; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100%}
+nav.rail{background:var(--sign);color:var(--sign-ink);padding:20px 14px;display:flex;flex-direction:column;gap:18px;position:sticky;top:env(safe-area-inset-top,0px);height:100vh;align-self:start}
+.brand{font-family:var(--f-display);font-size:22px;line-height:1.05;letter-spacing:.5px}
+.brand small{display:block;font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-top:6px;opacity:.75}
+.tabs{display:flex;flex-direction:column;gap:4px}
+.tab{all:unset;cursor:pointer;padding:9px 10px;border-radius:8px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tab:hover{background:rgba(0,0,0,.08)}
+.tab[aria-selected="true"]{background:var(--sign-ink);color:var(--sign)}
+.tab:focus-visible{outline:3px solid var(--sign-ink);outline-offset:2px}
+.tab .n{font-family:var(--f-mono);font-size:11px;opacity:.7}
+.status{margin-top:auto;font-family:var(--f-mono);font-size:11px;display:grid;gap:4px}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#888;margin-right:6px}
+.dot.on{background:#1f8a4c}.dot.off{background:#c0362c}
+main{padding-block:28px 60px;padding-inline:clamp(16px,4vw,44px);min-width:0}
+section.view{display:grid;gap:22px;max-width:1100px}
+h1{font-family:var(--f-display);font-size:clamp(24px,3.2vw,34px);line-height:1.1;margin:0;text-wrap:balance;font-weight:400}
+h2{font-size:17px;margin:0;text-wrap:balance}
+.lede{color:var(--muted);max-width:68ch;margin:6px 0 0}
+.eyebrow{font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:10px;align-content:start;min-width:0}
+.card h3{margin:0;font-size:16px;line-height:1.3}
+.card p{margin:0;color:var(--muted);font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.chip.br{background:var(--sign-soft);color:var(--ink);border-color:transparent}
+.chip.ok{color:var(--ok);border-color:currentColor}.chip.warn{color:var(--warn);border-color:currentColor}.chip.bad{color:var(--bad);border-color:currentColor}.chip.info{color:var(--info);border-color:currentColor}
+button.btn{font:inherit;font-weight:600;font-size:14px;cursor:pointer;border-radius:8px;padding:9px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--paper)}
+button.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+button.btn.sign{background:var(--sign);color:var(--sign-ink);border-color:var(--sign)}
+button.btn:disabled{opacity:.5;cursor:progress}
+button.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--info);outline-offset:2px}
+label{display:grid;gap:4px;font-weight:600;font-size:13px}
+input,select,textarea{font:inherit;font-weight:400;font-size:14px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+textarea{min-height:90px;resize:vertical;font-family:var(--f-mono);font-size:12.5px;line-height:1.5}
+.form{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))}
+.form .wide{grid-column:1/-1}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;display:grid;gap:14px;min-width:0}
+.note{font-size:13px;color:var(--muted)}
+.msg{font-size:13px;padding:8px 12px;border-radius:8px;border:1px solid var(--line)}
+.msg.bad{color:var(--bad);border-color:currentColor}.msg.ok{color:var(--ok);border-color:currentColor}
+a{color:var(--info)}
+.mono{font-family:var(--f-mono);font-size:12px;word-break:break-all}
+.shots{display:grid;gap:8px}
+.shot{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;border-top:1px dashed var(--line);padding-top:8px}
+.shot .t{font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.empty{border:1px dashed var(--line);border-radius:var(--r);padding:22px;color:var(--muted);text-align:left}
+table.jobs{width:100%;border-collapse:collapse;font-size:13px}
+table.jobs th,table.jobs td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+table.jobs th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:400}
+.scroll{overflow-x:auto}
+.ticker{font-family:var(--f-display);font-size:13px;background:var(--ink);color:var(--sign);padding:6px 12px;border-radius:6px;display:inline-block;letter-spacing:.04em}
+@media (max-width:760px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  nav.rail{position:sticky;top:env(safe-area-inset-top,0px);height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:10px 16px;gap:10px;z-index:5}
+  .brand{font-size:16px}.brand small{display:none}
+  .tabs{flex-direction:row;overflow-x:auto;width:100%;gap:2px}
+  .tab{padding:6px 9px;font-size:13px;white-space:nowrap}.tab .n{display:none}
+  .status{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="app">
+  <nav class="rail" aria-label="Seções">
+    <div class="brand">Usina de<br>Virais<small>Higgsfield · Seedance 2.5 · 9:16</small></div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="radar" aria-selected="true">Radar <span class="n" id="n-ideas">0</span></button>
+      <button class="tab" role="tab" data-tab="elenco">Elenco <span class="n" id="n-chars">0</span></button>
+      <button class="tab" role="tab" data-tab="roteiro">Roteiro <span class="n" id="n-scripts">0</span></button>
+      <button class="tab" role="tab" data-tab="motion">Motion control</button>
+      <button class="tab" role="tab" data-tab="biblioteca">Biblioteca <span class="n" id="n-jobs">0</span></button>
+    </div>
+    <div class="status" aria-live="polite">
+      <div><span class="dot" id="d-hf"></span>Higgsfield</div>
+      <div><span class="dot" id="d-claude"></span>Claude (roteiros)</div>
+      <div><span class="dot" id="d-db"></span>Banco de dados</div>
+    </div>
+  </nav>
+
+  <main>
+    <!-- RADAR -->
+    <section class="view" id="v-radar">
+      <div>
+        <span class="eyebrow">Pesquisa</span>
+        <h1>Radar de virais</h1>
+        <p class="lede">Referências do Brasil e de fora para copiar o formato, não o personagem. Cada card diz por que viralizou e como adaptar pro nosso elenco.</p>
+      </div>
+      <div class="row">
+        <select id="f-region" aria-label="Região"><option value="">Todas as regiões</option><option value="BR">Brasil</option><option value="INT">Internacional</option></select>
+        <select id="f-mode" aria-label="Tipo de produção"><option value="">Todos os tipos</option><option value="motion">Motion control</option><option value="zero">Do zero</option><option value="personagem">Personagem/perfil</option></select>
+        <button class="btn sign" id="b-brainstorm">Gerar novas ideias com Claude</button>
+      </div>
+      <div class="panel" id="brain-panel" hidden>
+        <label for="brain-theme">Tema ou ângulo (opcional)</label>
+        <input id="brain-theme" placeholder="ex.: Gersinho em lugares de São Paulo, comida de rua, trends de funk">
+        <div class="row"><button class="btn" id="b-brain-go">Gerar 6 ideias</button><span class="note">O Claude não navega na web aqui: são ideias a partir do que ele já sabe e do radar abaixo.</span></div>
+        <div id="brain-out"></div>
+      </div>
+      <div class="grid" id="ideas"></div>
+    </section>
+
+    <!-- ELENCO -->
+    <section class="view" id="v-elenco" hidden>
+      <div>
+        <span class="eyebrow">Personagens</span>
+        <h1>Elenco</h1>
+        <p class="lede">A referência de cada personagem vai em todas as gerações (imagem e vídeo) para manter o rosto igual. Use o ID de um job aprovado do Higgsfield.</p>
+      </div>
+      <div class="grid" id="chars"></div>
+      <details class="panel">
+        <summary><strong>Adicionar personagem</strong></summary>
+        <div class="form">
+          <label>Nome<input id="c-name" placeholder="Gerson Brilhantina"></label>
+          <label>ID da referência (job ou media)<input id="c-ref" placeholder="c4c11710-…"></label>
+          <label class="wide">Descrição para os prompts (em inglês)<textarea id="c-desc" placeholder="goofy crooked face, buck teeth, giant rigid black pompadour…"></textarea></label>
+          <label class="wide">Regras de estilo<input id="c-rules" placeholder="sempre sério, nunca sorri, topete nunca mexe"></label>
+        </div>
+        <div class="row"><button class="btn" id="b-add-char">Salvar personagem</button><span id="c-msg" class="note"></span></div>
+      </details>
+    </section>
+
+    <!-- ROTEIRO -->
+    <section class="view" id="v-roteiro" hidden>
+      <div>
+        <span class="eyebrow">Do zero</span>
+        <h1>Roteiro → frames → vídeo</h1>
+        <p class="lede">O Claude escreve o roteiro e os prompts. Você revisa, gera o primeiro e o último frame com a referência do personagem, aprova e manda pro Seedance 2.5.</p>
+      </div>
+      <div class="panel">
+        <div class="form">
+          <label>Personagem<select id="r-char"></select></label>
+          <label>Duração<select id="r-dur"><option>8</option><option selected>10</option><option>12</option><option>15</option></select></label>
+          <label>Resolução<select id="r-res"><option>480p</option><option selected>720p</option><option>1080p</option></select></label>
+          <label class="wide">Ideia<textarea id="r-idea" placeholder="Ex.: ponto de ônibus — ele dança brega, entra no busão dançando e o topete fica preso na porta."></textarea></label>
+        </div>
+        <div class="row"><button class="btn sign" id="b-script">Escrever roteiro</button><button class="btn ghost" id="b-script-stop" hidden>Parar</button><span id="r-msg" class="note"></span></div>
+      </div>
+      <div id="script-editor"></div>
+      <div>
+        <h2>Roteiros salvos</h2>
+        <div class="grid" id="scripts" style="margin-top:10px"></div>
+      </div>
+    </section>
+
+    <!-- MOTION -->
+    <section class="view" id="v-motion" hidden>
+      <div>
+        <span class="eyebrow">Genjutsu</span>
+        <h1>Motion control</h1>
+        <p class="lede">Pega o movimento de um vídeo viral e coloca no nosso personagem. Precisa do vídeo-fonte como arquivo (link direto .mp4) ou de um vídeo que já esteja no Higgsfield.</p>
+      </div>
+      <div class="panel">
+        <div class="form">
+          <label>Personagem<select id="m-char"></select></label>
+          <label>Resolução<select id="m-res"><option>480p</option><option selected>720p</option><option>1080p</option></select></label>
+          <label class="wide">Vídeo-fonte: link direto (https://…mp4) ou ID de vídeo do Higgsfield<input id="m-src" placeholder="https://… .mp4  ou  925f21d2-…"></label>
+          <label class="wide">Rótulo<input id="m-label" placeholder="Gang Gang — Gersinho no calçadão"></label>
+        </div>
+        <div class="row"><button class="btn sign" id="b-motion">Gerar motion control</button><span id="m-msg" class="note"></span></div>
+        <p class="note">Link de página do TikTok/Instagram não funciona: precisa ser o arquivo de vídeo. Vídeo enviado pelo site do Higgsfield: cole o ID dele. Até 50 MB.</p>
+      </div>
+      <div class="panel">
+        <h2>Analisar vídeo do YouTube</h2>
+        <p class="note">O Higgsfield quebra o vídeo em cenas (3–5 min). Depois o Claude vira isso num roteiro pro nosso personagem. Funciona melhor com Shorts.</p>
+        <div class="row"><input id="y-url" placeholder="https://youtube.com/shorts/…" style="flex:1 1 260px"><button class="btn" id="b-yt">Analisar</button></div>
+        <div id="y-list"></div>
+      </div>
+    </section>
+
+    <!-- BIBLIOTECA -->
+    <section class="view" id="v-biblioteca" hidden>
+      <div>
+        <span class="eyebrow">Gerações</span>
+        <h1>Biblioteca</h1>
+        <p class="lede">Tudo que foi gerado por aqui. Os arquivos abrem no Higgsfield em outra aba (o painel não consegue exibir mídia de fora).</p>
+      </div>
+      <div class="row"><button class="btn" id="b-refresh">Atualizar status</button><button class="btn ghost" id="b-balance">Ver créditos</button><span id="j-msg" class="note"></span></div>
+      <div class="scroll"><table class="jobs"><thead><tr><th>O quê</th><th>Modelo</th><th>Status</th><th>Arquivo</th><th>Job</th></tr></thead><tbody id="jobs"></tbody></table></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+const HF = "Higgsfield";
+const S = { mcp:null, sample:null, db:null, user:null, canWrite:false };
+const state = { ideas:[], chars:[], scripts:[], jobs:[], ytdocs:[], draft:null };
+const $ = (s, r=document) => r.querySelector(s);
+const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const now = () => Date.now();
+
+/* ---------- tabs ---------- */
+function show(tab){
+  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  document.querySelectorAll("section.view").forEach(s => s.hidden = s.id !== "v-" + tab);
+  try { localStorage.setItem("usina-tab", tab); } catch(e) {}
+}
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+try { const t = localStorage.getItem("usina-tab"); if (t && $("#v-"+t)) show(t); } catch(e) {}
+const hashTab = location.hash.replace("#",""); if (hashTab && $("#v-"+hashTab)) show(hashTab);
+
+/* ---------- error copy ---------- */
+function mcpCopy(e){
+  const c = e && e.code;
+  if (c === "server_not_connected") return "Conecte o Higgsfield em claude.ai → Configurações → Conectores.";
+  if (c === "needs_reauth") return "A conexão com o Higgsfield expirou. Reconecte em claude.ai → Configurações → Conectores.";
+  if (c === "not_in_manifest") return "O acesso ao Higgsfield foi negado para esta página. Libere no menu Permissões do artifact.";
+  if (c === "selection_required") return "Escolha qual conector Higgsfield usar no aviso do claude.ai.";
+  if (c === "server_unavailable") return "O Higgsfield não respondeu. Confira a Biblioteca antes de tentar de novo: o job pode ter sido criado.";
+  if (c === "tool_error") return "Higgsfield: " + (e.message || "a geração falhou.");
+  if (c === "not_granted" || c === "capability_disabled") return "Esta visualização não tem acesso aos conectores.";
+  return (e && e.message) || "Algo falhou ao falar com o Higgsfield.";
+}
+function sampleCopy(e){
+  const c = e && e.code;
+  if (c === "not_granted" || c === "sampling_disabled") return "O Claude não está liberado para esta página.";
+  if (c === "rate_limited") return "Muitas chamadas seguidas. Espere um pouco e tente de novo.";
+  if (c === "invalid_json") return "O Claude respondeu fora do formato. Tente de novo.";
+  if (c === "refused") return "O Claude recusou esse pedido. Mude a ideia e tente de novo.";
+  if (c === "cancelled") return "Parado.";
+  return (e && e.message) || "Falha ao falar com o Claude.";
+}
+
+/* ---------- Higgsfield helpers ---------- */
+async function hf(tool, input){
+  if (!S.mcp) throw { code:"not_granted", message:"Sem conector" };
+  const r = await S.mcp.callTool(HF, tool, input, { cache:false });
+  return r.payload ?? r;
+}
+function textOf(x){ try { return typeof x === "string" ? x : JSON.stringify(x); } catch(e){ return String(x); } }
+// Batch submit; if Higgsfield answers with a preset recommendation (nothing submitted), retry once declining it.
+async function submitBatch(tool, requests){
+  try { return await hf(tool, { requests }); }
+  catch(e){
+    const blob = textOf(e && e.message) + " " + textOf(e && e.result);
+    const m = blob.match(/declined_preset_id=([0-9a-f-]{36})/i);
+    if (e && e.code === "tool_error" && m && /submitted 0\//i.test(blob)) {
+      const again = requests.map(r => ({ ...r, params:{ ...r.params, declined_preset_id:m[1] } }));
+      return await hf(tool, { requests: again });
+    }
+    throw e;
+  }
+}
+function jobsFrom(payload){ return (payload && Array.isArray(payload.jobs)) ? payload.jobs : []; }
+function findId(p){
+  if (!p || typeof p !== "object") return null;
+  for (const k of ["media_id","id","mediaId"]) if (typeof p[k] === "string") return p[k];
+  for (const v of Object.values(p)) { const f = (v && typeof v === "object") ? findId(v) : null; if (f) return f; }
+  return null;
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/* ---------- db helpers ---------- */
+async function put(col, id, data){ if (!S.db) throw { code:"not_granted", message:"Sem banco" }; await S.db.collection(col).doc(id).set(data); }
+async function patch(col, id, data){ if (!S.db) return; await S.db.collection(col).doc(id).update(data); }
+async function del(col, id){ if (!S.db) return; await S.db.collection(col).doc(id).delete(); }
+function listen(col, key, order, render){
+  S.db.collection(col).orderBy(order, "desc").limit(300).onSnapshot(snap => {
+    state[key] = snap.docs.map(d => ({ _id:d.id, ...d.data() }));
+    render();
+  }, err => { console.warn(col, err); });
+}
+async function saveJob(job){
+  const id = job.jobId;
+  state.jobs = [{ _id:id, ...job }, ...state.jobs.filter(j => j._id !== id)];
+  renderJobs();
+  try { await put("jobs", id, job); } catch(e){ console.warn(e); }
+}
+
+/* ---------- RADAR ---------- */
+function renderIdeas(){
+  $("#n-ideas").textContent = state.ideas.length;
+  const reg = $("#f-region").value, mode = $("#f-mode").value;
+  const list = state.ideas.filter(i => (!reg || i.region === reg) && (!mode || i.mode === mode));
+  const host = $("#ideas");
+  if (!state.ideas.length) { host.innerHTML = `<div class="empty">O radar está vazio. As referências pesquisadas aparecem aqui assim que o banco carregar; use "Gerar novas ideias com Claude" para criar mais.</div>`; return; }
+  if (!list.length) { host.innerHTML = `<div class="empty">Nenhuma referência com esses filtros.</div>`; return; }
+  host.innerHTML = list.map(i => `
+    <article class="card">
+      <div class="chips">
+        <span class="chip ${i.region==="BR"?"br":""}">${i.region==="BR"?"Brasil":"Internacional"}</span>
+        <span class="chip info">${esc({motion:"motion control",zero:"do zero",personagem:"personagem/perfil"}[i.mode]||i.mode)}</span>
+        ${i.heat?`<span class="chip warn">${esc(i.heat)}</span>`:""}
+      </div>
+      <h3>${esc(i.title)}</h3>
+      <p>${esc(i.what)}</p>
+      ${i.why?`<p><strong>Por que viralizou:</strong> ${esc(i.why)}</p>`:""}
+      ${i.adapt?`<p><strong>Versão nossa:</strong> ${esc(i.adapt)}</p>`:""}
+      ${i.motionSource?`<p class="note"><strong>Vídeo-fonte:</strong> ${esc(i.motionSource)}</p>`:""}
+      <div class="row">
+        <button class="btn ghost" data-use="${esc(i._id)}">Usar no roteiro</button>
+        ${(i.links||[]).slice(0,3).map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label||"fonte")} ↗</a>`).join("")}
+      </div>
+    </article>`).join("");
+  host.querySelectorAll("[data-use]").forEach(b => b.addEventListener("click", () => {
+    const i = state.ideas.find(x => x._id === b.dataset.use); if (!i) return;
+    $("#r-idea").value = `${i.title}\n${i.adapt || i.what}`;
+    show("roteiro"); $("#r-idea").focus();
+  }));
+}
+$("#f-region").addEventListener("change", renderIdeas);
+$("#f-mode").addEventListener("change", renderIdeas);
+$("#b-brainstorm").addEventListener("click", () => { const p = $("#brain-panel"); p.hidden = !p.hidden; if (!p.hidden) $("#brain-theme").focus(); });
+$("#b-brain-go").addEventListener("click", async () => {
+  const out = $("#brain-out"), btn = $("#b-brain-go");
+  if (!S.sample) { out.innerHTML = `<p class="msg bad">O Claude não está disponível nesta visualização.</p>`; return; }
+  btn.disabled = true; out.innerHTML = `<p class="note">Pensando… (pode levar até um minuto)</p>`;
+  const cast = state.chars.map(c => `- ${c.name}: ${c.desc}`).join("\n") || "- (nenhum personagem cadastrado)";
+  const radar = state.ideas.slice(0,20).map(i => `- [${i.region}] ${i.title}: ${i.what}`).join("\n");
+  const prompt = `Você é roteirista de vídeos curtos virais (Reels/TikTok, 9:16) feitos com IA (Higgsfield, Seedance 2.5, motion control).
+Formato que funciona: personagem com silhueta absurda e cara séria (deadpan), em lugares comuns, dançando ou fazendo algo banal enquanto ninguém em volta reage; um detalhe físico no fim vira a piada. Sem diálogo, música entra na edição. Brand-safe: sem política, religião, futebol, sexo, palavrão.
+Elenco:\n${cast}
+Radar atual (não repetir):\n${radar}
+Tema pedido: ${$("#brain-theme").value || "livre, priorizando lugares e costumes brasileiros"}
+Responda só com um array JSON de 6 objetos: {"title": string curto, "region": "BR"|"INT", "mode": "zero"|"motion", "what": "o que acontece no vídeo, 1-2 frases", "why": "por que pode viralizar", "adapt": "como fica com nosso personagem, com o detalhe final", "motionSource": "se mode=motion: que tipo de vídeo real usar como fonte de movimento, senão vazio"}`;
+  try {
+    const arr = await S.sample.json(prompt, { cache:false });
+    const items = Array.isArray(arr) ? arr.filter(x => x && x.title) : [];
+    out.innerHTML = items.length ? `<p class="msg ok">${items.length} ideias novas no radar.</p>` : `<p class="msg bad">Nenhuma ideia veio no formato certo. Tente de novo.</p>`;
+    for (const it of items) {
+      const id = "ai-" + now() + "-" + Math.random().toString(36).slice(2,7);
+      const doc = { title:String(it.title), region: it.region==="INT"?"INT":"BR", mode: it.mode==="motion"?"motion":"zero", what:String(it.what||""), why:String(it.why||""), adapt:String(it.adapt||""), motionSource:String(it.motionSource||""), heat:"ideia do Claude", links:[], createdAt: now() };
+      try { await put("ideas", id, doc); } catch(e) { state.ideas.unshift({ _id:id, ...doc }); }
+    }
+    renderIdeas();
+  } catch(e) { out.innerHTML = `<p class="msg bad">${esc(sampleCopy(e))}</p>`; }
+  finally { btn.disabled = false; }
+});
+
+/* ---------- ELENCO ---------- */
+function charOptions(sel){
+  const cur = sel.value;
+  sel.innerHTML = state.chars.length ? state.chars.map(c => `<option value="${esc(c._id)}">${esc(c.name)}</option>`).join("") : `<option value="">Cadastre um personagem no Elenco</option>`;
+  if (cur && state.chars.some(c => c._id === cur)) sel.value = cur;
+}
+function renderChars(){
+  $("#n-chars").textContent = state.chars.length;
+  charOptions($("#r-char")); charOptions($("#m-char"));
+  const host = $("#chars");
+  if (!state.chars.length) { host.innerHTML = `<div class="empty">Nenhum personagem ainda. Adicione o primeiro abaixo com o ID da imagem aprovada no Higgsfield.</div>`; return; }
+  host.innerHTML = state.chars.map(c => `
+    <article class="card">
+      <span class="ticker">${esc(c.name)}</span>
+      ${c.alias?`<p>${esc(c.alias)}</p>`:""}
+      <p>${esc(c.desc)}</p>
+      ${c.rules?`<p><strong>Regras:</strong> ${esc(c.rules)}</p>`:""}
+      <div class="mono">ref: ${esc(c.ref)}</div>
+      <div class="row">${c.refUrl?`<a href="${esc(c.refUrl)}" target="_blank" rel="noopener">Ver referência ↗</a>`:""}
+        <button class="btn ghost" data-rm-char="${esc(c._id)}">Remover</button></div>
+    </article>`).join("");
+  host.querySelectorAll("[data-rm-char]").forEach(b => b.addEventListener("click", async () => {
+    if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Confirmar remoção"; return; }
+    await del("characters", b.dataset.rmChar);
+  }));
+}
+$("#b-add-char").addEventListener("click", async () => {
+  const name = $("#c-name").value.trim(), ref = $("#c-ref").value.trim(), desc = $("#c-desc").value.trim();
+  const msg = $("#c-msg");
+  if (!name || !UUID.test(ref) || !desc) { msg.textContent = "Preencha nome, um ID válido (formato UUID) e a descrição."; return; }
+  const id = name.toLowerCase().normalize("NFD").replace(/[^\w]+/g,"-").replace(/^-|-$/g,"") || ("c"+now());
+  try { await put("characters", id, { name, ref, desc, rules:$("#c-rules").value.trim(), createdAt:now() }); msg.textContent = "Salvo."; ["#c-name","#c-ref","#c-desc","#c-rules"].forEach(s => $(s).value=""); }
+  catch(e){ msg.textContent = "Não salvou: só quem pode editar este painel adiciona personagens."; }
+});
+
+/* ---------- ROTEIRO ---------- */
+let scriptCtl = null;
+$("#b-script-stop").addEventListener("click", () => scriptCtl && scriptCtl.abort());
+$("#b-script").addEventListener("click", async () => {
+  const msg = $("#r-msg"), btn = $("#b-script");
+  const ch = state.chars.find(c => c._id === $("#r-char").value);
+  const idea = $("#r-idea").value.trim();
+  if (!S.sample) { msg.textContent = "O Claude não está disponível nesta visualização."; return; }
+  if (!ch) { msg.textContent = "Escolha um personagem (cadastre no Elenco)."; return; }
+  if (!idea) { msg.textContent = "Escreva a ideia do vídeo."; return; }
+  const dur = Number($("#r-dur").value);
+  btn.disabled = true; $("#b-script-stop").hidden = false; msg.textContent = "Escrevendo… (até um minuto)";
+  scriptCtl = new AbortController();
+  const prompt = `Você é diretor de vídeos curtos virais feitos com IA. Escreva o roteiro e os prompts de produção.
+PERSONAGEM: ${ch.name}. Aparência (inglês, para prompts): ${ch.desc}. Regras: ${ch.rules || "cara séria o tempo todo"}.
+IDEIA: ${idea}
+FORMATO: Reels 9:16, ${dur} segundos, sem diálogo, sem música no vídeo (entra na edição). Lugar e figurantes brasileiros comuns que não reagem ao personagem. Um detalhe físico no fim é a piada.
+PIPELINE: 1) imagem do primeiro frame (e do último, quando a piada final for física difícil) gerada com a foto de referência do personagem; 2) vídeo no Seedance 2.5 ligando os frames.
+REGRAS DE PROMPT (inglês):
+- Frames: comece com "Use the reference image as the exact character: keep his face, expression, hair and outfit exactly the same." e descreva cena, pose, luz, figurantes. Fim: "Real skin texture, Instagram Reels look. No text, no watermark."
+- Vídeo: comece com "Ultra-realistic phone video, 9:16." + trava de identidade ("Keep face, hair and outfit exactly as in the start image. No morphing, no cartoon look."). Linha do tempo com segundos (0-3s: …). Dança descrita como mecânica do corpo (peso, quadril, ombros, braços, BPM, loop), nunca só o nome do ritmo. Emoção como anatomia. Blocos separados no fim: "Camera:", "Lighting:", "Audio: none.", "No text, no subtitles, no watermark, no logos."
+- Câmera variada (nem tudo push-in), luz com hora do dia específica.
+Responda só com JSON: {"title": string, "hook": "o que prende nos 2 primeiros segundos", "shots": [{"t": "0-3s", "action": "em português"}], "startFramePrompt": string, "endFramePrompt": "string ou vazio", "videoPrompt": string, "caption": "legenda curta e séria no tom do personagem, com 3-5 hashtags", "music": "sugestão de música/estilo e BPM", "risks": "o que pode dar errado na geração e como conferir"}`;
+  try {
+    const s = await S.sample.json(prompt, { signal: scriptCtl.signal, cache:false });
+    if (!s || !s.videoPrompt) throw { code:"invalid_json" };
+    state.draft = { _id:"s-"+now(), charId:ch._id, idea, duration:dur, resolution:$("#r-res").value, ...s, createdAt:now(), startJob:"", endJob:"", videoJob:"" };
+    msg.textContent = "Roteiro pronto. Revise e salve.";
+    renderEditor();
+  } catch(e){ msg.textContent = sampleCopy(e); }
+  finally { btn.disabled = false; $("#b-script-stop").hidden = true; }
+});
+
+function renderEditor(){
+  const d = state.draft, host = $("#script-editor");
+  if (!d) { host.innerHTML = ""; return; }
+  const ch = state.chars.find(c => c._id === d.charId);
+  const jobLine = (id) => { if (!id) return ""; const j = state.jobs.find(x => x._id === id); return `<span class="chip ${chipFor(j&&j.status)}">${esc((j&&j.status)||"enviado")}</span> ${j&&j.url?`<a href="${esc(j.url)}" target="_blank" rel="noopener">abrir ↗</a>`:""}`; };
+  host.innerHTML = `
+  <div class="panel">
+    <div class="row" style="justify-content:space-between"><div><span class="eyebrow">${esc(ch?ch.name:"")} · ${d.duration}s · ${esc(d.resolution)}</span><h2>${esc(d.title)}</h2></div>
+      <div class="row"><button class="btn" id="e-save">Salvar roteiro</button><button class="btn ghost" id="e-close">Fechar</button></div></div>
+    <p><strong>Gancho:</strong> ${esc(d.hook)}</p>
+    <div class="shots">${(d.shots||[]).map(s => `<div class="shot"><span class="t">${esc(s.t)}</span><span>${esc(s.action)}</span></div>`).join("")}</div>
+    <div class="form">
+      <label class="wide">Prompt do primeiro frame<textarea id="e-start">${esc(d.startFramePrompt)}</textarea></label>
+      <label class="wide">Prompt do último frame (deixe vazio para não usar)<textarea id="e-end">${esc(d.endFramePrompt||"")}</textarea></label>
+      <label class="wide">Prompt do vídeo (Seedance 2.5)<textarea id="e-video" style="min-height:200px">${esc(d.videoPrompt)}</textarea></label>
+      <label class="wide">Legenda<textarea id="e-caption" style="min-height:60px;font-family:var(--f-body)">${esc(d.caption)}</textarea></label>
+    </div>
+    <p class="note"><strong>Música:</strong> ${esc(d.music)} · <strong>Atenção:</strong> ${esc(d.risks)}</p>
+    <div class="row">
+      <button class="btn sign" id="e-frames">1 · Gerar frames</button>
+      <span>Início: ${jobLine(d.startJob) || "—"}</span><span>Fim: ${jobLine(d.endJob) || "—"}</span>
+    </div>
+    <div class="row">
+      <button class="btn sign" id="e-video-go">2 · Gerar vídeo (Seedance 2.5)</button>
+      <span>${jobLine(d.videoJob) || "Gere e aprove os frames antes."}</span>
+    </div>
+    <p id="e-msg" class="note" aria-live="polite"></p>
+  </div>`;
+  const sync = () => { d.startFramePrompt=$("#e-start").value; d.endFramePrompt=$("#e-end").value; d.videoPrompt=$("#e-video").value; d.caption=$("#e-caption").value; };
+  $("#e-close").onclick = () => { state.draft = null; renderEditor(); };
+  $("#e-save").onclick = async () => { sync(); try { const { _id, ...body } = d; await put("scripts", _id, body); $("#e-msg").textContent = "Roteiro salvo."; } catch(e){ $("#e-msg").textContent = "Não salvou: só quem pode editar este painel salva roteiros."; } };
+  $("#e-frames").onclick = async (ev) => {
+    sync(); const b = ev.currentTarget; const m = $("#e-msg");
+    if (!ch) { m.textContent = "Personagem não encontrado."; return; }
+    b.disabled = true; m.textContent = "Enviando para o Higgsfield…";
+    const reqs = [{ index:0, params:{ model:"gpt_image_2_5", aspect_ratio:"9:16", quality:"medium", medias:[{ role:"image_references", value:ch.ref }], prompt:d.startFramePrompt } }];
+    if (d.endFramePrompt.trim()) reqs.push({ index:1, params:{ model:"gpt_image_2_5", aspect_ratio:"9:16", quality:"medium", medias:[{ role:"image_references", value:ch.ref }], prompt:d.endFramePrompt } });
+    try {
+      const jobs = jobsFrom(await submitBatch("generate_image_batch", reqs));
+      for (const j of jobs) {
+        const which = j.index === 1 ? "endJob" : "startJob"; d[which] = j.job_id;
+        await saveJob({ jobId:j.job_id, kind:"image", model:"gpt_image_2_5", label:`${d.title} · ${j.index===1?"último":"primeiro"} frame`, status:j.status||"pending", url:"", scriptId:d._id, createdAt:now() });
+      }
+      m.textContent = jobs.length ? "Frames na fila. Leva uns 30 s; o status atualiza sozinho." : "O Higgsfield não criou nenhum job.";
+      try { const { _id, ...body } = d; await put("scripts", _id, body); } catch(e){}
+      renderEditor();
+    } catch(e){ m.textContent = mcpCopy(e); }
+    finally { b.disabled = false; }
+  };
+  $("#e-video-go").onclick = async (ev) => {
+    sync(); const b = ev.currentTarget; const m = $("#e-msg");
+    if (!ch) { m.textContent = "Personagem não encontrado."; return; }
+    const sj = state.jobs.find(x => x._id === d.startJob);
+    const medias = [];
+    if (sj && sj.status === "completed") medias.push({ role:"start_image", value:d.startJob });
+    const ej = state.jobs.find(x => x._id === d.endJob);
+    if (ej && ej.status === "completed") medias.push({ role:"end_image", value:d.endJob });
+    if (!medias.length) medias.push({ role:"image_references", value:ch.ref });
+    if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = medias[0].role==="start_image" ? "Confirmar: gastar créditos no vídeo" : "Sem frames prontos: gerar só com a referência?"; return; }
+    b.dataset.confirm = ""; b.disabled = true; m.textContent = "Enviando o vídeo…";
+    try {
+      const jobs = jobsFrom(await submitBatch("generate_video_batch", [{ index:0, params:{ model:"seedance_2_5", mode:"omni_reference", aspect_ratio:"9:16", duration:d.duration, resolution:d.resolution, generate_audio:false, medias, prompt:d.videoPrompt } }]));
+      if (!jobs.length) throw { code:"tool_error", message:"nenhum job criado" };
+      d.videoJob = jobs[0].job_id;
+      await saveJob({ jobId:d.videoJob, kind:"video", model:"seedance_2_5", label:`${d.title} · vídeo ${d.duration}s`, status:jobs[0].status||"pending", url:"", scriptId:d._id, createdAt:now() });
+      try { const { _id, ...body } = d; await put("scripts", _id, body); } catch(e){}
+      m.textContent = "Vídeo na fila. Seedance leva alguns minutos; acompanhe na Biblioteca.";
+      renderEditor();
+    } catch(e){ m.textContent = mcpCopy(e); b.textContent = "2 · Gerar vídeo (Seedance 2.5)"; }
+    finally { b.disabled = false; }
+  };
+}
+function renderScripts(){
+  $("#n-scripts").textContent = state.scripts.length;
+  const host = $("#scripts");
+  if (!state.scripts.length) { host.innerHTML = `<div class="empty">Nenhum roteiro salvo. Escreva o primeiro acima.</div>`; return; }
+  host.innerHTML = state.scripts.map(s => {
+    const ch = state.chars.find(c => c._id === s.charId);
+    return `<article class="card"><span class="eyebrow">${esc(ch?ch.name:"")} · ${esc(s.duration)}s</span><h3>${esc(s.title)}</h3><p>${esc(s.hook)}</p>
+      <div class="row"><button class="btn ghost" data-open="${esc(s._id)}">Abrir</button>${s.videoJob?`<span class="chip ok">vídeo enviado</span>`:""}</div></article>`;
+  }).join("");
+  host.querySelectorAll("[data-open]").forEach(b => b.addEventListener("click", () => {
+    const s = state.scripts.find(x => x._id === b.dataset.open); if (!s) return;
+    state.draft = { ...s }; renderEditor(); $("#script-editor").scrollIntoView({ behavior:"smooth", block:"start" });
+  }));
+}
+
+/* ---------- MOTION ---------- */
+$("#b-motion").addEventListener("click", async () => {
+  const m = $("#m-msg"), b = $("#b-motion");
+  const ch = state.chars.find(c => c._id === $("#m-char").value);
+  const src = $("#m-src").value.trim();
+  if (!ch) { m.textContent = "Escolha um personagem."; return; }
+  if (!src) { m.textContent = "Cole o link do vídeo ou o ID."; return; }
+  if (!UUID.test(src) && !/^https:\/\//i.test(src)) { m.textContent = "Use um link https direto para o arquivo ou um ID do Higgsfield."; return; }
+  if (/tiktok\.com|instagram\.com|youtube\.com|youtu\.be/i.test(src)) { m.textContent = "Esse é link de página, não de arquivo. Baixe o vídeo, suba no Higgsfield e cole o ID aqui (YouTube: use 'Analisar vídeo')."; return; }
+  if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Confirmar: gastar créditos"; return; }
+  b.dataset.confirm = ""; b.textContent = "Gerar motion control"; b.disabled = true;
+  try {
+    let vid = src;
+    if (!UUID.test(src)) {
+      m.textContent = "Importando o vídeo…";
+      vid = findId(await hf("media_import_url", { url:src, type:"video" }));
+      if (!vid) throw { code:"tool_error", message:"não devolveu o ID do vídeo importado" };
+    }
+    m.textContent = "Enviando o motion control…";
+    const jobs = jobsFrom(await submitBatch("generate_video_batch", [{ index:0, params:{ model:"hf_mult_motion_control", resolution:$("#m-res").value, medias:[{ role:"image_references", value:ch.ref }, { role:"video_references", value:vid }] } }]));
+    if (!jobs.length) throw { code:"tool_error", message:"nenhum job criado" };
+    await saveJob({ jobId:jobs[0].job_id, kind:"video", model:"hf_mult_motion_control", label:$("#m-label").value.trim() || `Motion control · ${ch.name}`, status:jobs[0].status||"pending", url:"", source:src, createdAt:now() });
+    m.textContent = "Na fila. Acompanhe na Biblioteca.";
+  } catch(e){ m.textContent = mcpCopy(e); }
+  finally { b.disabled = false; }
+});
+
+$("#b-yt").addEventListener("click", async () => {
+  const url = $("#y-url").value.trim(), host = $("#y-list"), b = $("#b-yt");
+  if (!/^https:\/\/((www\.|m\.)?youtube\.com\/|youtu\.be\/)/i.test(url)) { host.innerHTML = `<p class="msg bad">Cole um link do YouTube (youtube.com ou youtu.be).</p>`; return; }
+  b.disabled = true;
+  try {
+    const p = await hf("video_analysis_create", { youtube_url:url });
+    const id = findId(p) || (p && p.video_analyze_id);
+    if (!id) throw { code:"tool_error", message:"análise não iniciada" };
+    const doc = { url, analysisId:id, status:"queued", createdAt:now(), scenes:null };
+    try { await put("analyses", id, doc); } catch(e){ state.ytdocs.unshift({ _id:id, ...doc }); renderYt(); }
+    $("#y-url").value = "";
+  } catch(e){ host.insertAdjacentHTML("afterbegin", `<p class="msg bad">${esc(mcpCopy(e))}</p>`); }
+  finally { b.disabled = false; }
+});
+function renderYt(){
+  const host = $("#y-list");
+  if (!state.ytdocs.length) { host.innerHTML = `<p class="note">Nenhuma análise ainda.</p>`; return; }
+  host.innerHTML = state.ytdocs.map(a => `
+    <div class="card" style="margin-top:10px">
+      <div class="row" style="justify-content:space-between"><a href="${esc(a.url)}" target="_blank" rel="noopener" class="mono">${esc(a.url)} ↗</a><span class="chip ${a.status==="completed"?"ok":a.status==="failed"?"bad":"warn"}">${esc(a.status)}</span></div>
+      ${a.scenes?`<details><summary>${Array.isArray(a.scenes)?a.scenes.length+" cenas":"cenas"}</summary><pre class="mono" style="white-space:pre-wrap">${esc(textOf(a.scenes).slice(0,6000))}</pre></details>`:""}
+      <div class="row"><button class="btn ghost" data-yt-check="${esc(a._id)}">Ver status</button>${a.scenes?`<button class="btn" data-yt-script="${esc(a._id)}">Virar roteiro</button>`:""}</div>
+    </div>`).join("");
+  host.querySelectorAll("[data-yt-check]").forEach(b => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try {
+      const p = await hf("video_analysis_status", { video_analyze_id:b.dataset.ytCheck });
+      const status = (p && p.status) || "unknown";
+      const scenes = p && (p.scenes || (p.result && p.result.scenes)) || null;
+      const upd = { status, scenes: scenes || null };
+      try { await patch("analyses", b.dataset.ytCheck, upd); } catch(e){ Object.assign(state.ytdocs.find(x=>x._id===b.dataset.ytCheck)||{}, upd); renderYt(); }
+    } catch(e){ b.insertAdjacentHTML("afterend", `<span class="note">${esc(mcpCopy(e))}</span>`); }
+    finally { b.disabled = false; }
+  }));
+  host.querySelectorAll("[data-yt-script]").forEach(b => b.addEventListener("click", () => {
+    const a = state.ytdocs.find(x => x._id === b.dataset.ytScript); if (!a) return;
+    $("#r-idea").value = `Recriar com nosso personagem o vídeo ${a.url}. Cenas analisadas:\n${textOf(a.scenes).slice(0,3500)}`;
+    show("roteiro"); $("#r-idea").focus();
+  }));
+}
+
+/* ---------- BIBLIOTECA ---------- */
+function chipFor(s){ return s==="completed"?"ok":(s==="failed"||s==="nsfw"||s==="cancelled")?"bad":"warn"; }
+const TERMINAL = new Set(["completed","failed","nsfw","cancelled","canceled"]);
+function renderJobs(){
+  $("#n-jobs").textContent = state.jobs.length;
+  const body = $("#jobs");
+  if (!state.jobs.length) { body.innerHTML = `<tr><td colspan="5" class="note">Nada gerado ainda. Gere frames no Roteiro ou um motion control.</td></tr>`; return; }
+  body.innerHTML = state.jobs.map(j => `<tr>
+    <td>${esc(j.label)}<div class="note">${new Date(j.createdAt||0).toLocaleString("pt-BR")}</div></td>
+    <td class="mono">${esc(j.model)}</td>
+    <td><span class="chip ${chipFor(j.status)}">${esc(j.status||"?")}</span></td>
+    <td>${j.url?`<a href="${esc(j.url)}" target="_blank" rel="noopener">abrir ${j.kind==="video"?"vídeo":"imagem"} ↗</a>`:"—"}</td>
+    <td class="mono"><button class="btn ghost" data-copy="${esc(j._id)}" title="Copiar ID">${esc(j._id.slice(0,8))}…</button></td></tr>`).join("");
+  body.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "copiado"; } catch(e){ b.textContent = b.dataset.copy; }
+  }));
+  if (state.draft) renderEditor();
+}
+let polling = false;
+async function refreshJobs(manual){
+  if (!S.mcp || polling) return;
+  const pending = state.jobs.filter(j => !TERMINAL.has(j.status)).slice(0,12);
+  if (!pending.length) { if (manual) $("#j-msg").textContent = "Tudo em dia."; return; }
+  polling = true; if (manual) $("#j-msg").textContent = "Consultando…";
+  try {
+    const p = await hf("jobs_wait", { jobs: pending.map((j,i) => ({ index:i, job_id:j._id })), timeout_seconds: manual ? 0 : 10 });
+    for (const r of jobsFrom(p)) {
+      const j = state.jobs.find(x => x._id === r.job_id); if (!j) continue;
+      if (r.status !== j.status || (r.result_url && r.result_url !== j.url)) {
+        j.status = r.status; if (r.result_url) j.url = r.result_url;
+        try { await patch("jobs", j._id, { status:r.status, url:r.result_url || j.url || "" }); } catch(e){}
+      }
+    }
+    renderJobs(); if (manual) $("#j-msg").textContent = "Atualizado.";
+  } catch(e){ if (manual) $("#j-msg").textContent = mcpCopy(e); }
+  finally { polling = false; }
+}
+$("#b-refresh").addEventListener("click", () => refreshJobs(true));
+$("#b-balance").addEventListener("click", async () => {
+  const m = $("#j-msg"); m.textContent = "Consultando créditos…";
+  try { const p = await hf("balance", {}); const c = p && (p.credits ?? p.balance ?? p.available_credits); m.textContent = c != null ? `Créditos: ${c}` : "Créditos: " + textOf(p).slice(0,160); }
+  catch(e){ m.textContent = mcpCopy(e); }
+});
+setInterval(() => { if (document.visibilityState === "visible" && state.jobs.some(j => !TERMINAL.has(j.status))) refreshJobs(false); }, 25000);
+
+/* ---------- boot ---------- */
+renderIdeas(); renderChars(); renderScripts(); renderJobs(); renderYt();
+(async () => {
+  const c = window.claude;
+  if (!c || !c.use) { ["#d-hf","#d-claude","#d-db"].forEach(s => $(s).classList.add("off")); return; }
+  const [mcp, sample, db, user] = await Promise.all(["mcp","sample","db","user"].map(n => c.use(n).catch(() => null)));
+  S.mcp = mcp; S.sample = sample; S.db = db; S.user = user;
+  $("#d-hf").classList.add(mcp ? "on" : "off");
+  $("#d-claude").classList.add(sample ? "on" : "off");
+  $("#d-db").classList.add(db ? "on" : "off");
+  if (db) {
+    listen("ideas", "ideas", "createdAt", renderIdeas);
+    listen("characters", "chars", "createdAt", () => { renderChars(); renderScripts(); });
+    listen("scripts", "scripts", "createdAt", renderScripts);
+    listen("jobs", "jobs", "createdAt", renderJobs);
+    listen("analyses", "ytdocs", "createdAt", renderYt);
+  }
+})();
+})();
+</script>
