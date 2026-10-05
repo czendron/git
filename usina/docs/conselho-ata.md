@@ -131,3 +131,10 @@ As decisões acima não mudaram. Estas notas só dizem onde cada regra vive no c
   - Estorno: `record-video --failed --refunded` devolve os créditos ao teto da ideia, mas a tentativa continua contando.
   - Gatilho de 2 posts por dia: `cadence-check` usa o Placar e prefere as views de 7 dias. Ele só sugere; quem muda o `page.yaml` é o Caio.
 - **D7:** o plano mostra a fatia de trend dos últimos 30 dias e avisa no teto de 30%. Trend sem vídeo-fonte há mais de 7 dias é descartada. A regra "mesma trend em 2 páginas na mesma semana" ainda não está no código.
+
+## Notas de implementação (QA rodada 3, 05/10/2026)
+As decisões não mudaram; detalhes em `docs/qa/rodada-3.md`.
+- **D1/D8 (um ciclo por vez):** `tick-start` grava `usina/.lock` (TTL de 2 h) e `tick-end` libera. Com o lock de outro ciclo, o `plan` não devolve ações e o `video-request` recusa.
+- **D6:** página em `rascunho` não gera nada (`image` e `video-request` recusam até com `--force`). Página ativa só gera com a ficha aprovada (face + silhouette com `higgsfield_id`). A P2 entra no D+10 e a P3 no D+20 do Gersinho (`launched_at` ou 1º post). Antes do 1º post, a página precisa de 10 prontos: o estoque-alvo vira 10 e o teto de 5 não vale. Tudo em `launch-check <página>` e nas `notes` do plano. O código nunca muda `status`.
+- **D7:** a mesma trend (nome normalizado) em duas páginas na mesma semana é erro no `save-script`. Quando uma trend nova passaria de 30% em 30 dias, o plano manda `allow_trend: false` e avisa.
+- **D9.6:** `memory <página>` imprime as últimas 15 falhas da página e as 15 gerais do `playbook/falhas.md`. O `save-script` avisa quando o cenário repete um dos últimos 20 roteiros da página.
