@@ -1,0 +1,198 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195238-alca-do-metro",
+  "state": "roteiro",
+  "created_at": 1791229958.1245449,
+  "updated_at": 1791230325.5457823,
+  "idea": {
+    "title": "Alca do metro",
+    "text": "metrô de SP: a mão de um passageiro entra pela borda e segura o topete como se fosse a alça do vagão",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Alca do metro",
+    "format": "proprio",
+    "premise": "No vagão do metrô de SP, Gersinho faz o passo brega em pé no corredor; a mão de um passageiro de terno entra pela borda direita e segura a frente do topete como se fosse a alça do vagão, e os dois balançam juntos com o trem enquanto ele segue sério.",
+    "gag_without_sound": "uma mão de terno entra pelo canto e se segura no topete como se fosse alça de metrô",
+    "location": {
+      "place": "vagão do metrô em movimento, corredor entre os bancos",
+      "city_vibe": "São Paulo, Linha 3-Vermelha",
+      "time_of_day": "manhã, luz branca do vagão",
+      "kelvin": 5000
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 3 m, no fim do corredor",
+      "movement": "tripé, travada no vagão"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "em pé no meio do corredor, sem se segurar em nada, faz o passo brega: quadril pendular no balanço do trem e indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "passageiros sentados no celular, um cochila, um em pé segura a barra"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "a mão de um passageiro de terno cinza entra pela borda direita e segura a frente do topete como alça; ele mantém a pose, sério, e os dois balançam juntos com o trem",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "mão de manga de terno cinza vinda da borda direita segurando a frente do topete como alça; ele em pose de assinatura, sério, na lente",
+    "props": [
+      {
+        "name": "barras verticais amarelas do vagão",
+        "orientation": "duas barras nas laterais do corredor, uma em cada lado do quadro, nenhuma ao alcance dele"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pose de assinatura no meio do corredor do vagão, topete inteiro, sem se segurar"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pico do passo brega, quadril para a esquerda do quadro"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "mão de terno cinza entrando pela borda direita na altura do topete e fechando os dedos na frente dele"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "a mão segura o topete como alça, braço saindo da borda direita, ele sério"
+      }
+    ],
+    "start_frame": "Gersinho de corpo inteiro em pé no meio do corredor de um vagão de metrô, de frente para a câmera, dedo pra cima, mão na barriga, topete inteiro visível, passageiros sentados nos bancos laterais",
+    "end_frame": "mão com manga de terno cinza entrando pela borda direita do quadro e segurando a frente do topete; ele sério, dedo pra cima",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta no Reels BR",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "segure-se no Gerson"
+    },
+    "caption": "No horário de pico, o Gerson é serviço público.",
+    "hashtags": [
+      "#brega",
+      "#metro",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "o topete vira infraestrutura para outra pessoa (alça do vagão). Contraparte só como membro pela borda (B4.10 degrau 0). Primeira locação de trilho.",
+    "brand_safety": [
+      "sem logo do metrô legível",
+      "sem texto de mapa legível",
+      "sem criança"
+    ],
+    "risks": "o modelo pôr o rosto do passageiro no quadro; a mão puxar e entortar o topete; ele virar o rosto para a mão. Conferir no painel 3 a mão vindo só da borda direita e no end frame o braço sem rosto.",
+    "self_score": {
+      "hook": 5,
+      "absurdo": 5,
+      "miniatura": 4,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "In a moving São Paulo metro car he does his signature brega step standing in the aisle until the commuter in a grey suit reaches in from the frame-right edge and holds the front of his rigid pompadour like a ceiling hand strap.",
+      "location": "the interior of a moving São Paulo metro car, grey-blue side benches, yellow vertical grab poles, bright white ceiling light, dark tunnel blurring past the windows",
+      "location_map": "Frame-left: a side bench with two seated commuters, one yellow vertical pole at the bench end. Center: him standing in the middle of the aisle. Frame-right: a side bench with one seated commuter and one standing commuter holding the far yellow pole. Background: the aisle continuing to the connecting door. The frame-right edge is open space at head height.",
+      "position": "standing in the middle of the aisle, centered, chest square to the lens, feet 20 cm apart, holding nothing, the front of the pompadour 30 cm from the frame-right side of the aisle",
+      "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet 20 cm apart",
+      "extras_count": 4,
+      "extras_tasks": "two seated commuters on the left bench scroll their phones looking down, one seated commuter on the right bench dozes with his head against the window, one standing commuter holds the far yellow pole reading a paperback",
+      "props": "exactly two yellow vertical grab poles, one at each side of the frame, both out of his reach",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand with the index finger raised. The commuters' hands are their own; the only extra hand near him enters from the frame-right edge.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame in the middle of the aisle; the car sways 3 cm on its tracks; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, holding nothing."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first, then onto his right foot; his hips sway once to frame-left and once to frame-right on the beat, in time with the sway of the car; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens",
+          "end_state": "feet apart, finger raised, chest square to the lens."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "The commuter's right hand in a grey suit sleeve enters from the frame-right edge at the height of the pompadour, travels screen-right to screen-left and closes its fingers around the front of the pompadour like a ceiling hand strap; the pompadour keeps its outline; he keeps the pose.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "counterpart": {
+            "who": "the commuter in a grey suit",
+            "position": "off-screen, enters from the frame-right edge",
+            "limb": "his right hand in a grey suit sleeve",
+            "vector": "travels screen-right to screen-left at the height of the pompadour and stops wrapped around its front"
+          },
+          "end_state": "the grey-sleeved hand holding the front of the pompadour, the arm coming in from the frame-right edge."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the grey-sleeved hand keeps holding the front of the pompadour like a hand strap while the car sways 3 cm; he and the arm sway together as one; he stares into the lens, finger raised. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "counterpart": {
+            "who": "the commuter in a grey suit",
+            "position": "off-screen, enters from the frame-right edge",
+            "limb": "his right hand in a grey suit sleeve",
+            "vector": "stays where it stopped, the arm reaching from screen-right to screen-center at the height of the pompadour",
+            "task": "keeps holding the front of the pompadour, arm swaying with the car"
+          },
+          "end_state": "the hand still holding the pompadour, deadpan face, finger raised."
+        }
+      ],
+      "end_change": "a right hand in a grey suit sleeve comes in from the frame-right edge at head height and holds the front of the rigid black pompadour like a ceiling hand strap; the pompadour keeps its outline; he stands in the signature pose with a deadpan face; no face of the commuter in frame",
+      "vacated": "",
+      "end_props": "",
+      "props_lock": "Exactly two yellow vertical poles at the sides of the frame for the whole clip; exactly one extra hand, from the frame-right edge, from 6.5s on.",
+      "lighting": "Bright white ceiling LED strips of the metro car, even top light, the dark tunnel outside the windows, 5000K.",
+      "panels": [
+        "signature pose in the middle of the metro aisle, holding nothing, full pompadour visible",
+        "hips swayed to frame-left at the peak of the brega step, the car swaying",
+        "a hand in a grey suit sleeve entering from the frame-right edge at pompadour height, fingers closing around its front",
+        "the grey-sleeved hand holding the pompadour like a hand strap, arm from the frame-right edge, he deadpan with finger raised"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "No horário de pico, o Gerson é serviço público.\n\n#brega #metro #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.5457807,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}

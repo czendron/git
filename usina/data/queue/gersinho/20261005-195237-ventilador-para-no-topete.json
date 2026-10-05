@@ -1,0 +1,185 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195237-ventilador-para-no-topete",
+  "state": "roteiro",
+  "created_at": 1791229957.7536435,
+  "updated_at": 1791230325.4334772,
+  "idea": {
+    "title": "Ventilador para no topete",
+    "text": "lanchonete em BH: ele sobe na ponta dos pés e o ventilador de teto para seco no topete",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Ventilador para no topete",
+    "format": "proprio",
+    "premise": "Numa lanchonete de esquina em BH, Gersinho faz o passo brega embaixo do ventilador de teto; no tempo forte sobe na ponta dos pés, a pá bate no alto do topete e o ventilador para seco, com uma pá apoiada no topete, e ele segue sério.",
+    "gag_without_sound": "o ventilador girando para de uma vez com a pá encostada no topete, e o topete nem mexe",
+    "location": {
+      "place": "lanchonete de esquina com balcão de pão de queijo e ventilador de teto baixo",
+      "city_vibe": "Belo Horizonte, bairro Lagoinha",
+      "time_of_day": "meio da tarde, sol entrando pela porta de enrolar",
+      "kelvin": 5000
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 3 m, da porta da lanchonete",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "embaixo do ventilador ligado, faz o passo brega: peso de um pé pro outro, quadril pendular, indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "atendente passa pano no balcão, dois fregueses comem pão de queijo nas banquetas"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "no tempo forte sobe na ponta dos pés, e a pá bate no alto do topete e trava o ventilador com uma pá apoiada nele; ele fica ali, sério, encarando a lente",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "ventilador parado, uma pá apoiada no alto do topete intacto, ele na ponta dos pés, dedo pra cima, cara séria na lente",
+    "props": [
+      {
+        "name": "ventilador de teto de quatro pás brancas",
+        "orientation": "preso no teto no centro do quadro, pás na horizontal 5 cm acima do topete, girando no sentido horário visto de baixo"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pose de assinatura embaixo do ventilador girando, as pás 5 cm acima do topete"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pico do passo brega, quadril para a esquerda do quadro, ventilador borrado de tanto girar"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "ele na ponta dos pés; a pá encosta no alto do topete e o ventilador trava"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "ventilador parado, pá nítida apoiada no topete, ele sério na ponta dos pés"
+      }
+    ],
+    "start_frame": "Gersinho no meio da lanchonete, de frente para a câmera, dedo pra cima, mão na barriga; ventilador de teto girando logo acima do topete inteiro; balcão de pão de queijo à esquerda",
+    "end_frame": "ventilador parado, uma pá branca apoiada no alto do topete, ele na ponta dos pés, sério, dedo pra cima",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta; corte seco da música no instante em que o ventilador para",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "desliguei o ventilador"
+    },
+    "caption": "Calor nenhum desmancha o Gerson. Ventilador nenhum também.",
+    "hashtags": [
+      "#brega",
+      "#paodequeijo",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "primeiro gag em que o topete vence uma máquina em movimento; mecanismo de rigidez (para o objeto), não de 'não caber'. Lugar novo: lanchonete mineira.",
+    "brand_safety": [
+      "sem bebida alcoólica no balcão",
+      "sem marca no ventilador",
+      "sem criança"
+    ],
+    "risks": "o modelo dobrar a pá ou amassar o topete; o ventilador seguir girando através do topete; ventilador reaparecer girando no último segundo. Conferir painel 3 e o end frame (pá parada nítida, sem borrão).",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 4,
+      "miniatura": 4,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "In a Belo Horizonte corner snack bar he does his signature brega step under a spinning ceiling fan until he rises onto his toes and the top of his rigid pompadour stops the fan dead, one blade resting on it.",
+      "location": "a small corner snack bar (lanchonete) in a working-class Belo Horizonte neighborhood: white tiled walls, a glass counter with a tray of cheese buns, a low ceiling with one white four-blade ceiling fan, afternoon sun coming through a rolled-up steel shop door",
+      "location_map": "Frame-left: the glass counter with a tray of cheese buns and the attendant behind it. Center: him standing on the tiled floor, the white ceiling fan mounted on the ceiling directly above his head, its blades horizontal 5 cm above the top of the pompadour. Frame-right: two red stools at a wall shelf with two customers. Background: white tiled wall with a menu board without readable text.",
+      "position": "standing on the tiled floor in the center of the room, chest square to the lens, the top of the pompadour 5 cm below the plane of the fan blades",
+      "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together, heels on the floor",
+      "extras_count": 3,
+      "extras_tasks": "one attendant behind the counter wipes the glass with a cloth looking down, one customer on a stool bites a cheese bun looking at his phone, one customer on the other stool stirs a small coffee looking at the cup",
+      "props": "exactly one white ceiling fan with four blades, centered above him, spinning clockwise seen from below at a steady speed; the blades sweep a horizontal circle 5 cm above the top of the pompadour",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand with the index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame under the spinning ceiling fan; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, the fan blades spinning 5 cm above the pompadour."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first, then onto his right foot; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly; the fan keeps spinning above him.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens",
+          "end_state": "feet together, heels on the floor, finger raised, the fan spinning."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "On the strong beat he rises onto the balls of both feet, heels 6 cm off the floor; the top of the pompadour enters the circle of the spinning blades; the next white blade strikes the top edge of the pompadour and the ceiling fan stops dead in one beat, that blade resting on top of the pompadour; the pompadour keeps its outline, rigid as molded resin; he keeps the pose on his toes.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "the fan stopped, one white blade resting on the top of the pompadour, he on his toes."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the ceiling fan stays stopped with its white blade resting on the top of the pompadour; he stays on his toes and stares into the lens, finger raised. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "fan stopped, blade resting on the pompadour, deadpan face, finger raised."
+        }
+      ],
+      "end_change": "the ceiling fan is stopped; one white blade rests on the top of the rigid black pompadour, sharp and still; he stands on the balls of his feet, heels 6 cm off the floor, right index finger raised, deadpan face",
+      "vacated": "",
+      "end_props": "the fan stopped, its four blades still, one blade resting on the pompadour",
+      "props_lock": "Exactly one ceiling fan with four white blades: spinning in the first frame, stopped in the last frame with one blade resting on the top of the pompadour.",
+      "lighting": "Warm afternoon sunlight through the open steel door at frame-right plus cool white ceiling tube light, soft shadows, 5000K.",
+      "panels": [
+        "signature pose under the spinning ceiling fan, left hand on belly, right index finger raised, blades 5 cm above the pompadour",
+        "hips swayed to frame-left at the peak of the brega step, the fan blades a spinning blur above him",
+        "on the balls of his feet, a white blade striking the top edge of the pompadour, the fan stopping",
+        "fan stopped, one white blade resting on top of the rigid pompadour, he on his toes, deadpan, finger raised"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Calor nenhum desmancha o Gerson. Ventilador nenhum também.\n\n#brega #paodequeijo #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.4334762,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}

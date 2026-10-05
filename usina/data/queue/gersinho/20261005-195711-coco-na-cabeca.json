@@ -1,0 +1,189 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195711-coco-na-cabeca",
+  "state": "roteiro",
+  "created_at": 1791230231.7154028,
+  "updated_at": 1791230325.756625,
+  "idea": {
+    "title": "Coco na cabeca",
+    "text": "Beira-Mar de Fortaleza: um coco cai do coqueiro no topete e racha ao meio; ele nem pisca",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Coco na cabeca",
+    "format": "proprio",
+    "premise": "No calçadão da Beira-Mar de Fortaleza, Gersinho faz o passo brega embaixo de um coqueiro; um coco verde cai lá de cima no alto do topete e racha ao meio, as duas metades caem aos pés dele, e ele segue sério, sem olhar para cima.",
+    "gag_without_sound": "um coco cai do coqueiro bem no topete e racha ao meio, e ele nem olha pra cima",
+    "location": {
+      "place": "calçadão da Beira-Mar sob um coqueiro, com carrinho de coco ao lado",
+      "city_vibe": "Fortaleza, Beira-Mar",
+      "time_of_day": "fim de manhã de sol forte, mar verde ao fundo",
+      "kelvin": 5600
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 3 m, no calçadão",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "embaixo do cacho de cocos verdes, faz o passo brega: quadril pendular e indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "corredora passa no calçadão, vendedor do carrinho de coco abre um coco com facão, ciclista passa ao fundo"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "um coco verde cai do cacho no alto do topete, racha ao meio e as duas metades caem aos pés dele; ele não se mexe, sério, encarando a lente",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "duas metades de coco verde no chão, uma de cada lado dos sapatos, mancha de água de coco no calçadão, topete intacto, ele sério com dedo pra cima",
+    "props": [
+      {
+        "name": "cacho de cocos verdes",
+        "orientation": "no alto do coqueiro, bem acima do topete, metade visível na borda de cima do quadro"
+      },
+      {
+        "name": "coco verde que cai",
+        "orientation": "cai reto de cima para baixo no alto do topete e racha em duas metades que caem uma de cada lado dos sapatos"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pose de assinatura embaixo do coqueiro, cacho de cocos verdes na borda de cima, mar ao fundo"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pico do passo brega, quadril para a esquerda do quadro"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "o coco batendo no alto do topete e rachando em duas metades, um respingo de água de coco"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "duas metades de coco aos pés dele, mancha molhada no calçadão, ele sério"
+      }
+    ],
+    "start_frame": "Gersinho de corpo inteiro no calçadão da Beira-Mar, embaixo de um coqueiro, de frente para a câmera, dedo pra cima, mão na barriga, topete inteiro visível, cacho de cocos verdes logo acima na borda de cima do quadro, mar verde ao fundo",
+    "end_frame": "duas metades de coco verde no chão, uma de cada lado dos sapatos, mancha de água de coco no calçadão, ele sério com dedo pra cima, topete intacto",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta; um 'toc' seco de coco no impacto (pós)",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "coco aberto na hora"
+    },
+    "caption": "Na Beira-Mar o coco já sai aberto.",
+    "hashtags": [
+      "#brega",
+      "#fortaleza",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "o ambiente ataca e perde: primeiro gag de queda vinda de cima, em que o topete vira ferramenta (abre o coco). Sem contraparte nenhuma (formato Jean Phil). Primeira locação de orla no Nordeste.",
+    "brand_safety": [
+      "sem marca no carrinho de coco",
+      "sem criança",
+      "sem bebida alcoólica"
+    ],
+    "risks": "o modelo fazer o coco bater no rosto ou no ombro; ele olhar para cima ou se encolher; o coco quicar inteiro em vez de rachar. Conferir no painel 3 o impacto no alto do topete e no end frame as duas metades no chão.",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 4,
+      "miniatura": 4,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "On the Beira-Mar seafront promenade in Fortaleza he does his signature brega step under a coconut palm until a green coconut drops from the bunch above, lands on the top of his rigid pompadour, cracks into two halves and the halves fall at his feet while he keeps staring into the lens.",
+      "location": "the Beira-Mar seafront promenade in Fortaleza: wide patterned-stone sidewalk, one tall coconut palm, a white coconut cart with green coconuts, the green sea and a strip of sand behind a low wall, strong late-morning sun",
+      "location_map": "Frame-left: a white coconut cart with a pile of green coconuts and the coconut seller behind it. Center: him standing on the patterned-stone sidewalk directly under the crown of the palm; a bunch of green coconuts hangs at the top edge of the frame, 1 m straight above the top of the pompadour. Frame-right: the grey palm trunk rising out of frame. Background: a low wall, sand and the green sea.",
+      "position": "standing on the sidewalk, centered, directly under the bunch of coconuts, chest square to the lens, full body from shoes to the top of the pompadour, the bunch of coconuts visible at the top edge of the frame",
+      "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together",
+      "extras_count": 3,
+      "extras_tasks": "one coconut seller behind the cart cuts the top off a coconut with a machete looking at his hands, one jogger in a cap runs along the promenade from frame-right to frame-left looking ahead, one cyclist rides past on the far side of the promenade looking ahead",
+      "props": "exactly one bunch of green coconuts at the top edge of the frame directly above him; exactly one white coconut cart at frame-left",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand with the index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame under the bunch of green coconuts; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, the coconuts hanging above him."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first, then onto his right foot; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens",
+          "end_state": "feet together, finger raised, directly under the coconuts."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "One green coconut drops from the bunch at the top edge of the frame and falls straight down, frame-top to frame-center, onto the top of the pompadour; it cracks into two halves with a short splash of coconut water; the two halves fall to the sidewalk, one beside each shoe; the pompadour keeps its outline, rigid as molded resin; he keeps the pose and his eyes stay on the lens.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "two coconut halves on the sidewalk beside his shoes, a wet splash mark on the stones."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the two coconut halves lie still on the sidewalk, one beside each shoe, a dark wet splash mark of coconut water on the stones; he stares into the lens with one slow blink, finger raised. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "coconut halves at his feet, deadpan face, finger raised."
+        }
+      ],
+      "end_change": "two halves of a green coconut lie on the sidewalk, one beside each shoe, white flesh facing up; a dark wet splash mark of coconut water on the stones between his feet; the bunch above is missing one coconut; the pompadour keeps its outline; deadpan face, right index finger raised",
+      "vacated": "one empty spot in the bunch of coconuts above him",
+      "end_props": "",
+      "props_lock": "Exactly one coconut falls: whole in the bunch in the first frame, two halves on the sidewalk in the last frame.",
+      "lighting": "Strong late-morning tropical sun from upper frame-left, hard short shadows, the palm crown casting a patchy shadow on the sidewalk, 5600K.",
+      "panels": [
+        "signature pose under the coconut palm, the bunch of green coconuts at the top edge of the frame, the sea behind",
+        "hips swayed to frame-left at the peak of the brega step",
+        "the green coconut striking the top of the pompadour and cracking into two halves with a splash of coconut water",
+        "two coconut halves on the sidewalk beside his shoes, a wet mark on the stones, he deadpan, finger raised"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Na Beira-Mar o coco já sai aberto.\n\n#brega #fortaleza #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.7566235,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}

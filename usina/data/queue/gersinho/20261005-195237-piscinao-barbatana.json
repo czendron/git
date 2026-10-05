@@ -1,0 +1,180 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195237-piscinao-barbatana",
+  "state": "roteiro",
+  "created_at": 1791229957.6627996,
+  "updated_at": 1791230325.3246238,
+  "idea": {
+    "title": "Piscinao barbatana",
+    "text": "Piscinão de Ramos: ele afunda até o bigode e só o topete fica fora d'água, como barbatana de tubarão",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Piscinao barbatana",
+    "format": "proprio",
+    "premise": "No Piscinão de Ramos, Gersinho, de camisa e calça boca de sino, com água pela cintura, faz o passo brega; depois dobra os joelhos e afunda até a água bater no bigode, e só o topete enorme e seco fica de pé fora d'água, como barbatana, com os olhos dele encarando a lente.",
+    "gag_without_sound": "ele afunda e sobra só o topete gigante e seco fora d'água, feito barbatana de tubarão, com os olhos sérios na linha d'água",
+    "location": {
+      "place": "Piscinão de Ramos, água rasa perto da areia",
+      "city_vibe": "Rio de Janeiro, zona norte",
+      "time_of_day": "domingo de sol forte, meio da manhã",
+      "kelvin": 5600
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito de quem está na beira d'água, a 3 m",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "com água pela cintura, faz o passo brega: ombros pendulares e indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "banhistas adultos boiando e conversando, um vendedor de mate passa na areia ao fundo"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "dobra os joelhos e afunda até a água bater no bigode; só o topete seco e os olhos ficam fora d'água, encarando a lente",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "água na altura do bigode, olhos sérios na linha d'água encarando a lente, o topete enorme, seco e brilhante de pé fora d'água como barbatana",
+    "props": [],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano americano fixo 63°, 3 m",
+        "description": "água pela cintura, pose de assinatura, topete inteiro, piscinão e banhistas ao fundo"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano americano fixo 63°, 3 m",
+        "description": "pico do passo, ombro esquerdo baixo, dedo pra cima"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano americano fixo 63°, 3 m",
+        "description": "joelhos dobrando, linha d'água subindo pelo peito até o queixo"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano americano fixo 63°, 3 m",
+        "description": "água no bigode, olhos na linha d'água, topete seco de pé fora d'água"
+      }
+    ],
+    "start_frame": "Gersinho de frente para a câmera dentro do Piscinão de Ramos, água pela cintura, camisa estampada e calça branca molhadas, dedo pra cima, mão na barriga, topete inteiro visível, banhistas e areia ao fundo",
+    "end_frame": "água na altura do bigode, só os olhos sérios e o topete seco fora d'água, como barbatana",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta; opcional: as duas notas do tema de tubarão na entrada do afundamento (pós, royalty-free)",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "tubarão do piscinão"
+    },
+    "caption": "Domingo no Piscinão. O Gerson foi discreto.",
+    "hashtags": [
+      "#brega",
+      "#piscinao",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "primeiro gag de escala por subtração (o corpo some e o topete fica); primeiro gag na água; sem contraparte nenhuma (formato Jean Phil).",
+    "brand_safety": [
+      "só adultos em segundo plano, nenhuma criança em destaque",
+      "sem bebida alcoólica",
+      "roupas de banho comuns, nada sensual"
+    ],
+    "risks": "o modelo afundar também o topete ou deixá-lo molhado e mole; olhos sumirem embaixo d'água; ondas grandes demais. Conferir no end frame os olhos acima da linha d'água e o topete inteiro e seco.",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 5,
+      "miniatura": 5,
+      "clareza_sem_som": 4
+    },
+    "en": {
+      "gag_sentence": "In the shallow water of the Piscinão de Ramos he does his signature brega move waist-deep, then bends his knees and sinks until the water reaches his mustache, leaving only his deadpan eyes and his huge, dry, rigid pompadour standing above the water like a shark fin.",
+      "location": "the Piscinão de Ramos, a large public saltwater lagoon-pool in Rio de Janeiro's north zone: calm greenish water, a strip of light sand with beach umbrellas behind, apartment blocks on the horizon, strong Sunday morning sun",
+      "location_map": "Frame-left: two adult bathers standing chest-deep 6 m away. Center: him standing waist-deep in calm water. Frame-right: one adult bather floating on her back 7 m away. Background: the sand strip with colorful beach umbrellas and one mate vendor walking along the sand, apartment blocks on the horizon.",
+      "position": "standing waist-deep in calm water, centered, chest square to the lens, the waterline at his belt, the camera at water-edge chest height so the pompadour fills the upper third of the frame",
+      "signature_pose": "left hand flat on his belly just above the waterline, right index finger raised beside his head",
+      "extras_count": 4,
+      "extras_tasks": "two adult bathers stand chest-deep at frame-left talking to each other, one adult bather floats on her back at frame-right looking at the sky, one mate vendor walks along the sand in the background carrying two metal drums on a shoulder pole",
+      "props": "no handheld props; the water surface is calm with small ripples",
+      "hands": "He has exactly two hands: left hand flat on his belly just above the waterline, right hand with the index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame, waist-deep in the calm water; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, waterline at his belt."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: his shoulders sway once to frame-left and once to frame-right on the beat, the water rippling around his waist; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly.",
+          "facing": "chest within 30° of the lens while the shoulders sway, face 0° to the lens, eyes on the lens",
+          "end_state": "shoulders level, finger raised, waterline at his belt."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "He bends his knees and sinks straight down in one steady move; the waterline climbs his chest, his shoulders and his chin and stops at his mustache; his eyes stay just above the water, fixed on the lens; his hands go under the water; the pompadour stays dry and rigid above the water, standing up like a shark fin, its outline unchanged; small ripples spread out from him.",
+          "facing": "chest 0° to the lens under the water, face 0° to the lens, eyes on the lens",
+          "end_state": "waterline at the mustache, eyes above the water, the dry pompadour standing above the water."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the waterline stays at his mustache, the ripples settle, and the dry pompadour stands above the water like a shark fin; his eyes stare into the lens with one slow blink. The final frame matches the end frame.",
+          "facing": "face 0° to the lens, eyes on the lens at the waterline",
+          "end_state": "only the eyes, the top of the head and the dry pompadour above the calm water, deadpan."
+        }
+      ],
+      "end_change": "the waterline is at his mustache: only his deadpan eyes, forehead and the huge rigid black pompadour are above the water; the pompadour is dry and glossy, standing up like a shark fin, outline unchanged; his hands and body are under the water",
+      "vacated": "",
+      "end_props": "",
+      "props_lock": "",
+      "lighting": "Strong late-morning sun from upper frame-left, bright specular glints on the water, hard shadows under the beach umbrellas, 5600K.",
+      "panels": [
+        "waist-deep in calm water, signature pose, full pompadour, bathers and sand behind",
+        "shoulders swayed to frame-left at the peak of the brega move, finger raised",
+        "knees bent, the waterline climbing past his chin, pompadour dry above the water",
+        "waterline at the mustache, deadpan eyes at the surface, the dry pompadour standing above the water like a shark fin"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Domingo no Piscinão. O Gerson foi discreto.\n\n#brega #piscinao #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.3246224,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}

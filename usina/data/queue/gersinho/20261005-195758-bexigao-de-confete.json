@@ -1,0 +1,189 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195758-bexigao-de-confete",
+  "state": "roteiro",
+  "created_at": 1791230278.5251224,
+  "updated_at": 1791230325.8660421,
+  "idea": {
+    "title": "Bexigao de confete",
+    "text": "inauguração de loja na 25 de Março: ele ergue o queixo no tempo forte, a ponta do topete estoura o bexigão de confete pendurado em cima e chove papel picado nele",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Bexigao de confete",
+    "format": "proprio",
+    "premise": "Na porta de uma loja em inauguração na 25 de Março, Gersinho faz o passo brega embaixo do bexigão de confete; no tempo forte ergue o queixo, a ponta do topete fura o bexigão e chove papel picado colorido em cima dele, que fica sério, coberto de confete, com um montinho no alto do topete.",
+    "gag_without_sound": "a ponta do topete fura o bexigão e despenca uma chuva de confete colorido num homem que não muda a cara",
+    "location": {
+      "place": "porta de loja de armarinhos em inauguração, com arco de bexigas e um bexigão transparente cheio de confete pendurado no centro",
+      "city_vibe": "São Paulo, Rua 25 de Março",
+      "time_of_day": "manhã nublada clara",
+      "kelvin": 5600
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 3 m, na calçada em frente",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "embaixo do bexigão, faz o passo brega: quadril pendular e indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "vendedora arruma carretéis na vitrine, dois pedestres passam com sacolas"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "no tempo forte ergue o queixo, a ponta do topete fura o bexigão e chove confete nele; fica parado, sério, encarando a lente",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "confete colorido nos ombros, na camisa e num montinho no alto do topete, retalhos do bexigão pendurados no barbante, ele de queixo erguido, sério, dedo pra cima",
+    "props": [
+      {
+        "name": "bexigão transparente cheio de confete colorido",
+        "orientation": "pendurado por um barbante no centro do arco, logo acima da ponta do topete; estoura e vira retalhos pendurados no barbante"
+      },
+      {
+        "name": "arco de bexigas vermelhas e douradas",
+        "orientation": "em volta da porta da loja, de frente para a lente, intacto o clipe todo"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pose de assinatura embaixo do bexigão de confete, a ponta do topete a 3 cm dele"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pico do passo brega, quadril para a esquerda do quadro, bexigão inteiro em cima"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "queixo erguido, a ponta do topete dentro do bexigão estourando, nuvem de confete caindo"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "confete nos ombros e num montinho no alto do topete, retalhos no barbante, ele sério"
+      }
+    ],
+    "start_frame": "Gersinho de corpo inteiro na porta de uma loja da 25 de Março, embaixo de um bexigão transparente cheio de confete pendurado no centro de um arco de bexigas vermelhas e douradas, de frente para a câmera, dedo pra cima, mão na barriga, topete inteiro visível",
+    "end_frame": "ele coberto de confete colorido nos ombros e num montinho no alto do topete, retalhos do bexigão no barbante, queixo erguido, sério, dedo pra cima",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta; o estouro cai no tempo forte (pós)",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "inaugurei a loja"
+    },
+    "caption": "Inauguração só começa quando o Gerson chega.",
+    "hashtags": [
+      "#brega",
+      "#25demarco",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "o topete como objeto pontudo (fura), não grande demais; o resultado é festa (confete) contra a cara séria. Primeira piada de comércio popular; sem contraparte nenhuma (formato Jean Phil).",
+    "brand_safety": [
+      "sem nome de loja legível",
+      "sem criança",
+      "sem marca no bexigão"
+    ],
+    "risks": "o modelo estourar o arco inteiro em vez do bexigão; o confete subir em vez de cair; o topete sumir embaixo do confete. Conferir no painel 3 o estouro só do bexigão e no end frame o topete inteiro com um montinho de confete no alto.",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 4,
+      "miniatura": 5,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "At a shop opening on Rua 25 de Março in São Paulo he does his signature brega step under a giant clear confetti balloon until he raises his chin on the strong beat, the pointed front tip of his rigid pompadour pierces the balloon and a shower of colored paper confetti pours down over him.",
+      "location": "the open doorway of a small haberdashery shop on Rua 25 de Março in São Paulo, a grand-opening arch of red and gold balloons around the doorway, one giant clear balloon full of colored paper confetti hanging on a white cord from the top of the arch, shelves of thread spools inside, bright overcast morning",
+      "location_map": "Frame-left: the shop window with spools of thread and the shop assistant behind it. Center: him standing in front of the doorway; the giant clear confetti balloon, 60 cm wide, hangs on a white cord from the top of the arch, its lowest point 3 cm above the front tip of the pompadour. Frame-right: the sidewalk and the next shop's rolled-up steel door. The red and gold balloon arch frames the doorway behind him.",
+      "position": "standing on the sidewalk in front of the doorway, centered under the giant confetti balloon, chest square to the lens, chin level, full body from shoes to the top of the pompadour",
+      "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together, chin level",
+      "extras_count": 3,
+      "extras_tasks": "one shop assistant behind the window stacks spools of thread looking down at them, two pedestrians with plastic shopping bags walk along the sidewalk from frame-right to frame-left looking ahead",
+      "props": "exactly one giant clear balloon full of colored paper confetti, hanging on a white cord 3 cm above the front tip of the pompadour; exactly one arch of red and gold balloons around the doorway",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand with the index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame under the giant confetti balloon; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, the confetti balloon whole above the pompadour."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first, then onto his right foot; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly; the confetti balloon hangs whole above him.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens",
+          "end_state": "feet together, finger raised, chin level, balloon whole."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "On the strong beat he raises his chin 15°, looking down his nose at the lens; the rigid pompadour tilts back with his skull as one block and its pointed front tip rises into the bottom of the giant confetti balloon; the balloon bursts into clear rubber shreds that hang from the cord, and a shower of colored paper confetti pours down over the pompadour, his shoulders and his shirt; the pompadour keeps its outline; he keeps the pose.",
+          "facing": "chest 0° to the lens, face 0° to the lens with the chin raised 15°, eyes on the lens",
+          "end_state": "confetti falling over him, the balloon shreds hanging from the cord."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the last confetti settles on his shoulders, on his shirt and in a small heap on the top of the pompadour; the balloon shreds hang still from the cord; he stares into the lens, chin raised, finger raised. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens with the chin raised 15°, eyes on the lens",
+          "end_state": "covered in confetti, a heap of confetti on top of the pompadour, deadpan face, finger raised."
+        }
+      ],
+      "end_change": "the giant balloon is gone: clear rubber shreds hang from the white cord above him; colored paper confetti covers his shoulders and shirt and sits in a small heap on the top of the rigid pompadour, outline unchanged; the red and gold balloon arch is intact; chin raised 15°, deadpan face, right index finger raised",
+      "vacated": "the space where the giant balloon hung is empty except for its shreds on the cord",
+      "end_props": "",
+      "props_lock": "Exactly one giant confetti balloon: whole in the first frame, burst into shreds on the cord in the last frame. The red and gold balloon arch stays whole the whole clip.",
+      "lighting": "Bright overcast morning daylight from the open sky above the street, soft shadows, saturated balloon and confetti colors, 5600K.",
+      "panels": [
+        "signature pose centered under the giant clear confetti balloon, the tip of the pompadour 3 cm below it",
+        "hips swayed to frame-left at the peak of the brega step, the balloon whole",
+        "chin raised, the tip of the pompadour bursting the balloon, colored confetti pouring down over him",
+        "confetti on his shoulders and in a heap on top of the pompadour, balloon shreds on the cord, chin raised, deadpan, finger raised"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Inauguração só começa quando o Gerson chega.\n\n#brega #25demarco #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.8660412,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}

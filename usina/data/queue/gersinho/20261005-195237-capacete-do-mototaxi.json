@@ -1,0 +1,189 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195237-capacete-do-mototaxi",
+  "state": "roteiro",
+  "created_at": 1791229957.933949,
+  "updated_at": 1791230325.2126284,
+  "idea": {
+    "title": "Capacete do mototaxi",
+    "text": "ponto de mototáxi em Salvador: ele põe o capacete e o capacete fica pousado lá em cima do topete",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Capacete do mototaxi",
+    "format": "proprio",
+    "premise": "No ponto de mototáxi de uma ladeira de Salvador, Gersinho faz o passo brega ao lado da moto e depois põe o capacete com as duas mãos; o capacete para pousado no alto do topete, 40 cm acima da testa, e ele segue sério.",
+    "gag_without_sound": "o capacete fica equilibrado lá em cima do topete, longe da cabeça, com a fivela balançando",
+    "location": {
+      "place": "ponto de mototáxi numa ladeira de casas coloridas",
+      "city_vibe": "Salvador, bairro da Liberdade",
+      "time_of_day": "manhã de sol forte",
+      "kelvin": 5600
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 3 m, do outro lado da ladeira",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "ao lado da moto vermelha, com o capacete branco pendurado no pulso esquerdo, faz o passo brega: quadril pendular e indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "dois mototaxistas de colete conversam no fundo, uma senhora sobe a ladeira com sacola"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "levanta o capacete com as duas mãos e desce sobre a cabeça; o capacete para pousado no alto do topete e ele volta à pose, sério, encarando a lente",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "capacete branco pousado reto no alto do topete, 40 cm acima da testa, fivela pendurada; ele em pose de assinatura, sério",
+    "props": [
+      {
+        "name": "capacete aberto branco",
+        "orientation": "pendurado pela fivela no pulso esquerdo no início; no fim, pousado reto no alto do topete, viseira para a lente"
+      },
+      {
+        "name": "moto 125 cc vermelha",
+        "orientation": "estacionada à esquerda do quadro, de perfil, frente apontando para a esquerda"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pose de assinatura ao lado da moto, capacete pendurado no pulso esquerdo"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pico do passo brega, quadril para a direita do quadro, capacete balançando no pulso"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "capacete erguido com as duas mãos descendo e parando no alto do topete"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "capacete pousado no alto do topete, mãos de volta à pose, cara séria"
+      }
+    ],
+    "start_frame": "Gersinho de corpo inteiro numa ladeira de casas coloridas, ao lado de uma moto vermelha, de frente para a câmera, mão na barriga com um capacete branco pendurado no pulso, dedo pra cima, topete inteiro visível",
+    "end_frame": "capacete branco pousado reto no alto do topete, bem acima da cabeça, fivela pendurada, ele sério com dedo pra cima",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta no Reels BR",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "segurança em primeiro lugar"
+    },
+    "caption": "Capacete é obrigatório. O Gerson cumpre a lei.",
+    "hashtags": [
+      "#brega",
+      "#mototaxi",
+      "#salvador",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "o topete vira pedestal: o objeto não bate nem prende, fica pousado em cima. Primeira locação no Nordeste e primeira ação com objeto nas mãos dele.",
+    "brand_safety": [
+      "sem logo na moto e no capacete",
+      "coletes de mototáxi sem texto legível",
+      "sem criança"
+    ],
+    "risks": "o modelo enfiar o capacete através do topete ou amassar o topete; o capacete escorregar; uma terceira mão. Conferir no painel 3 o capacete parando no alto e no end frame o capacete reto.",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 5,
+      "miniatura": 5,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "At a moto-taxi stand on a sloping Salvador street he does his signature brega step beside a red motorcycle, then lowers a white open-face helmet onto his head with both hands and it comes to rest perched level on the very top of his rigid pompadour, 40 cm above his forehead.",
+      "location": "a moto-taxi stand on a steep street of colorful row houses (yellow, blue, pink facades) in a working-class Salvador neighborhood, cobblestone and concrete pavement, strong morning sun",
+      "location_map": "Frame-left: a red 125cc motorcycle parked in profile, its front pointing to frame-left. Center: him standing on the pavement beside the rear of the motorcycle. Frame-right and background: colorful row-house facades climbing the slope, two moto-taxi riders in green vests standing by their bikes far up the street, a woman walking up the slope.",
+      "position": "standing on the pavement 50 cm right of the motorcycle's rear wheel, centered, chest square to the lens, full body visible from shoes to the top of the pompadour",
+      "signature_pose": "left hand flat on his belly with the white open-face helmet hanging by its chin strap from the left wrist, right index finger raised beside his head, feet together",
+      "extras_count": 3,
+      "extras_tasks": "two moto-taxi riders in green vests chat by their parked bikes far up the street looking at each other, one woman with a shopping bag walks up the slope looking ahead",
+      "props": "exactly one white open-face motorcycle helmet with a black chin strap, hanging from his left wrist, visor side toward the lens; exactly one red 125cc motorcycle parked in profile at frame-left",
+      "hands": "He has exactly two hands: left hand flat on his belly with the helmet strap around the wrist, right hand with the index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame beside the red motorcycle, the white helmet hanging from his left wrist; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, helmet hanging from the left wrist."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first, then onto his right foot; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; the helmet swings 5 cm on his left wrist.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens",
+          "end_state": "feet together, finger raised, helmet hanging from the left wrist."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "He takes the white helmet in both hands, lifts it above the top of the pompadour and lowers it straight down; the helmet comes to rest perched level on the very top of the rigid pompadour, 40 cm above his forehead, the black chin strap dangling; the pompadour keeps its outline; he lowers his hands back into the signature pose.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "the helmet perched on top of the pompadour, hands back in the signature pose."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the white helmet stays perched level on top of the pompadour, its chin strap swaying twice and settling; he stares into the lens, finger raised. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "helmet perched high on the pompadour, deadpan face, finger raised."
+        }
+      ],
+      "end_change": "the white open-face helmet sits perched level on the very top of the rigid black pompadour, 40 cm above his forehead, visor side toward the lens, its black chin strap hanging down beside the pompadour; both hands back in the signature pose; deadpan face",
+      "vacated": "his left wrist is empty",
+      "end_props": "the helmet perched level on top of the pompadour, the red motorcycle unchanged at frame-left",
+      "props_lock": "Exactly one white helmet: on his left wrist in the first frame, perched on top of the pompadour in the last frame. Exactly one red motorcycle, parked, unchanged.",
+      "lighting": "Strong morning sun from the upper frame-right, crisp shadows on the pavement, bright saturated facades, 5600K.",
+      "panels": [
+        "signature pose beside the red motorcycle, white helmet hanging from the left wrist",
+        "hips swayed to frame-right at the peak of the brega step, helmet swinging on the wrist",
+        "the white helmet held in both hands above the pompadour, coming down and stopping on its top",
+        "helmet perched level high on top of the rigid pompadour, chin strap dangling, hands back in the signature pose, deadpan"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Capacete é obrigatório. O Gerson cumpre a lei.\n\n#brega #mototaxi #salvador #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.2126272,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}

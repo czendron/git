@@ -1,0 +1,195 @@
+{
+  "page": "gersinho",
+  "id": "20261005-195238-urubu-do-ver-o-peso",
+  "state": "roteiro",
+  "created_at": 1791229958.028607,
+  "updated_at": 1791230325.6524377,
+  "idea": {
+    "title": "Urubu do Ver-o-Peso",
+    "text": "Ver-o-Peso, Belém: um urubu pousa no topete como se fosse poste e os dois encaram a lente",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Urubu do Ver-o-Peso",
+    "format": "proprio",
+    "premise": "No cais do Ver-o-Peso, em Belém, Gersinho faz o passo brega na beira do rio; um urubu desce pela borda de cima e pousa no alto do topete como se fosse um poste, e os dois ficam parados, sérios, encarando a lente.",
+    "gag_without_sound": "um urubu pousa no topete como se fosse poste e os dois encaram a câmera com a mesma cara",
+    "location": {
+      "place": "cais do mercado Ver-o-Peso, beira da baía do Guajará",
+      "city_vibe": "Belém do Pará",
+      "time_of_day": "manhã nublada e úmida",
+      "kelvin": 6000
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 3 m, no calçamento do cais",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "na beira do cais, com o mercado de ferro azul no fundo, faz o passo brega: quadril pendular e indicador subindo e descendo no tempo",
+        "facing": "de frente para a lente",
+        "extras": "peixeiro arruma peixe na banca, dois fregueses passam, urubus no telhado do mercado ao fundo"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "um urubu desce pela borda de cima e pousa no alto do topete; ele fica parado, sério, e os dois encaram a lente",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "urubu preto empoleirado no alto do topete, asas fechadas, cabeça virada para a lente; Gersinho sério com dedo pra cima, os dois encarando a câmera",
+    "props": [],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pose de assinatura na beira do cais, mercado de ferro azul e urubus no telhado ao fundo"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "pico do passo brega, quadril para a direita do quadro"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "urubu de asas abertas descendo pela borda de cima e tocando o alto do topete com as patas"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "urubu empoleirado no topete, asas fechadas, os dois encarando a lente"
+      }
+    ],
+    "start_frame": "Gersinho de corpo inteiro na beira do cais do Ver-o-Peso, de frente para a câmera, dedo pra cima, mão na barriga, topete inteiro visível, mercado de ferro azul e barcos ao fundo",
+    "end_frame": "urubu preto empoleirado no alto do topete, asas fechadas, cabeça para a lente; Gersinho sério, dedo pra cima",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega paraense clássico (tecnobrega lento) em alta",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "parceiro de Belém"
+    },
+    "caption": "Em Belém o Gerson é ponto turístico. E poleiro.",
+    "hashtags": [
+      "#brega",
+      "#belem",
+      "#veropeso",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "cut": null,
+    "originality_note": "primeira contraparte animal; o topete vira poleiro e o bicho faz o deadpan junto. Belém é a capital do brega, primeira locação no Norte.",
+    "brand_safety": [
+      "sem bebida alcoólica nas bancas",
+      "sem criança",
+      "sem placa de loja legível",
+      "peixe sem sangue em destaque"
+    ],
+    "risks": "o urubu entrar pelas costas dele ou pousar no ombro; o topete entortar com o peso; ele olhar para cima. Conferir no painel 3 o urubu vindo da borda de cima e no end frame as asas fechadas no alto do topete.",
+    "self_score": {
+      "hook": 5,
+      "absurdo": 4,
+      "miniatura": 5,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "On the riverside dock of the Ver-o-Peso market in Belém he does his signature brega step until a black vulture glides down from the top edge of the frame and lands on the very top of his rigid pompadour, and the two of them stare into the lens.",
+      "location": "the stone riverside dock of the Ver-o-Peso market in Belém: the blue cast-iron market hall with pointed turrets in the background, small wooden fishing boats moored at the river edge, a fish stall under a canvas awning, black vultures standing on the market roof, humid overcast morning",
+      "location_map": "Frame-left: a fish stall under a canvas awning with one fishmonger. Center: him standing on the stone dock; behind him, 20 m away, the blue cast-iron market hall with turrets, three black vultures standing on its roof edge. Frame-right: the river edge with two moored wooden boats. Foreground: wet stone paving.",
+      "position": "standing on the stone dock, centered, chest square to the lens, full body visible from shoes to the top of the pompadour, the top of the pompadour 10% below the top edge of the frame",
+      "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together",
+      "extras_count": 3,
+      "extras_tasks": "one fishmonger at the stall lays fish on crushed ice looking at his hands, two shoppers with plastic bags walk from frame-left to frame-right along the dock looking ahead",
+      "props": "exactly one fish stall at frame-left and exactly two moored wooden boats at frame-right; three vultures stay standing on the distant market roof",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand with the index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame on the stone dock; breathing lifts the chest, one slow blink.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "same pose, eyes into the lens."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first, then onto his right foot; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens",
+          "end_state": "feet together, finger raised, chest square to the lens."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "A black vulture glides down from the top edge of the frame, wings spread, travelling from frame-top toward frame-center in front of the market hall, and lands on the very top of the pompadour, its feet gripping the crest; it folds its wings; the pompadour keeps its outline under the weight; he keeps the pose, eyes on the lens.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "counterpart": {
+            "who": "the black vulture",
+            "kind": "animal",
+            "position": "off-screen, enters from the top edge of the frame",
+            "limb": "its whole body, wings spread, feet first",
+            "vector": "travels frame-top to frame-center and stops perched on the top of the pompadour"
+          },
+          "end_state": "the vulture perched on top of the pompadour, wings folded."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything holds: the black vulture stays perched on top of the pompadour, wings folded, and turns its head to the lens; he stares into the lens, finger raised; one slow blink from each. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "counterpart": {
+            "who": "the black vulture",
+            "kind": "animal",
+            "position": "perched on the top of the pompadour, centered above his head",
+            "facing": "body 0° to the lens, head 0° to the lens",
+            "task": "stays perched, wings folded, one slow blink"
+          },
+          "end_state": "vulture perched on the pompadour, both faces toward the lens, deadpan."
+        }
+      ],
+      "end_change": "a black vulture stands perched on the very top of the rigid black pompadour, wings folded, its head turned toward the lens; the pompadour keeps its outline; he stands in the signature pose, deadpan, eyes on the lens",
+      "vacated": "",
+      "end_props": "",
+      "props_lock": "Exactly one vulture on him (from 6.5s on); three other vultures stay on the distant market roof the whole clip.",
+      "lighting": "Humid overcast morning light from the open sky over the river, soft and even, light haze, 6000K.",
+      "panels": [
+        "signature pose on the stone dock, blue cast-iron market hall and vultures on its roof in the background",
+        "hips swayed to frame-right at the peak of the brega step",
+        "a black vulture with spread wings coming down from the top edge, feet touching the top of the pompadour",
+        "the vulture perched on the top of the pompadour, wings folded, head to the lens; he deadpan, finger raised"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Em Belém o Gerson é ponto turístico. E poleiro.\n\n#brega #belem #veropeso #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791230325.6524367,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "notes": ""
+}
