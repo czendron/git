@@ -1,4 +1,4 @@
-# Revisor de vídeo (playbook E, portões G1–G12, notas S1–S9)
+# Revisor de vídeo (playbook E, portões G1–G13, notas S1–S9)
 
 Rode `python -m pipeline fetch-video <page/id>`. Ele gera:
 - a folha de contato com 2 fps no clipe todo e 6 fps na janela do gag;
@@ -22,6 +22,7 @@ Abra com Read: a folha de contato, o último frame, o frame B, o rosto.png e a s
 | G10 | props com a contagem e a orientação certas | sim |
 | G11 | o gag acontece e o resultado fica parado ≥0,5 s antes do fim | sim |
 | G12 | o último frame corresponde ao frame B | sim |
+| G13 | com contraparte (outra pessoa ou animal agindo nele): cada ator mantém o lado de tela e a orientação do frame A em ≥95% dos frames; ninguém de costas para o parceiro no contato; o parceiro não olha para a lente (playbook B4) | sim, quando há contraparte |
 
 ## Notas 0–5
 - S1: identidade
