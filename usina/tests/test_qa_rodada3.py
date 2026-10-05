@@ -73,3 +73,61 @@ def test_save_script_warns_repeated_place(usina, tmp_path):
     f.write_text(json.dumps(s))
     c = run(usina, "new", "gersinho", "Feira", "--idea", "feira").stdout.strip()
     assert "cenário repete" not in run(usina, "save-script", c, str(f)).stdout
+
+
+# ---------- 3. portão de estreia (D6) ----------
+
+def set_page(root, slug, **kw):
+    import yaml
+    f = root / "pages" / slug / "page.yaml"
+    d = yaml.safe_load(f.read_text())
+    d.update(kw)
+    f.write_text(yaml.safe_dump(d, allow_unicode=True))
+
+
+def days_ago(n):
+    return time.strftime("%Y-%m-%d", time.localtime(time.time() - n * 86400))
+
+
+def test_draft_page_never_generates(usina, tmp_path):
+    ref = run(usina, "new", "marlene", "Teste", "--idea", "x", "--force").stdout.strip()
+    s = json.loads((usina / EXAMPLE).read_text())
+    s["page"] = "marlene"
+    f = tmp_path / "m.json"
+    f.write_text(json.dumps(s))
+    run(usina, "save-script", ref, str(f))
+    r = run(usina, "image", ref, "storyboard", "--force", ok=False)
+    assert r.returncode == 1 and "rascunho" in r.stderr
+    c = json.loads(run(usina, "launch-check", "marlene").stdout)
+    assert c["can_generate"] is False and c["status"] == "rascunho"
+    assert not any(a.get("page") == "marlene" or a.get("item", "").startswith("marlene/") for a in plan(usina)["actions"])
+
+
+def test_launch_gate_ficha_days_and_stock(usina):
+    refs = [{"role": "face", "file": "refs/rosto.png", "higgsfield_id": "F"},
+            {"role": "silhouette", "file": "refs/silhueta.png", "higgsfield_id": "S"}]
+    set_page(usina, "marlene", status="ativo")                      # o Caio ativou, mas sem ficha
+    c = json.loads(run(usina, "launch-check", "marlene").stdout)
+    assert not c["can_generate"] and "ficha" in c["summary"]
+    p = plan(usina)
+    assert any("marlene: portão de estreia fechado" in n for n in p["notes"])
+    assert not any(a.get("page") == "marlene" for a in p["actions"])
+    assert run(usina, "new", "marlene", "x", "--idea", "y", ok=False).returncode == 1
+    set_page(usina, "marlene", refs=refs)
+    set_page(usina, "gersinho", launched_at=days_ago(5))
+    c = json.loads(run(usina, "launch-check", "marlene").stdout)
+    assert not c["can_generate"] and "D+10" in c["summary"]
+    set_page(usina, "gersinho", launched_at=days_ago(12))
+    c = json.loads(run(usina, "launch-check", "marlene").stdout)
+    assert c["can_generate"] and not c["can_post"] and "0/10 prontos" in c["summary"]
+    p = plan(usina)
+    ni = [a for a in p["actions"] if a["do"] == "new_ideas" and a["page"] == "marlene"]
+    assert ni and ni[0]["count"] == 10                                # estoque de estreia, não 3
+    assert any("estreia: 0/10" in n for n in p["notes"])
+    set_page(usina, "wanderley", status="ativo", refs=refs)
+    c = json.loads(run(usina, "launch-check", "wanderley").stdout)
+    assert not c["can_generate"] and "D+20" in c["summary"]           # P3 só no D+20
+    import yaml
+    assert yaml.safe_load((usina / "pages/wanderley/page.yaml").read_text())["status"] == "ativo"  # nada muda sozinho
+    g = json.loads(run(usina, "launch-check", "gersinho").stdout)
+    assert g["can_generate"] and g["can_post"]                        # P1: só a ficha

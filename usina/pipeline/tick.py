@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 
-from . import budget
+from . import budget, launch
 from .store import Item, Page, list_items, load_pages
 
 ACTIVE = ["ideia", "roteiro", "storyboard", "frames", "video", "revisao", "pronto"]
@@ -226,12 +226,24 @@ def plan(now: float | None = None) -> dict:
     for page in load_pages(include_drafts=False):
         items = [i for i in list_items(page.slug) if i.state in ACTIVE]
         ready = [i for i in items if i.state == "pronto"]
+        gate = launch.check(page, now)  # ata D6: ficha aprovada, D+10/D+20 e estoque de estreia
+        stock = gate["min_stock"]       # antes do 1º post da P2/P3 o estoque alvo é 10, não o teto de 5 da D5
+        cap = max(b["max_unposted_per_page"], stock)
         # ata D5: "mais de 5 vídeos prontos e não postados na página: para de gerar" (gasto novo; o resto segue)
-        full = len(ready) > b["max_unposted_per_page"]
-        if full:
+        full = len(ready) > cap or (stock and len(ready) >= stock)
+        if not gate["can_generate"]:
+            out["notes"].append(f"{page.slug}: portão de estreia fechado ({gate['summary']}); não gera (ata D6). "
+                                f"`python -m pipeline launch-check {page.slug}`")
+            full = True
+        elif stock:
+            out["notes"].append(f"{page.slug}: estreia: {len(ready)}/{stock} prontos; "
+                                + ("pode estrear (o Caio decide)." if len(ready) >= stock else
+                                   "o 1º post só com o estoque completo (ata D6)."))
+        if full and gate["can_generate"] and not stock:
             out["notes"].append(f"{page.slug}: {len(ready)} prontos sem postar (> {b['max_unposted_per_page']}); "
                                 f"não gero mais até o Caio postar.")
         target = int(page.data.get("cadence", {}).get("posts_per_day", 1)) * BUFFER_DAYS
+        target = max(target, stock)
         missing = target - len(items)
         if missing > 0 and not full:
             recent = [i for i in list_items(page.slug) if i.script and now - i.created_at < 30 * 86400

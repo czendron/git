@@ -33,7 +33,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import budget, images, lint as lintmod, lock, media, placar, prompts
+from . import budget, images, launch, lint as lintmod, lock, media, placar, prompts
 from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, local, new_item, rel, slugify
 
 FAILS = ROOT / "playbook" / "falhas.md"
@@ -77,6 +77,13 @@ def _clear_assets(it, *stages: str) -> None:
 
 def _switches() -> dict:
     return budget.load_budget().get("switches", {}) or {}
+
+
+def _gen_gate(page) -> None:
+    """Ata D6: rascunho nunca gera (nem com --force); ativo só com ficha aprovada e no D+N da estreia."""
+    gate = launch.check(page)
+    if not gate["can_generate"]:
+        raise StoreError(f"{page.slug}: não gera ({gate['summary']}). Veja `launch-check {page.slug}` (ata D6)")
 
 
 def _check_image_provider(provider: str) -> None:
@@ -203,6 +210,9 @@ def cmd_new(a):
     page = get_page(a.page)
     if not page.active and not a.force:
         raise StoreError(f"página '{a.page}' está em '{page.data.get('status')}': não gera nada (ata D6). Use --force para testar.")
+    gate = launch.check(page)
+    if page.active and not gate["can_generate"] and not a.force:
+        raise StoreError(f"portão de estreia fechado ({gate['summary']}): `launch-check {a.page}` (ata D6)")
     slug = slugify(a.title)
     dup = [i for i in list_items(a.page) if i.state != "descartado" and slugify(i.idea.get("title", "")) == slug]
     if dup and not a.force:
@@ -272,6 +282,7 @@ def cmd_image(a):
     stage = a.stage
     if not it.script:
         raise StoreError("item sem roteiro")
+    _gen_gate(page)
     provider = a.provider or _switches().get("image_provider", "openai")
     _check_image_provider(provider)
     b = budget.load_budget()
@@ -515,6 +526,7 @@ def cmd_discard(a):
 def cmd_video_request(a):
     page, it = _item(a.ref)
     _other_tick()
+    _gen_gate(page)
     _need_state(it, ["frames"], "video-request")
     if not _switches().get("video_enabled", False):
         raise StoreError("vídeo desligado em budget.yaml (switches.video_enabled)")
@@ -841,6 +853,9 @@ def _find_duplicate(h: str, me) -> str:
 def cmd_posted(a):
     page, it = _item(a.ref)
     _need_state(it, ["pronto"], "posted")
+    gate = launch.check(page)
+    if not gate["can_post"]:  # o post já aconteceu no app: registra, mas avisa (ata D6)
+        print(f"ATENÇÃO: estreia de {page.slug} antes do portão ({gate['summary']}; ata D6)", file=sys.stderr)
     if it.post.get("duplicate_of"):
         print(f"ATENÇÃO: o pacote estava marcado como duplicado de {it.post['duplicate_of']} (ata D8)", file=sys.stderr)
     it.post.update({"posted_at": time.time(), "link": a.link or ""})
@@ -945,7 +960,8 @@ def cmd_panel_export(a):
             "silhouette": ch.get("silhouette_letter"), "bpm": ch.get("bpm"), "dance": ch.get("dance_style"),
             "world": ch.get("world"), "gag": ch.get("recurring_gag"), "relationship": ch.get("relationship"),
             "signature": ch.get("signature_move"), "cadence": p.data.get("cadence", {}),
-            "refsReady": len(p.available_refs()) >= 2, "launchedAt": str(p.data.get("launched_at", "") or "")}})
+            "refsReady": len(p.available_refs()) >= 2, "launchedAt": str(p.data.get("launched_at", "") or ""),
+            "launch": launch.check(p)["summary"]}})
     pl = mkplan()
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
@@ -1230,6 +1246,10 @@ def cmd_resume(a):
     print("retomado")
 
 
+def cmd_launch_check(a):
+    _print(launch.check(get_page(a.page)))
+
+
 def cmd_tick_start(a):
     ok, msg, d = lock.acquire(a.owner)
     if not ok:
@@ -1343,6 +1363,7 @@ def main(argv=None):
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
     sp.add_parser("ledger").set_defaults(f=cmd_ledger)
+    p = sp.add_parser("launch-check"); p.add_argument("page"); p.set_defaults(f=cmd_launch_check)
     p = sp.add_parser("tick-start"); p.add_argument("--owner"); p.set_defaults(f=cmd_tick_start)
     p = sp.add_parser("tick-end"); p.add_argument("--owner"); p.add_argument("--force", action="store_true")
     p.set_defaults(f=cmd_tick_end)

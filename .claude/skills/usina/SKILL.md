@@ -13,7 +13,7 @@ Ata do conselho: `usina/docs/conselho-ata.md`. Método de qualidade: `usina/play
 - Nunca gerar pessoa real reconhecível; nunca remover metadados de IA; nunca ligar as páginas ao Papo de Gato; nunca tocar em cripto.
 - Nunca passar do teto (`usina/budget.yaml`). Se o plano disser `blocked`, pare aquela linha.
 - Se existir `usina/PAUSE` depois do passo 1 (o Caio pausa e retoma pelo painel, aba Saúde), só sincronize o painel, rode `P tick-end` e saia.
-- Páginas com `status: rascunho` não geram nada.
+- Páginas com `status: rascunho` não geram nada. Página que o Caio ativou só gera com o portão de estreia aberto (ata D6: ficha aprovada; P2 no D+10 e P3 no D+20 do Gersinho; 1º post com 10 prontos): `P launch-check <página>`, e o `plan` avisa nas `notes`. **Nunca** mude o `status` de uma página.
 
 ## 0. Preparar (uma vez por sessão)
 ```bash
