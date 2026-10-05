@@ -1,0 +1,25 @@
+{
+  "name": "higgsfield",
+  "owner": {
+    "name": "Higgsfield AI",
+    "url": "https://higgsfield.ai"
+  },
+  "plugins": [
+    {
+      "name": "higgsfield",
+      "source": "./",
+      "description": "Image/video generation, complete brand systems, narrated explainers, YouTube thumbnails, browser games, Marketing Studio, video engagement analysis, and Soul Character training via the Higgsfield CLI.",
+      "version": "0.13.0",
+      "skills": [
+        "./higgsfield-generate",
+        "./higgsfield-soul-id",
+        "./higgsfield-product-photoshoot",
+        "./higgsfield-brandkit",
+        "./higgsfield-marketplace-cards",
+        "./higgsfield-websites",
+        "./higgsfield-video-explainer",
+        "./higgsfield-youtube-thumbnail"
+      ]
+    }
+  ]
+}
