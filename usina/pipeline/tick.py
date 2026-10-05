@@ -189,6 +189,15 @@ def plan(now: float | None = None) -> dict:
     if out["paused"]:
         out["notes"].append(f"PAUSADO: {out['paused']}. Nenhuma ação.")
         return out
+    from . import lock
+    other = lock.held_by_other(now)
+    if other:  # duas Routines no mesmo tick submeteriam o mesmo vídeo duas vezes
+        out["other_tick"] = other
+        out["notes"].append(f"OUTRO CICLO RODANDO: {lock.describe(other, now)}. Nenhuma ação; saia sem gastar.")
+        return out
+    cur = lock.read()
+    if cur and lock.stale(cur, now):
+        out["notes"].append(f"lock vencido de {cur.get('owner', '?')} (> {lock.TTL_S // 3600} h) ignorado.")
     y = budget.yield_last(10)
     if y is not None and y < b["quality"]["min_yield_last10"]:
         out["notes"].append(f"Aproveitamento {y:.0%} < {b['quality']['min_yield_last10']:.0%} nas últimas 10. "

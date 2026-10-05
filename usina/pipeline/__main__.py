@@ -18,6 +18,8 @@ Comandos principais:
   panel-export | panel-apply decisoes.json | placar-import placar.json | cadence-check
   record-error "msg" [--ref] | balance <créditos> | health
   pause "motivo" | resume | ledger
+  tick-start [--owner id] | tick-end [--owner id] [--force]      lock do ciclo (TTL 2 h)
+  launch-check <page>                                          portão de estreia (ata D6)
 """
 from __future__ import annotations
 
@@ -31,7 +33,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import budget, images, lint as lintmod, media, placar, prompts
+from . import budget, images, lint as lintmod, lock, media, placar, prompts
 from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, local, new_item, rel, slugify
 
 FAILS = ROOT / "playbook" / "falhas.md"
@@ -432,6 +434,7 @@ def cmd_discard(a):
 
 def cmd_video_request(a):
     page, it = _item(a.ref)
+    _other_tick()
     _need_state(it, ["frames"], "video-request")
     if not _switches().get("video_enabled", False):
         raise StoreError("vídeo desligado em budget.yaml (switches.video_enabled)")
@@ -1147,6 +1150,28 @@ def cmd_resume(a):
     print("retomado")
 
 
+def cmd_tick_start(a):
+    ok, msg, d = lock.acquire(a.owner)
+    if not ok:
+        raise StoreError(msg + ". Saia sem fazer nada (o outro ciclo termina e libera).")
+    if msg:
+        print(f"aviso: {msg}")
+    _print({"owner": d["owner"], "lock": "usina/.lock", "expires_in_min": int(lock.TTL_S / 60)})
+
+
+def cmd_tick_end(a):
+    ok, msg = lock.release(a.owner, a.force)
+    if not ok:
+        raise StoreError(msg)
+    print(msg)
+
+
+def _other_tick() -> None:
+    d = lock.held_by_other()
+    if d:
+        raise StoreError(f"outro ciclo está rodando ({lock.describe(d)}): não submeto vídeo em paralelo")
+
+
 def cmd_ledger(a):
     for r in budget.rows()[-30:]:
         print(f"{time.strftime('%m-%d %H:%M', time.gmtime(r['at']))} {r['page']:9} {r['provider']:10} {r['action']:16} "
@@ -1238,6 +1263,9 @@ def main(argv=None):
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
     sp.add_parser("ledger").set_defaults(f=cmd_ledger)
+    p = sp.add_parser("tick-start"); p.add_argument("--owner"); p.set_defaults(f=cmd_tick_start)
+    p = sp.add_parser("tick-end"); p.add_argument("--owner"); p.add_argument("--force", action="store_true")
+    p.set_defaults(f=cmd_tick_end)
     a = ap.parse_args(argv)
     try:
         a.f(a)
