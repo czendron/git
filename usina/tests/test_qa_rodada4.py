@@ -568,7 +568,9 @@ def test_e2e_daily_cycle_as_skill(usina, tmp_path):
             src = it_of(usina, trend_ref).get("motion") or {}
             if not src.get("source_path"):     # o Caio (ou a sessão) traz a fonte: com corte é recusada
                 assert "cortes" in R.P("motion-source", trend_ref, "--file", str(R.media["cut"]), ok=False).stderr
-                R.P("motion-source", trend_ref, "--file", str(R.media["source"]))
+                out = R.P("motion-source", trend_ref, "--file", str(R.media["source"])).stdout
+                assert "media-status" in out       # rodada 4: fora do tick, quem registra a fonte arquiva
+                R.sync_panel()
         if any("teto diário" in b["why"] for b in blocked):
             R.next_day()
         R.caio_acts()

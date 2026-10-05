@@ -988,6 +988,9 @@ def cmd_motion_source(a):
     it.motion = mo
     it.save()
     print(f"fonte registrada: {mo.get('source_path', '')} {mo.get('source_hf_id', '')}".strip())
+    if a.file:  # rodada 4: fonte registrada fora do ciclo sumia com o container (out/ não vai para o git)
+        print("arquive a fonte ainda nesta sessão: `python -m pipeline media-status` → Artifact(asset: true) → "
+              "`panel-asset` (passo 3.1 do SKILL); senão o próximo ciclo não tem a fonte")
 
 
 def cmd_record_video(a):
