@@ -12,7 +12,7 @@ Ata do conselho: `usina/docs/conselho-ata.md`. Método de qualidade: `usina/play
 - **Nunca** publicar, agendar ou apagar posts; nunca mandar DM, comentar, seguir ou curtir; nunca mexer em bio ou config de conta.
 - Nunca gerar pessoa real reconhecível; nunca remover metadados de IA; nunca ligar as páginas ao Papo de Gato; nunca tocar em cripto.
 - Nunca passar do teto (`usina/budget.yaml`). Se o plano disser `blocked`, pare aquela linha.
-- Se existir `usina/PAUSE`, só sincronize o painel e saia.
+- Se existir `usina/PAUSE` depois do passo 1 (o Caio pausa e retoma pelo painel, aba Saúde), só sincronize o painel e saia.
 - Páginas com `status: rascunho` não geram nada.
 
 ## 0. Preparar (uma vez por sessão)
@@ -22,16 +22,19 @@ python3 -m venv .venv 2>/dev/null; .venv/bin/pip install -q openai pyyaml pillow
 alias P=".venv/bin/python -m pipeline"
 .venv/bin/python -m pytest -q tests   # se falhar, PARE e reporte
 ```
+Saldo do Higgsfield (ata D5, mínimo de 300 créditos): `mcp__Higgsfield__balance` → `P balance <créditos>`. Sem leitura nas últimas 24 h o plano devolve `check_balance` e o `video-request` recusa.
 Referências locais: `P pages`. Se aparecer FALTA, rode `P fetch-refs <página>`. Se o download for bloqueado pela rede, use as imagens pelo Higgsfield (`--provider higgsfield`) e anote no relatório.
 
 ## 0.5 Restaurar a mídia (out/ não vai para o git)
-`P media-status`. Para cada item em `restore`: `Artifact(action="read", url=<painel>, path=<asset_id>)` → `P media-restore <ref> <key> --file <arquivo salvo>`. Sem isso, frames e vídeo de itens em andamento não existem nesta sessão.
+`P media-status`. Para cada item em `restore`: `Artifact(action="read", url=<painel>, path=<asset_id>)` → `P media-restore <ref> <key> --file <arquivo salvo>`. Sem isso, frames, vídeo e a fonte das trends de itens em andamento não existem nesta sessão.
+Itens em `lost` sumiram e o arquivo guardado é de **outra versão** (a sessão anterior morreu antes do upload): não restaure o velho no lugar do novo (o `media-restore` recusa); refaça a etapa com o `fix` indicado e anote no relatório.
 
 ## 1. Trazer as decisões do Caio do painel
 Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 1. `ArtifactData list` da coleção `decisoes` (todas) → salve em `out/panel/decisoes.json`.
 2. `P panel-apply out/panel/decisoes.json` → devolve `applied_ids` (aplicadas, obsoletas e inválidas; rodar de novo não reaplica).
-3. Para cada id aplicado: `ArtifactData update` em `decisoes/<id>` com `{"applied": true}` (use o `version` lido).
+3. Para cada id aplicado: `ArtifactData update` em `decisoes/<id>` com `{"applied": true}` (use o `version` lido). O kill switch do painel chega por aqui (`stage: "usina"`, pausar/retomar).
+4. `ArtifactData list` da coleção `placar` → `out/panel/placar.json` → `P placar-import out/panel/placar.json`. O `plan` e o `P cadence-check` dizem se o gatilho da D5 (subir para 2 posts/dia) foi atingido: **só sugira ao Caio no relatório**, nunca mude `cadence` no page.yaml.
 
 ## 2. Plano
 `P plan` → JSON com `actions`, `waiting_caio` e `notes`. Execute **na ordem**, no máximo 12 ações por ciclo:
@@ -42,17 +45,18 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 | `write_script` | Leia `prompts/script.md` (as 8 leis), `pages/<página>/page.yaml`, `prompts/examples/gersinho-busao.json` (modelo), `playbook/falhas.md` e `P memory`. Escreva o JSON em `out/scripts/<id>.json` e rode `P save-script <ref> <arquivo>`. **Se o lint reprovar, corrija e salve de novo** (até 3 vezes; depois, `P discard`). |
 | `run` | Rode o `cmd` como está. Se `image` falhar por rede ou chave da OpenAI e `switches.image_fallback_allowed` estiver `true`, refaça com `--provider higgsfield`, execute a chamada MCP que ele imprimir e rode o `record-image` indicado (frames saem em 2 passos: o B é edição do A; o plano pede o 2º). Com o fallback desligado, o comando recusa: anote o bloqueio. |
 | `review_image` | Abra a(s) imagem(ns) com **Read** junto com `pages/<p>/refs/rosto.png` e `silhueta.png`, aplique a rubrica (`prompts/review_storyboard.md` ou `review_frames.md`) com rigor e registre com `P review ... pass|fail --notes "<gate/nota> <evidência> [categoria]"`. Na dúvida, **reprove**: imagem custa centavos e vídeo custa dólares. |
+| `check_balance` | `mcp__Higgsfield__balance` → `P balance <créditos>` e rode `P plan` de novo. |
 | `video_submit` | `P video-request <ref>`. Se `ready: false`: suba cada arquivo (`mcp__Higgsfield__media_upload` → `curl -X PUT --data-binary @arquivo '<upload_url>'` → `mcp__Higgsfield__media_confirm`) e rode `P record-upload <ref> <key> --hf-id <id>`; depois peça o video-request de novo. Com `ready: true`: chame `mcp__Higgsfield__generate_video_batch` com os `requests` exatos (se vier recomendação de preset, reenvie com `declined_preset_id`). Por fim, `P record-video <ref> --job <job_id> --credits <estimativa>`. |
-| `video_poll` | `mcp__Higgsfield__jobs_wait` (timeout 15). Com o job completo: `P record-video <ref> --url <result_url>`. Job `failed`/`nsfw`/`cancelled`: `P record-video <ref> --failed "motivo"` (volta para frames e conta como tentativa). Senão, siga em frente; o próximo ciclo checa. |
+| `video_poll` | `mcp__Higgsfield__jobs_wait` (timeout 15). Com o job completo: `P record-video <ref> --url <result_url>`. Job `failed`/`nsfw`/`cancelled`: `P record-video <ref> --failed "motivo"` (volta para frames e conta como tentativa). Se o Higgsfield devolveu os créditos (confira em `mcp__Higgsfield__transactions`), acrescente `--refunded` (ou depois: `P record-video <ref> --refunded --job <id>`): o estorno libera o teto de 160 créditos da ideia. Senão, siga em frente; o próximo ciclo checa. |
 | `review_video` | Abra com Read a folha (`*-sheet.jpg`), a folha do gag (`*-gag.jpg`) e o último frame, aplique `prompts/review_video.md` (12 portões e 9 notas) e veja os `cuts` no item. Registre com `P review ... video pass|fail --notes ...`. Na reprovação, decida a próxima tentativa pela triagem C6, mudando **uma** variável: `--no-grid`, `--repair "..."` ou reescrever o roteiro. |
 | `discard` / `blocked` | Rode o comando de descarte ou anote o bloqueio no relatório. |
 
-**Trend (format `trend`, motion control):** o roteiro segue `prompts/examples/gersinho-trend-calcadao.json`. Sem vídeo-fonte, o item fica em `waiting_caio` com a etapa `fonte`; o Caio (ou você, com um .mp4 da motion library do Higgsfield) roda `P motion-source <ref> --file fonte.mp4`. O frame do personagem é edição do 1º frame da fonte (`image ... frames`). No `video-request`, suba o frame (`record-upload ... start`) e a fonte como vídeo (`media_upload` type video → `motion-source <ref> --hf-id <id>`).
+**Trend (format `trend`, motion control):** o roteiro segue `prompts/examples/gersinho-trend-calcadao.json`. Sem vídeo-fonte, o item fica em `waiting_caio` com a etapa `fonte` (passados 7 dias, o plano descarta: a trend envelheceu, ata D7); o Caio (ou você, com um .mp4 da motion library do Higgsfield) roda `P motion-source <ref> --file fonte.mp4`. O comando recusa fonte com corte ou fora de 3–15 s (playbook C5); `--force` só com motivo. Fonte nova num item já com frames volta o item para `roteiro` (os frames eram edição da fonte velha). O frame do personagem é edição do 1º frame da fonte (`image ... frames`; no fallback Higgsfield, suba antes o 1º frame com `record-upload <ref> source_first`). No `video-request`, suba o frame (`record-upload ... start`) e a fonte como vídeo (`media_upload` type video → `motion-source <ref> --hf-id <id>`). Acima de 80% do teto do mês o Genjutsu fica bloqueado (D5).
 
 `waiting_caio` não é ação sua: só lista o que espera o Caio no painel.
 
 ## 3. Painel
-1. **Arquivar e mostrar:** `P media-status` → para todo arquivo em `upload` (storyboard, frames, vídeo, folhas, último frame), suba com a ferramenta **Artifact** (`url` do painel, `asset: true`, `file_paths: [...]`, até 25 por chamada; vídeo .mp4 vai junto) e grave cada id com `P panel-asset <ref> <key> /_blob/<id>`. O asset é ao mesmo tempo a imagem da Caixa e o arquivo permanente da mídia. Rode `media-status` de novo: `upload` tem que ficar vazio.
+1. **Arquivar e mostrar:** `P media-status` → para todo arquivo em `upload` (storyboard, frames, vídeo, folhas, último frame), suba com a ferramenta **Artifact** (`url` do painel, `asset: true`, `file_paths: [...]`, até 25 por chamada; vídeo .mp4 vai junto) e grave cada id com `P panel-asset <ref> <key> <url do asset> --path <path do media-status>` (se a url não trouxer o id de 32 hex, passe `--asset-id <id>`). O asset é ao mesmo tempo a imagem da Caixa e o arquivo permanente da mídia. Rode `media-status` de novo: `upload` tem que ficar vazio.
 2. `P panel-export` → `out/panel/batch.json` e os lotes `out/panel/batch-NN.json` (até 50 cada). Grave cada lote com `ArtifactData batch`. Documento já existente pede `if_version`: leia antes com `list` e passe a versão.
 3. Para vídeo, o painel mostra o link `videoUrl` do Higgsfield.
 
@@ -62,11 +66,11 @@ cd .. && git add usina && git commit -m "usina: tick $(date -u +%FT%H:%MZ)" && g
 ```
 Os arquivos de mídia (`usina/out/`) ficam fora do git. Relatório final em até 10 linhas:
 - o que foi gerado e quanto custou (`P ledger`, `P status`);
-- o que espera o Caio;
+- o que espera o Caio (e a sugestão de cadência, se o `plan` trouxer);
 - erros e bloqueios;
 - falhas novas registradas em `playbook/falhas.md`.
 
 ## Quando algo dá errado
-- 3 erros seguidos no mesmo ciclo: `P pause "motivo"` e reporte.
+- Todo erro que impede uma ação (comando com `ERRO`, MCP falhou, rede; lint ou revisão reprovada não é erro, é o fluxo): `P record-error "<o que falhou>" --ref <ref>`. No 3º seguido o **código** cria o `PAUSE` sozinho (ata D5); pare e reporte. Qualquer comando de produção que dá certo zera a sequência; `P resume` também.
 - Aproveitamento baixo (`notes` do plano): não gere vídeo; releia `playbook/falhas.md` e proponha a mudança de prompt no relatório.
 - Nunca "conserte" o teto de gasto, as regras ou a ata por conta própria.
