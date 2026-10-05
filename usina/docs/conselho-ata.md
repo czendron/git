@@ -143,3 +143,9 @@ As decisões não mudaram; detalhes em `docs/qa/rodada-3.md`.
 As decisões não mudaram; detalhes em `docs/qa/rodada-4.md`.
 - **D3:** na trend com gag, o Caio aprova o vídeo **final** (MC + gag). O card só aparece depois do gag aprovado ou descartado, e aprovação anterior vira obsoleta. O pacote pronto vira asset do painel (Baixar MP4), e o "Postei" da Fila, ou números no Placar, levam o item a `postado`.
 - **D5:** estorno também no gag (`record-video --gag --refunded`). Vídeo reprovado com a ideia no teto vai direto para descarte.
+
+## Notas de implementação (QA rodada 5, 05/10/2026)
+As decisões não mudaram; detalhes em `docs/qa/rodada-5.md`.
+- **D5 (teto diário e gag da trend):** o teto diário do Higgsfield conta em UTC e empurrava o gag de uma trend para o dia seguinte, com o motion control já pago e parado. Seguindo o espírito da ata (não desperdiçar o que já foi pago), o gag de um item com o MC já pago pode usar até 20% acima do teto diário do Higgsfield (US$ 12 → US$ 14,40). O teto do mês nunca estica, e vale só para o gag: nenhum outro gasto usa a folga. O plano marca `day_overflow: true` na ação.
+- **D9.6 (livro de falhas):** as reprovações registradas pelo pipeline vão para `data/falhas.jsonl` (append-only, um JSON por linha, `merge=union` no git). O `playbook/falhas.md` fica para a curadoria humana. `memory` lê os dois, e `falhas-digest` resume o jsonl por categoria para a curadoria.
+- **SKILL (12 ações por ciclo):** o `plan` corta no limite: primeiro sai o gasto novo, e buscar e revisar o que já foi pago fica. O que foi cortado aparece em `truncated` e nas `notes`.
