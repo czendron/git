@@ -138,3 +138,8 @@ As decisões não mudaram; detalhes em `docs/qa/rodada-3.md`.
 - **D6:** página em `rascunho` não gera nada (`image` e `video-request` recusam até com `--force`). Página ativa só gera com a ficha aprovada (face + silhouette com `higgsfield_id`). A P2 entra no D+10 e a P3 no D+20 do Gersinho (`launched_at` ou 1º post). Antes do 1º post, a página precisa de 10 prontos: o estoque-alvo vira 10 e o teto de 5 não vale. Tudo em `launch-check <página>` e nas `notes` do plano. O código nunca muda `status`.
 - **D7:** a mesma trend (nome normalizado) em duas páginas na mesma semana é erro no `save-script`. Quando uma trend nova passaria de 30% em 30 dias, o plano manda `allow_trend: false` e avisa.
 - **D9.6:** `memory <página>` imprime as últimas 15 falhas da página e as 15 gerais do `playbook/falhas.md`. O `save-script` avisa quando o cenário repete um dos últimos 20 roteiros da página.
+
+## Notas de implementação (QA rodada 4, 05/10/2026)
+As decisões não mudaram; detalhes em `docs/qa/rodada-4.md`.
+- **D3:** na trend com gag, o Caio aprova o vídeo **final** (MC + gag). O card só aparece depois do gag aprovado ou descartado, e aprovação anterior vira obsoleta. O pacote pronto vira asset do painel (Baixar MP4), e o "Postei" da Fila, ou números no Placar, levam o item a `postado`.
+- **D5:** estorno também no gag (`record-video --gag --refunded`). Vídeo reprovado com a ideia no teto vai direto para descarte.
