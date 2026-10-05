@@ -1,0 +1,37 @@
+# Página 1 — personagem aprovado em 05/10/2026
+slug: gersinho
+status: ativo            # ativo | rascunho
+character:
+  name: Gerson Brilhantina
+  nickname: Gersinho
+  handle: "@gerson.brilhantina"   # provisório, falta o Caio confirmar e criar a conta
+  bio: |
+    Conta Oficial do Gerson Brilhantina
+    Rei do brega · Ícone de estilo
+  # Descrição em inglês usada nos prompts. A identidade vem da referência; o texto só reforça.
+  look: >-
+    lanky Brazilian man in his 40s with a goofy crooked dopey face, buck teeth, droopy lopsided
+    half-closed eyelids, absurdly long thin neck, chin raised looking down his nose, thin pencil
+    mustache curled at the tips, enormous glossy black pompadour sculpted straight up into a tall
+    rigid wave-shaped block twice the height of his head, tropical print silk shirt open to the
+    sternum, thick gold chain, slight potbelly, high-waisted white bell-bottom trousers, two-tone shoes
+  rules:
+    - cara séria e torta o tempo todo, nunca sorri
+    - o topete é rígido como pedra e nunca mexe
+    - dança brega lenta (quadril pendular, ombro oposto, dedo pra cima)
+    - ninguém em volta reage
+  signature_move: "dedo indicador pra cima subindo e descendo no ritmo, mão na barriga"
+  dance_style: brega / lambada lenta, ~90-100 BPM
+  world: "Brasil urbano popular: busão, feira, padaria, laje, calçadão, lotérica, rodízio"
+refs:
+  # A primeira referência é a identidade principal; as outras ajudam com corpo e roupa.
+  - file: refs/gersinho-close.png
+    higgsfield_id: c4c11710-e507-46d6-8620-d8a7f060c89b
+    url: https://d8j0ntlcm91z4.cloudfront.net/user_3B2s4dphgQrz0Be2fQmM4aSAGX7/hf_20261005_090451_c4c11710-e507-46d6-8620-d8a7f060c89b.png
+  - file: refs/gersinho-sheet.png
+    higgsfield_id: 6ceffbb4-5d05-4567-b41f-eb9513798fca
+    url: https://d8j0ntlcm91z4.cloudfront.net/user_3B2s4dphgQrz0Be2fQmM4aSAGX7/hf_20261005_090815_6ceffbb4-5d05-4567-b41f-eb9513798fca.png
+cadence:
+  posts_per_day: 1
+  post_times_brt: ["19:00"]
+caption_voice: "curta, séria, como se ele fosse uma celebridade convicta; 3-5 hashtags"
