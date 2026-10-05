@@ -42,3 +42,34 @@ def test_video_request_refuses_while_other_cycle_runs(usina):
     assert r.returncode == 1 and "outro ciclo" in r.stderr
     run(usina, "tick-end", "--force")
     run(usina, "video-request", ref)
+
+
+# ---------- 2. livro de falhas no roteirista (D9.6) ----------
+
+def test_memory_shows_failure_book_for_page_and_general(usina):
+    fails = usina / "playbook" / "falhas.md"
+    rows = [f"| 2026-10-0{1 + i % 9} | gersinho | video | item{i} | falha gersinho {i} |" for i in range(20)]
+    rows += ["| 2026-10-02 | marlene | frames | m1 | falha da marlene |",
+             "| 2026-10-02 | geral | video | - | vento mexe o topete |",
+             "- dica livre: nunca usar câmera lenta",
+             "- marlene: laquê derrete"]
+    fails.write_text("# Livro\n\n| data | página | etapa | item | o que falhou |\n|---|---|---|---|---|\n" + "\n".join(rows))
+    out = run(usina, "memory", "gersinho").stdout
+    assert "falha gersinho 19" in out and "falha gersinho 5" in out and "| item4 |" not in out  # últimas 15
+    assert "vento mexe o topete" in out and "câmera lenta" in out
+    assert "marlene" not in out
+
+
+def test_save_script_warns_repeated_place(usina, tmp_path):
+    a = run(usina, "new", "gersinho", "Busao", "--idea", "porta").stdout.strip()
+    assert "cenário repete" not in run(usina, "save-script", a, EXAMPLE).stdout
+    b = run(usina, "new", "gersinho", "Busao 2", "--idea", "outra").stdout.strip()
+    out = run(usina, "save-script", b, EXAMPLE).stdout          # mesmo ponto de ônibus
+    assert "aviso: cenário repete" in out
+    s = json.loads((usina / EXAMPLE).read_text())
+    s["location"]["place"] = "feira livre de domingo, banca de pastel"
+    s["en"]["location"] = "a crowded Sunday street market, pastel stall with a deep fryer, plastic awnings"
+    f = tmp_path / "feira.json"
+    f.write_text(json.dumps(s))
+    c = run(usina, "new", "gersinho", "Feira", "--idea", "feira").stdout.strip()
+    assert "cenário repete" not in run(usina, "save-script", c, str(f)).stdout

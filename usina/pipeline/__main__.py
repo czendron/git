@@ -114,11 +114,89 @@ def cmd_memory(a):
     items = [i for i in list_items(a.page) if i.script][-20:]
     for i in items:
         s = i.script
-        loc = s.get("location")
-        place = loc.get("place") if isinstance(loc, dict) else loc
-        print(f"- [{i.state}] {s.get('title')} | {place} | {s.get('premise')}")
+        print(f"- [{i.state}] {s.get('title')} | {_place(s)[0] or _place(s)[1][:60]} | {s.get('premise')}")
     if not items:
         print("(sem histórico)")
+    page_rows, general = _failures(a.page)
+    print(f"\nLivro de falhas (playbook/falhas.md), {a.page}: últimas {len(page_rows[-15:])}")
+    for r in page_rows[-15:]:
+        print(f"  {r}")
+    if not page_rows:
+        print("  (nenhuma)")
+    print(f"Livro de falhas, gerais: últimas {len(general[-15:])}")
+    for r in general[-15:]:
+        print(f"  {r}")
+    if not general:
+        print("  (nenhuma)")
+
+
+GENERAL = {"geral", "gerais", "todas", "todos", "*", "-", "all", ""}
+
+
+def _failures(slug: str) -> tuple[list[str], list[str]]:
+    """Linhas do livro de falhas da página e as gerais (ata D9.6: o roteirista lê antes de escrever).
+
+    Tabela `| data | página | etapa | item | o que falhou |` (o formato do _log_failure) ou bullets livres
+    (o playbook é editado à mão): bullet que cita a página é dela; que cita outra página, não entra; senão é geral.
+    """
+    if not FAILS.exists():
+        return [], []
+    slugs = {p.slug for p in load_pages()}
+    mine, general = [], []
+    for line in FAILS.read_text(encoding="utf-8").splitlines():
+        t = line.strip()
+        if t.startswith("|"):
+            cols = [c.strip() for c in t.strip("|").split("|")]
+            if len(cols) < 3 or set(cols[0]) <= set("-: ") or cols[0].lower() == "data":
+                continue
+            who = cols[1].lower()
+            row = " | ".join(cols)
+            if who == slug:
+                mine.append(row)
+            elif who in GENERAL or who not in slugs:
+                general.append(row)
+        elif t.startswith(("- ", "* ")):
+            low = t.lower()
+            if slug in low:
+                mine.append(t[2:])
+            elif not any(s in low for s in slugs):
+                general.append(t[2:])
+    return mine, general
+
+
+STOP = set("a o as os de da do das dos e em no na nos nas um uma com sem para por ao à the of and in on at to with "
+           "an by from its his her their near".split())
+
+
+def _place(script: dict) -> tuple[str, str]:
+    """(lugar em pt, location em en) do roteiro; trend só tem o en."""
+    loc = script.get("location")
+    pt = loc.get("place") if isinstance(loc, dict) else (loc if isinstance(loc, str) else "")
+    en = (script.get("en") or {}).get("location") or ""
+    return str(pt or ""), str(en or "")
+
+
+def _tokens(text: str) -> set:
+    return {w for w in slugify(text).split("-") if len(w) > 2 and w not in STOP}
+
+
+def _same_place(a: str, b: str) -> bool:
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return False
+    return len(ta & tb) / min(len(ta), len(tb)) >= 0.6
+
+
+def _repeated_place(it, script: dict) -> list[str]:
+    """Avisos de cenário repetido contra os últimos 20 itens da página (D9.6: não repetir cenário/lugar)."""
+    pt, en = _place(script)
+    out = []
+    for o in [i for i in list_items(it.page) if i.script and i.id != it.id and i.state != "descartado"][-20:]:
+        opt, oen = _place(o.script)
+        if (pt and opt and _same_place(pt, opt)) or (not (pt and opt) and en and oen and _same_place(en, oen)):
+            out.append(f"cenário repete '{o.script.get('title')}' ({it.page}/{o.id}): {opt or oen[:80]}. "
+                       f"Troque o lugar (ata D9.6), salvo se for série de propósito")
+    return out
 
 
 def cmd_new(a):
@@ -150,6 +228,8 @@ def cmd_save_script(a):
     page, it = _item(a.ref)
     script = json.loads(Path(a.file).read_text(encoding="utf-8"))
     errors, warns = lintmod.lint(script, page.data)
+    if not errors:
+        warns += _repeated_place(it, script)
     for w in warns:
         print(f"aviso: {w}")
     if errors:
