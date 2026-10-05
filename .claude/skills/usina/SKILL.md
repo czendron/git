@@ -24,6 +24,9 @@ alias P=".venv/bin/python -m pipeline"
 ```
 Referências locais: `P pages`. Se aparecer FALTA, rode `P fetch-refs <página>`. Se o download for bloqueado pela rede, use as imagens pelo Higgsfield (`--provider higgsfield`) e anote no relatório.
 
+## 0.5 Restaurar a mídia (out/ não vai para o git)
+`P media-status`. Para cada item em `restore`: `Artifact(action="read", url=<painel>, path=<asset_id>)` → `P media-restore <ref> <key> --file <arquivo salvo>`. Sem isso, frames e vídeo de itens em andamento não existem nesta sessão.
+
 ## 1. Trazer as decisões do Caio do painel
 Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 1. `ArtifactData list` da coleção `decisoes` (todas) → salve em `out/panel/decisoes.json`.
@@ -47,7 +50,7 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 `waiting_caio` não é ação sua: só lista o que espera o Caio no painel.
 
 ## 3. Painel
-1. Para cada imagem nova revisada (storyboard, frames, folha do vídeo, capa): suba com a ferramenta **Artifact** (`url` do painel, `asset: true`, `file_paths: [...]`) e grave cada URL devolvida com `P panel-asset <ref> <key> <url>`. Keys: `storyboard`, `start`, `end`, `sheet`, `gag`, `cover`.
+1. **Arquivar e mostrar:** `P media-status` → para todo arquivo em `upload` (storyboard, frames, vídeo, folhas, último frame), suba com a ferramenta **Artifact** (`url` do painel, `asset: true`, `file_paths: [...]`, até 25 por chamada; vídeo .mp4 vai junto) e grave cada id com `P panel-asset <ref> <key> /_blob/<id>`. O asset é ao mesmo tempo a imagem da Caixa e o arquivo permanente da mídia. Rode `media-status` de novo: `upload` tem que ficar vazio.
 2. `P panel-export` → `out/panel/batch.json` e os lotes `out/panel/batch-NN.json` (até 50 cada). Grave cada lote com `ArtifactData batch`. Documento já existente pede `if_version`: leia antes com `list` e passe a versão.
 3. Para vídeo, o painel mostra o link `videoUrl` do Higgsfield.
 

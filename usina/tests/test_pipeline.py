@@ -140,3 +140,22 @@ def test_three_strikes_discard(usina):
     plan = json.loads(run(usina, "plan").stdout)
     assert any(a["do"] == "discard" for a in plan["actions"])
     assert (usina / "playbook" / "falhas.md").exists()
+
+
+def test_media_archive_roundtrip(usina, tmp_path):
+    ref = run(usina, "new", "gersinho", "M", "--idea", "m").stdout.strip()
+    run(usina, "save-script", ref, "prompts/examples/gersinho-busao.json")
+    run(usina, "image", ref, "storyboard")
+    st = json.loads(run(usina, "media-status").stdout)
+    assert [u["key"] for u in st["upload"]] == ["storyboard"]
+    run(usina, "panel-asset", ref, "storyboard", "/_blob/" + "a" * 32)
+    st = json.loads(run(usina, "media-status").stdout)
+    assert st["upload"] == [] and st["restore"] == []
+    sb = Path(st["how_upload"] and next((usina / "out").rglob("storyboard-v1.png")))
+    backup = tmp_path / "bk.png"
+    shutil.copy(sb, backup)
+    sb.unlink()  # sessão nova: out/ sumiu
+    st = json.loads(run(usina, "media-status").stdout)
+    assert st["restore"] and st["restore"][0]["asset_id"] == "a" * 32
+    run(usina, "media-restore", ref, "storyboard", "--file", str(backup))
+    assert sb.exists()

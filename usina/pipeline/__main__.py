@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import os
 import shutil
 import subprocess
@@ -703,12 +704,72 @@ def cmd_panel_export(a):
           f"out/panel/batch-NN.json; documentos já existentes precisam do if_version lido antes)")
 
 
+MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last")
+
+
+def _media_paths(it) -> dict:
+    """Arquivos de mídia que o item usa hoje (chave -> caminho relativo)."""
+    out = {}
+    if it.storyboard.get("path"):
+        out["storyboard"] = it.storyboard["path"]
+    for k in ("start", "end"):
+        if (it.frames.get(k) or {}).get("path"):
+            out[k] = it.frames[k]["path"]
+    v = it.video or {}
+    for k, f in (("video", "path"), ("sheet", "sheet"), ("gag", "gag_sheet"), ("last", "last")):
+        if v.get(f):
+            out[k] = v[f]
+    return {k: rel(p) for k, p in out.items()}
+
+
 def cmd_panel_asset(a):
-    """Grava a URL de um asset do painel (imagem subida com Artifact asset:true) no item."""
+    """Grava o asset do painel (subido com Artifact asset:true) no item: serve à Caixa E de arquivo permanente.
+
+    O id em /_blob/<id> fica em item.post.media[key] junto do caminho local, para `media-status` restaurar
+    o arquivo numa sessão nova (out/ não vai para o git).
+    """
     page, it = _item(a.ref)
     it.post.setdefault("assets", {})[a.key] = a.url
+    m = re.search(r"/_blob/([0-9a-f]{32})", a.url or "")
+    if m:
+        path = _media_paths(it).get(a.key, "")
+        it.post.setdefault("media", {})[a.key] = {"asset": m.group(1), "path": path}
     it.save()
     print("ok")
+
+
+def cmd_media_status(a):
+    """O que subir (existe local, sem asset) e o que restaurar (sumiu do disco, tem asset) para os itens ativos."""
+    upload, restore = [], []
+    for it in list_items():
+        if a.ref and f"{it.page}/{it.id}" != a.ref:
+            continue
+        if it.state in ("descartado", "postado") and not a.ref:
+            continue
+        media = it.post.get("media", {})
+        for key, path in _media_paths(it).items():
+            rec = media.get(key) or {}
+            exists = local(path).exists()
+            if exists and rec.get("path") != path:
+                upload.append({"ref": f"{it.page}/{it.id}", "key": key, "file": str(local(path))})
+            elif not exists and rec.get("asset") and rec.get("path") == path:
+                restore.append({"ref": f"{it.page}/{it.id}", "key": key, "asset_id": rec["asset"], "to": path})
+    _print({"upload": upload, "restore": restore,
+            "how_upload": "Artifact(url=<painel>, asset=true, file_paths=[...]) e depois "
+                          "`python -m pipeline panel-asset <ref> <key> /_blob/<id>` para cada arquivo",
+            "how_restore": "Artifact(action='read', url=<painel>, path=<asset_id>) e depois "
+                           "`python -m pipeline media-restore <ref> <key> --file <arquivo salvo>`"})
+
+
+def cmd_media_restore(a):
+    page, it = _item(a.ref)
+    path = _media_paths(it).get(a.key)
+    if not path:
+        raise StoreError(f"{a.ref} não usa mídia '{a.key}'")
+    dst = local(path)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy(a.file, dst)
+    print(f"restaurado: {path}")
 
 
 def _decision_rows(raw) -> list:
@@ -859,6 +920,9 @@ def main(argv=None):
     p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true", help="(sem efeito: tudo é exportado)"); p.set_defaults(f=cmd_panel_export)
     p = sp.add_parser("panel-asset"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("url")
     p.set_defaults(f=cmd_panel_asset)
+    p = sp.add_parser("media-status"); p.add_argument("--ref"); p.set_defaults(f=cmd_media_status)
+    p = sp.add_parser("media-restore"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("--file", required=True)
+    p.set_defaults(f=cmd_media_restore)
     p = sp.add_parser("panel-apply"); p.add_argument("file"); p.set_defaults(f=cmd_panel_apply)
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
