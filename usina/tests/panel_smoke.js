@@ -38,7 +38,7 @@ const fs = require('fs');
   if (vetos.length) { await vetos[0].click(); await page.waitForTimeout(100); }
   console.log('veto after:', (await page.$$('[data-veto]')).length);
   // rodada 4: pronto = Baixar MP4 + Postei; Caixa sem card de vídeo enquanto o gag da trend está em produção
-  console.log('DOWNLOADS:', JSON.stringify(await page.$$eval('#fila a[download]', as => as.map(a => a.getAttribute('href')))));
+  console.log('DOWNLOADS:', JSON.stringify(await page.$$eval('#fila [data-dl]', as => as.map(a => a.dataset.dl))));
   const posts = await page.$$('[data-post]');
   console.log('post buttons:', posts.length);
   if (posts.length) { await page.fill('[data-link]', 'https://instagram.com/reel/abc'); await posts[0].click(); await page.waitForTimeout(100); }

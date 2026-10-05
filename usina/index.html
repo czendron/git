@@ -290,6 +290,21 @@ function show(tab){
   try { localStorage.setItem("usina-tab", tab); } catch(e) {}
 }
 document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-dl]"); if (!b) return;
+  const dls = window.claude ? await window.claude.use("downloads") : null;
+  if (!dls) { b.textContent = "Download indisponível aqui"; b.disabled = true; return; }
+  const label = b.textContent; b.textContent = "Preparando…"; b.disabled = true;
+  try {
+    const r = await fetch(b.dataset.dl); if (!r.ok) throw { code: "fetch" };
+    await dls.save({ filename: b.dataset.fn, data: await r.blob() });
+    b.textContent = label;
+  } catch (e) {
+    const c = e && e.code;
+    b.textContent = c === "declined" ? label : (c === "unavailable" || c === "not_granted") ? "Download indisponível aqui" : "Não baixou; tente de novo";
+  } finally { b.disabled = false; }
+});
+
 $(".tabs").addEventListener("keydown", (ev) => {
   const tabs = [...document.querySelectorAll(".tab")], i = tabs.indexOf(document.activeElement);
   if (i < 0) return;
@@ -766,7 +781,7 @@ function renderCaixa(){
 // Pronto: o MP4 do pacote (asset arquivado pela automação), a legenda e o "Postei" (vira postado no próximo ciclo).
 function postCell(f){
   const a = f.assets || {};
-  const dl = a.package ? `<a href="${esc(a.package)}" download="${esc(f.ref.replace("/","-"))}.mp4">Baixar MP4</a>` : `<span class="note">MP4 sobe no próximo ciclo</span>`;
+  const dl = a.package ? `<button class="btn ghost" data-dl="${esc(a.package)}" data-fn="${esc(f.ref.replace("/","-"))}.mp4">Baixar MP4</button>` : `<span class="note">MP4 sobe no próximo ciclo</span>`;
   const cap = f.caption ? `<details><summary class="note">Legenda e capa</summary><p class="note">${esc(f.caption)}</p>${f.cover_text?`<p class="note">Capa: ${esc(f.cover_text)}</p>`:""}</details>` : "";
   if (state.decisoes.some(d => d.ref === f.ref && d.stage === "post")) return `${dl}${cap}<span class="note">postado (vale no próximo ciclo)</span>`;
   return `${dl}${cap}<div class="row"><input data-link="${esc(f.ref)}" placeholder="link do post (opcional)" aria-label="Link do post"><button class="btn ghost" data-post="${esc(f.ref)}" title="Registra que você postou pelo app">Postei</button></div>`;
