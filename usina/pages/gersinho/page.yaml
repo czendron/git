@@ -4,6 +4,8 @@ status: ativo            # ativo | rascunho
 character:
   name: Gerson Brilhantina
   nickname: Gersinho
+  pronoun: he
+  silhouette_letter: "I"
   handle: "@gerson.brilhantina"   # provisório, falta o Caio confirmar e criar a conta
   bio: |
     Conta Oficial do Gerson Brilhantina
@@ -21,16 +23,25 @@ character:
     - dança brega lenta (quadril pendular, ombro oposto, dedo pra cima)
     - ninguém em volta reage
   signature_move: "dedo indicador pra cima subindo e descendo no ritmo, mão na barriga"
-  dance_style: brega / lambada lenta, ~90-100 BPM
+  recurring_gag: "o topete rígido não cabe ou atrapalha (porta do ônibus, guarda-chuva, teto do elevador) e ele segue sério"
+  dance_style: brega / lambada lenta
+  bpm: 95
+  camera_default: "selfie POV grande angular ou câmera fixa de passante"
+  relationship: "protagonista; ex da Marlene; rival do Wanderley"
   world: "Brasil urbano popular: busão, feira, padaria, laje, calçadão, lotérica, rodízio"
 refs:
-  # A primeira referência é a identidade principal; as outras ajudam com corpo e roupa.
-  - file: refs/gersinho-close.png
+  # Ordem do playbook: @Image 1 = rosto (um único rosto legível), @Image 2 = silhueta (forma do topete + figurino).
+  # PROVISÓRIO: a silhueta atual é a ficha antiga (vários rostos). Gerar a ficha nova com `python -m pipeline sheet gersinho`
+  # (template C1) e recortar com `split-sheet` assim que a OPENAI_API_KEY estiver liberada.
+  - role: face
+    file: refs/rosto.png
     higgsfield_id: c4c11710-e507-46d6-8620-d8a7f060c89b
     url: https://d8j0ntlcm91z4.cloudfront.net/user_3B2s4dphgQrz0Be2fQmM4aSAGX7/hf_20261005_090451_c4c11710-e507-46d6-8620-d8a7f060c89b.png
-  - file: refs/gersinho-sheet.png
+  - role: silhouette
+    file: refs/silhueta.png
     higgsfield_id: 6ceffbb4-5d05-4567-b41f-eb9513798fca
     url: https://d8j0ntlcm91z4.cloudfront.net/user_3B2s4dphgQrz0Be2fQmM4aSAGX7/hf_20261005_090815_6ceffbb4-5d05-4567-b41f-eb9513798fca.png
+video_resolution: 720p
 cadence:
   posts_per_day: 1
   post_times_brt: ["19:00"]

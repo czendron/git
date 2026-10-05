@@ -1,0 +1,30 @@
+# Tetos de gasto (ata do conselho, D5). O pipeline lê isso antes de qualquer geração paga.
+currency: USD
+month_cap: 300          # Higgsfield + OpenAI no mês
+day_cap:
+  higgsfield: 12
+  openai: 2
+alerts_pct: [50, 80]    # 80%: corta Seedance 1080p e Genjutsu
+higgsfield_credit_usd: 0.05   # estimativa (plano do app); ajustar quando o Caio confirmar
+min_higgsfield_credits: 300   # abaixo disso, para
+per_idea:
+  max_video_attempts: 4
+  max_credits: 160
+  max_image_attempts: 3       # por etapa (storyboard / frame); 3ª reprovação descarta a ideia
+quality:
+  min_yield_last10: 0.30      # aproveitamento mínimo das últimas 10 gerações de vídeo
+max_unposted_per_page: 5
+max_consecutive_errors: 3
+# Custos estimados por ação (para o livro-caixa quando a API não informa)
+cost_estimates:
+  openai_image:
+    low: 0.01
+    medium: 0.04
+    high: 0.17
+    xhigh: 0.21
+  higgsfield_credits:
+    seedance_2_5_720p_per_s: 6.5
+    seedance_2_5_1080p_per_s: 12
+    kling3_0_per_s: 2
+    hf_mult_motion_control_per_s: 8
+    gpt_image_2_5: 2

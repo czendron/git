@@ -1,8 +1,10 @@
 """Páginas (pages/<slug>/page.yaml) e fila de vídeos (data/queue/<slug>/<id>.json).
 
 A fila é JSON versionado no git: cada item é um vídeo, do roteiro até o post.
-Estados (ordem): ideia -> roteiro -> frames -> aprovado_frames -> video -> aprovado_video -> pronto -> postado
-Desvios: descartado, erro.
+Estados (ordem, ata D9 storyboard-first):
+  ideia -> roteiro -> storyboard -> frames -> video -> revisao -> pronto -> postado
+Cada etapa de imagem/vídeo tem portões em item.gates[etapa] = {"qa": "pass|fail|pending", "caio": "approved|rejected|pending|skip"}.
+Desvios: descartado, erro, pausado.
 """
 from __future__ import annotations
 
@@ -19,8 +21,8 @@ PAGES = ROOT / "pages"
 QUEUE = ROOT / "data" / "queue"
 OUT = ROOT / "out"
 
-STATES = ["ideia", "roteiro", "frames", "aprovado_frames", "video", "aprovado_video", "pronto", "postado"]
-OFF_STATES = ["descartado", "erro"]
+STATES = ["ideia", "roteiro", "storyboard", "frames", "video", "revisao", "pronto", "postado"]
+OFF_STATES = ["descartado", "erro", "pausado"]
 ALL_STATES = STATES + OFF_STATES
 
 
@@ -84,7 +86,11 @@ class Item:
     updated_at: float = field(default_factory=time.time)
     idea: dict = field(default_factory=dict)
     script: dict = field(default_factory=dict)
-    frames: dict = field(default_factory=dict)     # {"start": {"path":..,"prompt":..}, "end": {...}}
+    storyboard: dict = field(default_factory=dict) # {"path":..,"prompt":..,"attempts":n,"higgsfield_id":..}
+    frames: dict = field(default_factory=dict)     # {"start": {"path":..,"prompt":..,"higgsfield_id":..}, "end": {...}}
+    gates: dict = field(default_factory=dict)      # {"storyboard": {"qa":..,"caio":..,"notes":..}, ...}
+    attempts: dict = field(default_factory=dict)   # {"storyboard": n, "frames": n, "video": n}
+    cost: dict = field(default_factory=dict)       # {"usd": x, "credits": y}
     video: dict = field(default_factory=dict)      # {"provider":..,"job_id":..,"url":..,"path":..}
     post: dict = field(default_factory=dict)       # {"caption":..,"audio":..,"scheduled_for":..,"ig_media_id":..}
     history: list = field(default_factory=list)

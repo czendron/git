@@ -1,0 +1,34 @@
+# Página 2: rascunho (ata do conselho D6). Estreia no mínimo no D+10 do Gersinho, com 10 vídeos em estoque e ficha aprovada.
+slug: marlene
+status: rascunho
+character:
+  name: Marlene Laquê
+  nickname: Tia Marlene
+  pronoun: she
+  handle: "@marlene.laque"          # sugestão: reservar
+  bio: |
+    Marlene Laquê · personagem de IA
+    Ela não sorri. Ela não precisa.
+  silhouette_letter: "O"
+  look: >-
+    Brazilian woman in her late 50s with a bored deadpan face, heavy drooping eyelids, mouth in a
+    flat straight line, one drawn-on eyebrow set higher than the other, enormous hairsprayed coppery
+    bouffant shaped into a perfect rigid dome twice as wide as her shoulders, huge cat-eye glasses,
+    loud pastel-pink blazer suit with big shoulder pads, crossbody handbag, low heeled sandals, red nails
+  rules:
+    - deadpan absoluto, nunca sorri
+    - o laquê é um capacete e não mexe nunca, nem com vento
+    - dança só da cintura pra baixo; tronco e cabelo imóveis
+    - ninguém em volta reage
+  signature_move: "abre o leque num estalo no tempo forte e se abana devagar"
+  recurring_gag: "tira de dentro do cabelo um objeto impossível (controle remoto, pão francês, guarda-chuva)"
+  dance_style: axé anos 90 em câmera lenta
+  bpm: 100
+  world: "fila do banco, sacolão, hidroginástica, salão de beleza, chá de bebê, ponto de ônibus"
+  camera_default: "estática de passante, altura do peito"
+  relationship: "par / ex do Gersinho, a única que resistiu ao Gerson; nos crossovers dançam lado a lado sem se olhar"
+refs: []   # gerar a ficha com prompts/character-sheet.md e aprovar antes de ativar
+cadence:
+  posts_per_day: 1
+  post_times_brt: ["12:30"]
+caption_voice: "seca, de tia que já viu tudo; 3-5 hashtags"

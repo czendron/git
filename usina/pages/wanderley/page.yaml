@@ -1,0 +1,34 @@
+# Página 3: rascunho (ata do conselho D6). Estreia no mínimo no D+20 do Gersinho. Reserva: Rubão Supino (silhueta V).
+slug: wanderley
+status: rascunho
+character:
+  name: Wanderley Bigodão
+  nickname: Wanderley
+  pronoun: he
+  handle: "@wanderley.bigodao"      # sugestão: reservar
+  bio: |
+    Wanderley Bigodão · personagem de IA
+    O calçadão tem dono.
+  silhouette_letter: "—"
+  look: >-
+    stocky Brazilian man in his 50s with a stern deadpan face, heavy-lidded eyes, a rigid jet-black
+    horizontal mustache waxed straight out to both sides, wider than his shoulders, a faded gas-station
+    trucker cap, tight white tank top, baggy blue nylon tactel shorts, white socks with flip-flops,
+    gold wristwatch, slight beer belly
+  rules:
+    - deadpan absoluto, nunca sorri
+    - o bigode é rígido como uma barra e não mexe nunca
+    - dança miudinho de pagode, passos curtos e rápidos, tronco firme
+    - ninguém em volta reage
+  signature_move: "alisa as duas pontas do bigode com dois dedos e dá um giro lento de 360 graus"
+  recurring_gag: "o bigode não cabe nos lugares (porta do carro, catraca, foto 3x4) e ele resolve de lado, sério"
+  dance_style: pagode anos 90 (miudinho)
+  bpm: 96
+  world: "posto de gasolina, churrasco de laje, oficina, praia lotada, boteco de esquina, estacionamento"
+  camera_default: "selfie POV grande angular ou câmera fixa baixa"
+  relationship: "rival do Gersinho na disputa de rei do calçadão; disputa a Marlene"
+refs: []
+cadence:
+  posts_per_day: 1
+  post_times_brt: ["20:30"]
+caption_voice: "provocação curta de tiozão confiante; 3-5 hashtags"

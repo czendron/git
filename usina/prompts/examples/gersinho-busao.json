@@ -1,0 +1,145 @@
+{
+  "page": "gersinho",
+  "title": "Busao topete preso",
+  "format": "proprio",
+  "premise": "Gersinho dança brega no degrau do ônibus lotado; a porta sanfonada fecha e o topete fica preso pra fora, e ele continua dançando sério enquanto o ônibus sai.",
+  "gag_without_sound": "a porta fecha no topete gigante e ele segue dançando sem reação, com o topete do lado de fora",
+  "location": {
+    "place": "ponto de ônibus de bairro com ônibus urbano parado",
+    "city_vibe": "São Paulo, zona leste",
+    "time_of_day": "fim de tarde nublado",
+    "kelvin": 5600
+  },
+  "camera": {
+    "mode": "static_passerby",
+    "fov_deg": 63,
+    "height": "altura do peito, a 4 m, do outro lado da calçada",
+    "movement": "tripé, travada"
+  },
+  "beats": [
+    {
+      "t": "0-6.5s",
+      "action": "no degrau de baixo da porta dianteira aberta, faz o passo brega: peso de um pé pro outro no tempo, quadril balançando, indicador subindo e descendo",
+      "facing": "de frente para a lente",
+      "extras": "passageiros no celular, pedestre passando"
+    },
+    {
+      "t": "6.5-10s",
+      "action": "a porta sanfonada fecha e prende o topete por cima; ele fica parado, sério, encarando a lente pelo vidro",
+      "facing": "de frente para a lente",
+      "extras": "ninguém reage"
+    }
+  ],
+  "character_actions_count": 2,
+  "duration_s": 10,
+  "end_state": "ônibus andando, porta fechada, topete preso pra fora em cima da porta, rosto sério visto pelo vidro com o dedo pra cima",
+  "props": [
+    {
+      "name": "porta dianteira sanfonada do ônibus",
+      "orientation": "à direita do personagem do ponto de vista da câmera; abre para dentro e fecha em duas folhas de vidro"
+    }
+  ],
+  "storyboard_panels": [
+    {
+      "n": 1,
+      "t": "0-1s",
+      "shot": "MS fixa 63°",
+      "description": "pose de assinatura no degrau, porta aberta"
+    },
+    {
+      "n": 2,
+      "t": "1-6.5s",
+      "shot": "MS fixa 63°",
+      "description": "pico do passo brega, quadril para a esquerda do quadro"
+    },
+    {
+      "n": 3,
+      "t": "6.5-8.5s",
+      "shot": "MS fixa 63°",
+      "description": "folhas de vidro fechando, ponta do topete tocando a borda de cima da porta"
+    },
+    {
+      "n": 4,
+      "t": "8.5-10s",
+      "shot": "MS fixa 63°",
+      "description": "porta fechada, topete preso pra fora acima da porta, rosto sério pelo vidro"
+    }
+  ],
+  "start_frame": "Gersinho no degrau de baixo da porta dianteira aberta de um ônibus urbano lotado, de frente para a câmera, dedo pra cima, mão na barriga, topete inteiro visível",
+  "end_frame": "porta fechada, topete preso para fora acima da porta, rosto sério visto pelo vidro, ônibus em movimento",
+  "music": {
+    "genre": "brega",
+    "bpm": 95,
+    "trend_sound_hint": "brega romântico em alta no Reels BR",
+    "fallback": "instrumental brega royalty-free 95 BPM"
+  },
+  "cover": {
+    "from": "end_frame",
+    "text_max4": "o topete não cabe"
+  },
+  "caption": "O busão não estava preparado para tanto estilo.",
+  "hashtags": [
+    "#brega",
+    "#busao",
+    "#topete",
+    "#gersonbrilhantina"
+  ],
+  "crossover": null,
+  "originality_note": "primeira piada de veículo; gag de escala do topete",
+  "brand_safety": [
+    "sem camisa de time",
+    "sem criança em destaque",
+    "logos do ônibus genéricos"
+  ],
+  "risks": "o topete dobrar ao fechar a porta; o modelo cortar a cena; a porta abrir para o lado errado. Conferir no storyboard o painel 3.",
+  "self_score": {
+    "hook": 4,
+    "absurdo": 5,
+    "miniatura": 4,
+    "clareza_sem_som": 5
+  },
+  "en": {
+    "gag_sentence": "At a São Paulo bus stop he does his signature brega step on the bus doorway step until the folding glass door closes and clamps his rigid pompadour, which stays sticking out above the door.",
+    "location": "the open front doorway of a crowded white-and-green city bus stopped at a bus stop in a working-class São Paulo neighborhood, worn concrete sidewalk, a bus-stop shelter and a graffiti wall, overcast late afternoon",
+    "location_map": "Frame-left: the bus body with windows and standing passengers. Center: the open front doorway with three steps, its two glass door leaves folded open against the right side of the doorway. Frame-right: the bus-stop shelter and a graffiti wall. Foreground: worn concrete sidewalk.",
+    "position": "on the lowest step of the open front doorway, centered, chest square to the lens, the full pompadour above the top of the door frame",
+    "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together on the step",
+    "extras_count": 5,
+    "extras_tasks": "three passengers inside read their phones, one passenger looks out of the window, one pedestrian walks along the sidewalk looking ahead",
+    "props": "exactly one bus front door made of two glass leaves, folded open against the right side of the doorway",
+    "hands": "Exactly two hands in frame, both his: left hand flat on his belly, right hand with the index finger raised.",
+    "stages": [
+      {
+        "t": "0-1s",
+        "text": "He holds the signature pose from the start frame on the lowest step; breathing lifts the chest, one slow blink.",
+        "end_state": "same pose, eyes into the lens."
+      },
+      {
+        "t": "1-6.5s",
+        "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly.",
+        "end_state": "feet together, finger raised, chest square to the lens."
+      },
+      {
+        "t": "6.5-8.5s",
+        "text": "The two glass door leaves swing closed from the right side of the doorway in front of his body; the top edge of the closing door meets the base of the pompadour; the pompadour passes over the door edge and stays outside, clamped between the door top and the door frame, its outline unchanged.",
+        "end_state": "door closed, pompadour sticking out above the door, his face behind the glass."
+      },
+      {
+        "t": "8.5-10s",
+        "text": "Everything settles and holds; he stares into the lens through the glass, finger raised. The final frame matches the end frame.",
+        "end_state": "frozen result, readable as a cover."
+      }
+    ],
+    "end_change": "the two glass door leaves are closed in front of him; the rigid black pompadour sticks out above the top of the closed door, clamped between the door top and the frame, outline unchanged; his deadpan face is seen through the glass with the right index finger raised",
+    "vacated": "",
+    "end_props": "the door is fully closed, both glass leaves meeting in the center of the doorway",
+    "props_lock": "Exactly one bus door with two glass leaves: open in the first frame, closed in the last frame.",
+    "lighting": "Overcast late-afternoon daylight from the open sky, soft even light, gentle shadows under the bus, 5600K.",
+    "panels": [
+      "on the lowest step of the open doorway, signature pose: left hand on belly, right index finger raised, chest square to the lens",
+      "hips swayed to frame-left at the peak of the brega step, finger raised, face toward the lens",
+      "the two glass door leaves closing in front of his body, the top edge of the door meeting the base of the pompadour",
+      "door closed, the rigid pompadour sticking out above the door, clamped; deadpan face behind the glass, finger raised"
+    ]
+  }
+}
