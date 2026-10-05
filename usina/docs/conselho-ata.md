@@ -149,3 +149,9 @@ As decisões não mudaram; detalhes em `docs/qa/rodada-5.md`.
 - **D5 (teto diário e gag da trend):** o teto diário do Higgsfield conta em UTC e empurrava o gag de uma trend para o dia seguinte, com o motion control já pago e parado. Seguindo o espírito da ata (não desperdiçar o que já foi pago), o gag de um item com o MC já pago pode usar até 20% acima do teto diário do Higgsfield (US$ 12 → US$ 14,40). O teto do mês nunca estica, e vale só para o gag: nenhum outro gasto usa a folga. O plano marca `day_overflow: true` na ação.
 - **D9.6 (livro de falhas):** as reprovações registradas pelo pipeline vão para `data/falhas.jsonl` (append-only, um JSON por linha, `merge=union` no git). O `playbook/falhas.md` fica para a curadoria humana. `memory` lê os dois, e `falhas-digest` resume o jsonl por categoria para a curadoria.
 - **SKILL (12 ações por ciclo):** o `plan` corta no limite: primeiro sai o gasto novo, e buscar e revisar o que já foi pago fica. O que foi cortado aparece em `truncated` e nas `notes`.
+
+## Notas de implementação (QA rodada 6, 05/10/2026)
+As decisões não mudaram; detalhes em `docs/qa/rodada-6.md`.
+- **D5 (fuso dos tetos):** os tetos diários (US$ 12 Higgsfield, US$ 2 OpenAI) e o do mês contam no fuso do Caio, que mora na Austrália (`timezone: Australia/Sydney` no `budget.yaml`), e viram à meia-noite local, não mais em UTC. Os valores não mudaram.
+- **D1 (fonte da verdade no git):** os passos de git do ciclo viraram código (`tick-start --git` e `tick-end --git`). Conflito em item da fila é resolvido por regra: fica a versão com job pago, depois a mais avançada, depois a mais recente. A outra é guardada em `data/conflicts/`. Conflito sem regra não vai para o ramo da usina: o commit fica salvo num ramo `usina-conflito-*` e o Caio decide.
+- **SKILL:** no máximo 3 ideias novas por ciclo e por página (`new_ideas_per_cycle`). O relatório final parte do `status --morning`.
