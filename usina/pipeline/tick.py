@@ -21,6 +21,13 @@ TREND_CAP = 0.30        # ata D7: no máximo 30% de trend por página em 30 dias
 SPENDING = {"new_ideas", "video_submit", "write_script"}
 
 
+def trend_share(slug: str, now: float, exclude: str = "") -> tuple[int, int]:
+    """(roteiros, trends) da página nos últimos 30 dias, sem descartados (ata D7: teto de 30% de trend)."""
+    recent = [i for i in list_items(slug) if i.script and now - i.created_at < 30 * 86400
+              and i.state != "descartado" and i.id != exclude]
+    return len(recent), sum(1 for i in recent if i.script.get("format") == "trend")
+
+
 def needs_caio(page: Page, stage: str, now: float | None = None) -> bool:
     """Ata D3: o Caio aprova storyboard/frames nas 2 primeiras semanas de cada personagem."""
     if stage == "video":
@@ -244,16 +251,21 @@ def plan(now: float | None = None) -> dict:
                                 f"não gero mais até o Caio postar.")
         target = int(page.data.get("cadence", {}).get("posts_per_day", 1)) * BUFFER_DAYS
         target = max(target, stock)
+        n30, t30 = trend_share(page.slug, now)
+        if n30 and t30 / n30 > TREND_CAP:
+            out["notes"].append(f"{page.slug}: trend em {t30 / n30:.0%} dos roteiros dos últimos 30 dias, acima do teto "
+                                f"de {TREND_CAP:.0%} (ata D7): nada de trend nova até equilibrar.")
         missing = target - len(items)
         if missing > 0 and not full:
-            recent = [i for i in list_items(page.slug) if i.script and now - i.created_at < 30 * 86400
-                      and i.state != "descartado"]
-            share = (sum(1 for i in recent if i.script.get("format") == "trend") / len(recent)) if recent else 0.0
+            n, t = trend_share(page.slug, now)
+            share = t / n if n else 0.0
+            allow_trend = (t + 1) / (n + 1) <= TREND_CAP
             mix = (f" Mix da ata D7: 60% próprio, 25% trend, 15% série/crossover; trend nos últimos 30 dias: "
                    f"{share:.0%} (teto {TREND_CAP:.0%}).")
-            if share >= TREND_CAP:
-                mix += " NÃO crie trend agora."
+            if not allow_trend:
+                mix += " NÃO crie trend agora (estouraria o teto)."
             out["actions"].append({"do": "new_ideas", "page": page.slug, "count": missing, "trend_share_30d": round(share, 2),
+                                   "allow_trend": allow_trend,
                                    "how": f"Escolha {missing} ideia(s) (radar, pauta ou roteiros de crossover) e crie com "
                                           f"`python -m pipeline new {page.slug} 'título' --idea '...'`.{mix}"})
         for it in sorted(items, key=lambda i: ACTIVE.index(i.state), reverse=True):

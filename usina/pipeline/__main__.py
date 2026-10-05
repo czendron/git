@@ -194,6 +194,32 @@ def _same_place(a: str, b: str) -> bool:
     return len(ta & tb) / min(len(ta), len(tb)) >= 0.6
 
 
+TREND_WEEK_S = 7 * 86400
+
+
+def _trend_rules(it, script: dict, now: float | None = None) -> tuple[list[str], list[str]]:
+    """Ata D7: a mesma trend nunca vai para duas páginas na mesma semana (erro) e no máximo 30% de trend por
+    página em 30 dias (aviso; o plan já não sugere trend acima do teto)."""
+    from .tick import TREND_CAP, trend_share
+    now = now or time.time()
+    key = lintmod.trend_key((script.get("trend") or {}).get("name"))
+    errors, warns = [], []
+    for o in list_items():
+        if o.page == it.page or o.state == "descartado" or (o.script or {}).get("format") != "trend":
+            continue
+        if lintmod.trend_key((o.script.get("trend") or {}).get("name")) != key or not key:
+            continue
+        recent = now - o.created_at < TREND_WEEK_S or now - float(o.post.get("posted_at") or 0) < TREND_WEEK_S
+        if recent:
+            errors.append(f"a trend '{script['trend']['name']}' já está em {o.page}/{o.id} nos últimos 7 dias: "
+                          f"a mesma trend nunca vai para duas páginas na mesma semana (ata D7)")
+    n, t = trend_share(it.page, now, exclude=it.id)
+    if (t + 1) / (n + 1) > TREND_CAP:
+        warns.append(f"{it.page}: com este, {t + 1} de {n + 1} roteiros em 30 dias são trend "
+                     f"({(t + 1) / (n + 1):.0%}), acima do teto de {TREND_CAP:.0%} (ata D7)")
+    return errors, warns
+
+
 def _repeated_place(it, script: dict) -> list[str]:
     """Avisos de cenário repetido contra os últimos 20 itens da página (D9.6: não repetir cenário/lugar)."""
     pt, en = _place(script)
@@ -240,6 +266,10 @@ def cmd_save_script(a):
     errors, warns = lintmod.lint(script, page.data)
     if not errors:
         warns += _repeated_place(it, script)
+        if script.get("format") == "trend":
+            e, w = _trend_rules(it, script)
+            errors += e
+            warns += w
     for w in warns:
         print(f"aviso: {w}")
     if errors:

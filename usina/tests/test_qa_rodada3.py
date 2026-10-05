@@ -131,3 +131,62 @@ def test_launch_gate_ficha_days_and_stock(usina):
     assert yaml.safe_load((usina / "pages/wanderley/page.yaml").read_text())["status"] == "ativo"  # nada muda sozinho
     g = json.loads(run(usina, "launch-check", "gersinho").stdout)
     assert g["can_generate"] and g["can_post"]                        # P1: só a ficha
+
+
+# ---------- 4. trend única na semana e teto de 30% (D7) ----------
+
+TREND = "prompts/examples/gersinho-trend-calcadao.json"
+
+
+def activate_marlene(root):
+    refs = [{"role": "face", "file": "refs/rosto.png", "higgsfield_id": "F"},
+            {"role": "silhouette", "file": "refs/silhueta.png", "higgsfield_id": "S"}]
+    set_page(root, "marlene", status="ativo", refs=refs)
+    set_page(root, "gersinho", launched_at=days_ago(15))
+
+
+def test_same_trend_never_on_two_pages_same_week(usina, tmp_path):
+    activate_marlene(usina)
+    for i in range(3):   # gersinho com 3 roteiros próprios: a trend cabe nos 30%
+        r = run(usina, "new", "gersinho", f"P{i}", "--idea", "x").stdout.strip()
+        run(usina, "save-script", r, EXAMPLE)
+    g = run(usina, "new", "gersinho", "Trend", "--idea", "gang").stdout.strip()
+    out = run(usina, "save-script", g, TREND).stdout
+    assert "teto" not in out
+    s = json.loads((usina / TREND).read_text())
+    s["page"] = "marlene"
+    s["trend"]["name"] = "GANG  gang! (versão remix)"          # mesmo nome normalizado
+    f = tmp_path / "m.json"
+    f.write_text(json.dumps(s))
+    m = run(usina, "new", "marlene", "Trend", "--idea", "gang").stdout.strip()
+    r = run(usina, "save-script", m, str(f), ok=False)
+    assert r.returncode == 1 and "duas páginas na mesma semana" in r.stdout
+    # passados 7 dias, pode
+    q = next((usina / "data/queue/gersinho").glob("*-trend.json"))
+    d = json.loads(q.read_text())
+    d["created_at"] -= 8 * 86400
+    q.write_text(json.dumps(d))
+    out = run(usina, "save-script", m, str(f)).stdout
+    assert "teto" in out                                         # 1 de 1 roteiro da marlene = 100%: aviso
+
+
+def test_trend_cap_30pct_plan_warns_and_stops_suggesting(usina, tmp_path):
+    p = [a for a in plan(usina)["actions"] if a["do"] == "new_ideas"][0]
+    assert p["allow_trend"] is False                             # 1º roteiro como trend = 100%
+    for i in range(3):
+        r = run(usina, "new", "gersinho", f"P{i}", "--idea", "x").stdout.strip()
+        run(usina, "save-script", r, EXAMPLE)
+    for f in (usina / "data/queue/gersinho").glob("*.json"):     # sai do estoque para o plano pedir ideias
+        d = json.loads(f.read_text()); d["state"] = "postado"; f.write_text(json.dumps(d))
+    pl = plan(usina)
+    assert [a for a in pl["actions"] if a["do"] == "new_ideas"][0]["allow_trend"] is True   # 1/4 = 25%
+    g = run(usina, "new", "gersinho", "Trend", "--idea", "gang").stdout.strip()
+    run(usina, "save-script", g, TREND)
+    t2 = run(usina, "new", "gersinho", "Trend2", "--idea", "outra").stdout.strip()
+    s = json.loads((usina / TREND).read_text()); s["trend"]["name"] = "Outra trend"
+    f = tmp_path / "t2.json"; f.write_text(json.dumps(s))
+    assert "acima do teto" in run(usina, "save-script", t2, str(f)).stdout    # 2/5 = 40%
+    pl = plan(usina)
+    assert any("acima do teto" in n and "gersinho" in n for n in pl["notes"])
+    ni = [a for a in pl["actions"] if a["do"] == "new_ideas"]
+    assert ni and all(not a["allow_trend"] and "NÃO crie trend" in a["how"] for a in ni)

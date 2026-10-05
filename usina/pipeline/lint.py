@@ -45,6 +45,17 @@ TREND_REQUIRED = ["page", "title", "format", "premise", "gag_without_sound", "ca
 TREND_EN = ["location", "lighting", "extras_count", "extras_tasks", "replace_subject"]
 
 
+def trend_key(name) -> str:
+    """Nome da trend normalizado (ata D7: a mesma trend nunca em 2 páginas na mesma semana).
+
+    Sem acento, caixa, pontuação e o que vem entre parênteses (artista/versão): "Gang Gang (Chef Boy)" == "gang-gang".
+    """
+    import unicodedata
+    t = re.sub(r"\([^)]*\)|\[[^\]]*\]", " ", str(name or ""))
+    t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()
+    return " ".join(re.findall(r"[a-z0-9]+", t))
+
+
 def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
     """Roteiro de trend (motion control): o movimento vem do vídeo-fonte; o roteiro define cenário, figurantes e piada."""
     errors: list[str] = []
