@@ -11,14 +11,14 @@ Ata do conselho: `usina/docs/conselho-ata.md`. Método de qualidade: `usina/play
 ## Regras que nunca quebram (ata D8)
 - **Nunca** publicar, agendar ou apagar posts; nunca mandar DM, comentar, seguir ou curtir; nunca mexer em bio ou config de conta.
 - Nunca gerar pessoa real reconhecível; nunca remover metadados de IA; nunca ligar as páginas ao Papo de Gato; nunca tocar em cripto.
-- Nunca passar do teto (`usina/budget.yaml`). Se o plano disser `blocked`, pare aquela linha.
-- Se existir `usina/PAUSE` depois do passo 1 (o Caio pausa e retoma pelo painel, aba Saúde), só sincronize o painel, rode `P tick-end` e saia.
+- Nunca passar do teto (`usina/budget.yaml`). Se o plano disser `blocked`, pare aquela linha. Os tetos diários (US$ 12 Higgsfield, US$ 2 OpenAI) e o do mês viram à meia-noite do fuso do Caio (`timezone`, padrão `Australia/Sydney`), não em UTC.
+- Se existir `usina/PAUSE` depois do passo 1 (o Caio pausa e retoma pelo painel, aba Saúde), só sincronize o painel, rode `P tick-end --git` e saia.
 - Páginas com `status: rascunho` não geram nada. Página que o Caio ativou só gera com o portão de estreia aberto (ata D6: ficha aprovada; P2 no D+10 e P3 no D+20 do Gersinho; 1º post com 10 prontos): `P launch-check <página>`, e o `plan` avisa nas `notes`. **Nunca** mude o `status` de uma página.
 
 ## 0. Preparar (uma vez por sessão)
 ```bash
 cd usina
-python3 -m venv .venv 2>/dev/null; .venv/bin/pip install -q openai pyyaml pillow pytest
+python3 -m venv .venv 2>/dev/null; .venv/bin/pip install -q openai pyyaml pillow pytest tzdata
 alias P=".venv/bin/python -m pipeline"
 .venv/bin/python -m pytest -q tests   # se falhar, PARE e reporte
 ```
@@ -27,13 +27,10 @@ Referências locais (`rosto.png`/`silhueta.png` não vão para o git): `P pages`
 
 ## 0.2 Lock do ciclo (nunca dois ciclos ao mesmo tempo)
 ```bash
-git pull --rebase -q
-P tick-start || exit 0          # ERRO "outro ciclo rodando": saia sem fazer nada (nem painel)
-git add usina/.lock && git commit -qm "usina: lock" -- usina/.lock && git push -q
-# push recusado (alguém empurrou antes): desfaça o seu lock, puxe e tente UMA vez
-#   P tick-end --force && git reset -q HEAD~1 && git pull --rebase -q && P tick-start || exit 0   (e repita o commit/push)
+P tick-start --git || exit 0    # puxa, pega o lock, commita só o usina/.lock e empurra
 ```
-O lock (`usina/.lock`, dono + hora) vale 2 h e é reentrante na mesma sessão (um 2º `tick-start` daqui renova o lock em vez de recusar); lock mais velho é de sessão que caiu e é ignorado. O push logo depois do `tick-start` faz as sessões em outros containers enxergarem o lock. Se o `plan` trouxer `other_tick`, outro ciclo pegou a vez: pare. O `video-request` também recusa enquanto o lock for de outro ciclo. **Sempre** libere no fim (`P tick-end`, passo 4), inclusive quando sair por PAUSE ou erro.
+`ERRO "outro ciclo rodando"`: saia sem fazer nada (nem painel, nem `tick-end`). Push do lock recusado (alguém empurrou entre o pull e o push): o próprio comando desfaz o commit do lock, puxa e tenta **uma** vez; se quem empurrou foi outro ciclo, ele recusa e você sai. Outro `ERRO` (git, `conflito sem regra`): saia e reporte. Não rode `git add`/`commit`/`push` à mão neste passo (o ensaio da rodada 6 mostrou que o texto antigo usava um caminho que não existe de dentro de `usina/` e o lock nunca subia).
+O lock (`usina/.lock`, dono + hora) vale 2 h e é reentrante na mesma sessão (um 2º `tick-start` daqui renova o lock em vez de recusar); lock mais velho é de sessão que caiu e é ignorado (aviso `lock vencido ignorado`). Se o `plan` trouxer `other_tick`, outro ciclo pegou a vez: pare. O `video-request` também recusa enquanto o lock for de outro ciclo. **Sempre** libere no fim (`P tick-end --git`, passo 4), inclusive quando sair por PAUSE ou erro.
 
 ## 0.5 Restaurar a mídia (out/ não vai para o git)
 `P media-status`. Para cada item em `restore`: `Artifact(action="read", url=<painel>, path=<asset_id>)` → `P media-restore <ref> <key> --file <arquivo salvo>`. Sem isso, frames, vídeo e a fonte das trends de itens em andamento não existem nesta sessão.
@@ -51,7 +48,7 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 
 | `do` | O que fazer |
 |---|---|
-| `new_ideas` | Escolha ideias: coleção `ideas` do painel (radar), `docs/roteiros-crossover.md` ou ideias suas no formato da casa, nunca repetidas (`P memory <página>`). Crie com `P new <página> "título" --idea "..."`. Com `allow_trend: false` (teto de 30% de trend em 30 dias, ata D7), nenhuma trend. A mesma trend nunca em duas páginas na mesma semana: o `save-script` recusa. |
+| `new_ideas` | Crie **exatamente** `count` ideias (no máximo 3 por ciclo e página, `new_ideas_per_cycle` no budget.yaml ou no page.yaml; o resto do estoque, `stock_missing`, vem nos próximos ciclos). Escolha ideias: coleção `ideas` do painel (radar), `docs/roteiros-crossover.md` ou ideias suas no formato da casa, nunca repetidas (`P memory <página>`). Crie com `P new <página> "título" --idea "..."`. Com `allow_trend: false` (teto de 30% de trend em 30 dias, ata D7), nenhuma trend. A mesma trend nunca em duas páginas na mesma semana: o `save-script` recusa. |
 | `write_script` | Leia `prompts/script.md` (as 8 leis), `pages/<página>/page.yaml`, `prompts/examples/gersinho-busao.json` (modelo) e `P memory <página>` (os últimos 20 roteiros **e** as falhas: as curadas do `playbook/falhas.md`, da página e gerais, e as últimas 15 da página registradas pelo pipeline em `data/falhas.jsonl`; ata D9.6: não repita o que já falhou). Escreva o JSON em `out/scripts/<id>.json` e rode `P save-script <ref> <arquivo>`. **Se o lint reprovar, corrija e salve de novo** (até 3 vezes; depois, `P discard`). Aviso `cenário repete`: troque o lugar, salvo série de propósito. Cena com contraparte: o lint aplica o playbook B4 (contraparte nunca atrás dele, salvo `"gag_requires": "behind"`; um contato por clipe; ele e ela não agem no mesmo estágio; `counterpart.task` onde ela espera). |
 | `run` | Rode o `cmd` como está. Se `image` falhar por rede ou chave da OpenAI e `switches.image_fallback_allowed` estiver `true`, refaça com `--provider higgsfield`, execute a chamada MCP que ele imprimir e rode o `record-image` indicado (frames saem em 2 passos: o B é edição do A; o plano pede o 2º). Com o fallback desligado, o comando recusa: anote o bloqueio. |
 | `review_image` | Abra a(s) imagem(ns) com **Read** junto com `pages/<p>/refs/rosto.png` e `silhueta.png`, aplique a rubrica (`prompts/review_storyboard.md` ou `review_frames.md`) com rigor e registre com `P review ... pass|fail --notes "<gate/nota> <evidência> [categoria]"`. Na dúvida, **reprove**: imagem custa centavos e vídeo custa dólares. |
@@ -72,13 +69,18 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 
 ## 4. Fechar
 ```bash
-P tick-end
-cd .. && git add -A usina && git commit -m "usina: tick $(date -u +%FT%H:%MZ)" && git push -u origin HEAD
+P tick-end --git        # solta o lock, commita usina/ e empurra; push recusado: merge, resolve, empurra (até 3x)
+P status --morning      # base do relatório
 ```
-Os arquivos de mídia (`usina/out/`) ficam fora do git. Relatório final em até 10 linhas:
-- o que foi gerado e quanto custou (`P ledger`, `P status`);
-- o que espera o Caio (e a sugestão de cadência, se o `plan` trouxer);
-- erros e bloqueios;
+Os arquivos de mídia (`usina/out/`) e as refs (`pages/*/refs/`) ficam fora do git. O `ledger.jsonl` e o `falhas.jsonl` se juntam sozinhos no merge (`merge=union`). Avisos do `tick-end --git`:
+- `conflito; ficou a versão …`: dois ciclos mexeram no mesmo item da fila. O código ficou com a versão com mais jobs pagos, depois a mais avançada, depois a mais recente; a outra está em `data/conflicts/` (vai para o git). Anote no relatório. Se vier `tem job(s) que a vencedora não tem`, confira esses jobs no Higgsfield (`mcp__Higgsfield__show_generation_by_ids`) e **não** reenvie vídeo desse item neste ciclo: reporte.
+- `o lock agora é de outro ciclo … assumiu`: o seu ciclo passou de 2 h e outro assumiu. Não gaste mais; só reporte.
+- `ERRO: conflito sem regra em …`: nada foi para o ramo da usina; o commit do ciclo ficou salvo no ramo `usina-conflito-<data>` do remoto. **Não resolva à mão** e não rode outro ciclo: reporte ao Caio com o nome do ramo.
+- Se um `git pull` manual parar em conflito: `git rebase --abort` (se for rebase), depois `git pull --no-rebase` e `P git-resolve` (mesmas regras). Nunca edite marcadores `<<<<<<<` num JSON da fila.
+
+Relatório final: o texto do `P status --morning` (o que espera o Caio, com o nome da etapa no painel; o que saiu e o gasto das últimas 24 h; bloqueios; portão de estreia por página), mais, em até 5 linhas:
+- erros e avisos deste ciclo (inclusive os do `tick-end --git`);
+- a sugestão de cadência, se o `plan` trouxer;
 - falhas novas registradas em `data/falhas.jsonl` (o pipeline escreve lá; `P falhas-digest` dá o resumo por categoria para um humano curar no `playbook/falhas.md`, que o ciclo não edita).
 
 ## Quando algo dá errado

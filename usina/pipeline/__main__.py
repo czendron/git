@@ -20,7 +20,9 @@ Comandos principais:
   panel-export | panel-apply decisoes.json | placar-import placar.json | cadence-check
   record-error "msg" [--ref] | balance <créditos> | health
   pause "motivo" | resume | ledger
-  tick-start [--owner id] | tick-end [--owner id] [--force]      lock do ciclo (TTL 2 h)
+  tick-start [--owner id] [--git] | tick-end [--owner id] [--force] [--git] [-m msg]   lock do ciclo (TTL 2 h)
+  git-resolve                                                  resolve conflitos de um merge pelas regras da usina
+  status [--morning]                                           --morning: resumo do dia para o Caio (PT-BR)
   launch-check <page>                                          portão de estreia (ata D6)
 """
 from __future__ import annotations
@@ -106,6 +108,10 @@ def cmd_pages(a):
 
 
 def cmd_status(a):
+    if getattr(a, "morning", False):
+        from . import morning
+        print(morning.render())
+        return
     s = budget.spend()
     print(f"Gasto hoje: {s.today}  mês: US$ {s.month_usd} / {s.month_cap} ({s.month_pct:.0f}%)")
     if budget.paused():
@@ -1373,6 +1379,14 @@ def _panel_doc(it, page) -> dict:
     }
 
 
+def _waiting(pl: dict) -> list[dict]:
+    """Com PAUSE ou outro ciclo o `plan` sai cedo e não lista nada: a Saúde mostraria "nada esperando" (rodada 6)."""
+    if pl.get("paused") or pl.get("other_tick"):
+        from .morning import waiting_caio
+        return waiting_caio()
+    return pl["waiting_caio"]
+
+
 def cmd_panel_export(a):
     """Gera os documentos do painel (coleções fila, paginas, saude) para a sessão gravar com ArtifactData batch.
 
@@ -1401,7 +1415,7 @@ def cmd_panel_export(a):
     pl = mkplan()
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
-        "actions": len(pl["actions"]), "waiting": [w["item"] + " · " + w["stage"] for w in pl["waiting_caio"]],
+        "actions": len(pl["actions"]), "waiting": [w["item"] + " · " + w["stage"] for w in _waiting(pl)],
         "ledger": budget.rows()[-15:], "balance": pl.get("balance"),
         "errors": {"consecutive": budget.health().get("consecutive_errors", 0),
                    "max": budget.load_budget().get("max_consecutive_errors", 3),
@@ -1773,6 +1787,14 @@ def cmd_launch_check(a):
 
 
 def cmd_tick_start(a):
+    if a.git:  # rodada 6: pull, lock, commit e push do lock num passo só (o ensaio de git achou o SKILL quebrado)
+        from . import gitsync
+        r = gitsync.start(a.owner)
+        for w in r["warnings"]:
+            print(f"aviso: {w}")
+        _print({"owner": r["owner"], "lock": "usina/.lock", "pushed": r["pushed"], "branch": r["branch"],
+                "expires_in_min": int(lock.TTL_S / 60)})
+        return
     ok, msg, d = lock.acquire(a.owner)
     if not ok:
         raise StoreError(msg + ". Saia sem fazer nada (o outro ciclo termina e libera).")
@@ -1782,10 +1804,29 @@ def cmd_tick_start(a):
 
 
 def cmd_tick_end(a):
+    if a.git:
+        from . import gitsync
+        r = gitsync.end(a.message, a.owner, a.force)
+        for w in r["warnings"]:
+            print(f"aviso: {w}")
+        _print({k: r[k] for k in ("lock", "pushed", "branch", "kept") if k in r})
+        return
     ok, msg = lock.release(a.owner, a.force)
     if not ok:
         raise StoreError(msg)
     print(msg)
+
+
+def cmd_git_resolve(a):
+    from . import gitsync
+    if not gitsync._merging():
+        raise StoreError("não há merge em andamento (use `git pull --no-rebase`; num rebase, `git rebase --abort` antes)")
+    r = gitsync.resolve()
+    _print(r)
+    if r["unresolved"]:
+        raise StoreError(f"sem regra para {', '.join(r['unresolved'])}: `git merge --abort` e reporte ao Caio")
+    gitsync.git("commit", "-q", "--no-edit")
+    print("merge concluído; agora `git push`")
 
 
 def _other_tick() -> None:
@@ -1796,7 +1837,7 @@ def _other_tick() -> None:
 
 def cmd_ledger(a):
     for r in budget.rows()[-30:]:
-        print(f"{time.strftime('%m-%d %H:%M', time.gmtime(r['at']))} {r['page']:9} {r['provider']:10} {r['action']:16} "
+        print(f"{budget.local_dt(r['at']).strftime('%m-%d %H:%M')} {r['page']:9} {r['provider']:10} {r['action']:16} "
               f"US$ {r['usd']:.3f} {r['credits'] or '':>6} {r['note']}")
 
 
@@ -1806,7 +1847,7 @@ def _log_failure(it, stage: str, notes: str) -> None:
     atropelam, e o .gitattributes faz o git juntar as linhas de dois containers (merge=union)."""
     FAILS_LOG.parent.mkdir(parents=True, exist_ok=True)
     now = time.time()
-    row = {"at": round(now, 3), "date": time.strftime("%Y-%m-%d", time.gmtime(now)), "page": it.page, "item": it.id,
+    row = {"at": round(now, 3), "date": budget._day(now), "page": it.page, "item": it.id,
            "stage": stage, "category": _fail_category(notes, stage), "notes": str(notes or "").strip()}
     line = json.dumps(row, ensure_ascii=False) + "\n"
     with FAILS_LOG.open("a", encoding="utf-8") as f:
@@ -1823,7 +1864,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="python -m pipeline")
     sp = ap.add_subparsers(dest="cmd", required=True)
     sp.add_parser("pages").set_defaults(f=cmd_pages)
-    sp.add_parser("status").set_defaults(f=cmd_status)
+    p = sp.add_parser("status"); p.add_argument("--morning", action="store_true", help="resumo do dia para o Caio")
+    p.set_defaults(f=cmd_status)
     sp.add_parser("plan").set_defaults(f=cmd_plan)
     p = sp.add_parser("memory"); p.add_argument("page"); p.set_defaults(f=cmd_memory)
     p = sp.add_parser("falhas-digest"); p.add_argument("--page"); p.add_argument("--since", help="AAAA-MM-DD")
@@ -1909,8 +1951,13 @@ def main(argv=None):
     sp.add_parser("resume").set_defaults(f=cmd_resume)
     sp.add_parser("ledger").set_defaults(f=cmd_ledger)
     p = sp.add_parser("launch-check"); p.add_argument("page"); p.set_defaults(f=cmd_launch_check)
-    p = sp.add_parser("tick-start"); p.add_argument("--owner"); p.set_defaults(f=cmd_tick_start)
+    p = sp.add_parser("tick-start"); p.add_argument("--owner")
+    p.add_argument("--git", action="store_true", help="pull, lock, commit e push do .lock (SKILL 0.2)")
+    p.set_defaults(f=cmd_tick_start)
     p = sp.add_parser("tick-end"); p.add_argument("--owner"); p.add_argument("--force", action="store_true")
+    p.add_argument("--git", action="store_true", help="solta o lock, commita usina/ e empurra, com merge se recusado")
+    p.add_argument("--message", "-m", help="mensagem do commit (padrão: usina: tick <hora UTC>)")
+    sp.add_parser("git-resolve").set_defaults(f=cmd_git_resolve)
     p.set_defaults(f=cmd_tick_end)
     a = ap.parse_args(argv)
     try:

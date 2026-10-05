@@ -93,7 +93,7 @@ def render(now: float | None = None) -> str:
     zone = budget.tz(b)
     loc = budget.local_dt(now, zone)
     s = budget.spend(now)
-    L = [f"Usina: bom dia, Caio ({loc.strftime('%d/%m %H:%M')} {zone.key})", ""]
+    L = [f"Usina: bom dia, Caio ({loc.strftime('%d/%m %H:%M')} {getattr(zone, 'key', None) or zone.tzname(None)})", ""]
 
     wait = waiting_caio(now)
     L.append(f"Esperando você ({len(wait)}):")

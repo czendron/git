@@ -55,13 +55,17 @@ def rows() -> list[dict]:
 DEFAULT_TZ = "Australia/Sydney"   # rodada 6: o Caio mora na Austrália; os tetos viram à meia-noite dele
 
 
-def tz(b: dict | None = None) -> ZoneInfo:
+def tz(b: dict | None = None):
     """Fuso dos tetos diário e mensal (`timezone` no budget.yaml). Fuso inválido cai no padrão, nunca em UTC calado."""
     name = str((b if b is not None else load_budget()).get("timezone") or DEFAULT_TZ)
-    try:
-        return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
-        return ZoneInfo(DEFAULT_TZ)
+    for n in (name, DEFAULT_TZ):
+        try:
+            return ZoneInfo(n)
+        except (ZoneInfoNotFoundError, ValueError):
+            continue
+    # container sem base de fusos (nem /usr/share/zoneinfo nem o pacote tzdata): AEDT fixo, nunca UTC
+    from datetime import timedelta, timezone
+    return timezone(timedelta(hours=11), DEFAULT_TZ)
 
 
 def local_dt(ts: float, zone: ZoneInfo | None = None) -> datetime:
