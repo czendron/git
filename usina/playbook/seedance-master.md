@@ -111,6 +111,19 @@ Regras de duração:
 
 O storyboard de cada clipe começa no estado final do clipe anterior.
 
+### B4. Cena com contraparte (dois atores: soco, empurrão, entrega, encarada)
+
+Motivo: no clipe de boxe do Caio, o personagem ficou **de costas para quem dava o soco**. Sem bloco espacial, o Seedance escolhe as posições sozinho, e os atores trocam de lado ou desviam o olhar (`templates/seedance/multi-character-anchor.md` § BAD; `sd20/SKILL.md` § Spatial Layout Block).
+
+1. **Prefira uma contraparte que não seja gente.** O saco de pancada, o poste e o varal não viram de costas. Um segundo ator só entra se o gag precisa dele.
+2. **Cabeçalho `EXACTLY 2 characters`** e um bloco `SPATIAL LAYOUT` (modelo no C4) com uma linha por ator: terço da tela, distância da câmera, orientação do corpo **em relação ao outro ator e à lente**, para onde olha e o que toca. Feche com as relações: distância entre os dois em metros, eyeline (`A → B`, `B → lens`), regra de cruzamento (`neither crosses the central vertical axis`) e quem fica mais perto da câmera (`multi-character-anchor.md`; `vocab.md` § Crossing rule).
+3. **O compromisso deadpan:** o protagonista fica com **o peito a 45° virado para o parceiro e o rosto na lente** (`chest turned 45° toward the boxer at frame-right, face turned to the lens`). O parceiro fica de perfil ou 3/4 para o protagonista e **nunca olha para a lente**. Assim a regra 18 (rosto visível) e a interação convivem.
+4. **A orientação vem do frame A.** O start frame já mostra os dois na posição e orientação certas, e o end frame mostra o resultado. A referência manda mais que o texto (D, linha "figurantes reagem").
+5. **Um ator age por estágio. A reação tem hora marcada** e começa no contato, não antes. Exemplo: `[Stage 3 — 6.5-7.5s] The boxer's right glove travels screen-right to screen-left and stops against Gerson's pompadour. [Stage 4 — 7.5-8.5s] On contact, the pompadour tilts 10° and springs back as one block; Gerson does not move his face.` Todo golpe tem nome **e vetor** (direção em termos de tela e onde termina), senão é reinventado a cada take (`sd20/FAILURE-MODES.md` § A fight generated as separate clips).
+6. **O parceiro tem uma tarefa enquanto espera** ("bounces on his toes, guard up, eyes on Gerson"), nunca um rosto parado (`higgsfield-acting` § Listening and reaction).
+7. **Mais de um contato = mais de um clipe.** Uma troca (A ataca, B reage, A responde) vira clipes encadeados, com o último frame de um como `start_image` do outro e o movimento cruzando o corte no meio. A edição faz a troca, não o modelo (`sd20/FAILURE-MODES.md` § fight; `videos-analisados.md` §9–§10).
+8. **Planeje de cima, mostre de frente.** O mapa de planta baixa (`templates/seedance/top-down-map.md`) serve para o Claude raciocinar; o que vai ao modelo é a prosa do bloco e o frame A, nunca a planta.
+
 ---
 
 ## C) Templates
@@ -204,6 +217,11 @@ The start frame defines the opening composition, positions, pose and camera. The
 
 CAMERA
 {{Selfie: "Front smartphone camera held at arm's length by his own right hand, 84° field of view, 55 cm from his face, lens slightly below eye level. His right arm extends toward the lens and exits the bottom-right frame edge." | Passerby: "Static smartphone on a tripod at chest height, 63° field of view, 4 m from him, locked off."}} One continuous shot; the camera does not cut on its own; no drift mid-shot.
+
+{{SPATIAL LAYOUT — só com contraparte humana (B4):
+GERSON: frame-left third, 3 m from the lens, chest turned 45° toward the boxer, face turned to the lens, eyes on the lens, feet planted on the gym mat.
+BOXER: frame-right third, 3.5 m from the lens, body in three-quarter profile facing Gerson (screen-left), guard up, eyes on Gerson, never on the lens.
+Relationships: 1.2 m between them; eyeline boxer → Gerson, Gerson → lens; neither crosses the central vertical axis; Gerson's back never turns to the boxer or to the lens.}}
 
 LOCATION MAP
 {{Frame-left: pastel stall. Center: bus-stop bench and timetable sign 2.1 m high. Frame-right: avenue curb.}} The set contains only what the start frame shows.
@@ -301,6 +319,9 @@ Protect: the pompadour outline, the deadpan mouth, the passersby ignoring him.
 | **Deriva de identidade** (rosto muda ao longo do clipe ou entre clipes) | Texto longo de aparência brigando com a ref; vários rostos legíveis na ficha; encadeamento de clipes a partir de frame derivado | Corte o texto para papel + 2 marcas. Ficha com um rosto só. Reancore sempre na ficha **original**, nunca num frame da cauda (`higgsfield-troubleshoot` § Atlas). No MC, use imagem com rosto maior e luz uniforme. |
 | **Cabelo rígido deforma** (o topete balança, achata ou muda de altura) | Cabelo é material que se mexe por padrão; palavras de vento ou "dança" contaminam; ref sem perfil ou topo; escala vaga | Bloco PHYSICS com material, medida e marco corporal mais "still air". Silhueta de perfil e costas no asset. Remova "wind", "breeze" e "flowing". No MC, frase de rigidez no prompt. Se persistir, o gag não pode exigir contato violento com o cabelo. |
 | **Personagem vira de costas ou para longe da câmera** | Ação sem vetor; dança com giros implícitos; leitura abstrata ("desafia", "confronta"); tempo sobrando (preenchimento reverso) | Trava de orientação em graus, "face visible in every frame" e olhar na lente escrito. Giro só nomeado com duração e direção final. Duração igual ao conteúdo. Corte a ideia abstrata. |
+| **Personagem de frente para o lado errado durante a interação** (de costas para quem soca, encara o vazio, parceiro olha para a lente) | Nenhum bloco espacial: o modelo escolhe as posições; orientação escrita só em relação à câmera; frame A com os dois mal orientados; a reação descrita como relação abstrata ("enfrenta") | Bloco `SPATIAL LAYOUT` (C4) com a orientação de cada um **em relação ao outro e à lente**, eyeline `A → B`, regra de cruzamento e o compromisso deadpan (peito 45° para o parceiro, rosto na lente). Refaça o frame A com os dois já orientados; é a primeira variável a trocar, porque a referência manda mais que o texto (B4). |
+| **Reação fora de hora** (o protagonista reage antes do golpe, o golpe não chega, os dois agem juntos) | Ação e reação no mesmo estágio; golpe sem vetor nem ponto de parada; mais de um contato num clipe | Um ator por estágio; a reação começa "on contact" no estágio seguinte; golpe com nome, vetor de tela e ponto final. Mais de um contato vira clipes encadeados com o movimento cruzando o corte (B4; `sd20/FAILURE-MODES.md` § fight). |
+| **Os dois trocam de lado ou viram espelho entre clipes** | Eixo não travado; cada prompt reinventa o layout | Repita o mesmo `SPATIAL LAYOUT` por extenso em todos os clipes da cena (regra 23) e diga a direção de tela ("the boxer stays frame-right") (`higgsfield-troubleshoot` § Screen direction flips). |
 | **Membros extras** (terceira mão, braço sem dono) | Nenhuma contagem de mãos; selfie com braço de origem ambígua; mãos perto de outras pessoas | `Exactly two hands in frame, both his: right arm exits bottom-right edge holding the phone, left hand…`. Mantenha figurantes a mais de 1 m. |
 | **Figurantes reagem** (olham, riem, filmam) | Reação em grupo é o padrão diante de um espetáculo; figurantes sem tarefa | Uma tarefa para cada, movimento defasado e a proibição curta `none turns toward him`. Figurantes no plano de fundo. Coloque a proibição também no frame A e no B (a referência manda mais que o texto). |
 | **Número errado de pessoas** (clone, gente surgindo) | Sem cabeçalho de contagem; ref de personagem usada como "multidão" | `EXACTLY 1 main character… exactly 5 passersby` no SCENE CONTEXT e nos LOCKS. Figurantes nunca usam a ref do protagonista. Para figurantes variados, use uma ficha "VARIETY reference" (`PRODUCTION-PATTERNS` § Reference-Role Vocabulary). |
@@ -340,6 +361,7 @@ Referências passadas ao revisor: `rosto.png`, `silhueta.png`, frame A, frame B 
 | G10 | Props com a contagem e a orientação da planilha, e lugares vagos vazios? | frames, painéis e último frame | 100% |
 | G11 | O evento do gag acontece e o resultado fica parado ≥0,5 s antes do fim? | vídeo | sim |
 | G12 | O último frame corresponde ao frame B (composição, estado do gag)? | vídeo | sim |
+| G13 | Com contraparte humana: cada ator mantém o lado de tela e a orientação do frame A (ninguém de costas para o parceiro, parceiro sem olhar para a lente)? | vídeo com 2 atores | ≥95% dos frames (B4) |
 
 ### E3. Notas (0–5)
 
