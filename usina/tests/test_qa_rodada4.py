@@ -600,7 +600,7 @@ def test_e2e_daily_cycle_as_skill(usina, tmp_path):
     assert sum(1 for r in rows if r["action"] == "video_refund") == 2
     assert not any(r["page"] == "marlene" for r in rows)        # Marlene nunca gastou
     assert it_of(usina, m)["state"] == "roteiro"
-    fails = (usina / "playbook/falhas.md").read_text()
+    fails = (usina / "data/falhas.jsonl").read_text()
     assert "(Caio) topete achatado" in fails and "corte seco" in fails and "gag" in fails
     assert not (usina / "PAUSE").exists() and not (usina / ".lock").exists()
     # marlene ativada com ficha: ainda fechada (D+2 do Gersinho), e a mensagem não fala de estoque

@@ -114,7 +114,7 @@ def test_video_review_rerun_counts_once_and_package_needs_caio(usina, tmp_path):
     run(usina, "review", ref, "video", "fail", "--notes", "G4 [blocking-broken]")
     run(usina, "review", ref, "video", "fail", "--notes", "G4 [blocking-broken]")
     assert len([r for r in ledger(usina) if r["action"] == "video_review"]) == 1
-    assert (usina / "playbook/falhas.md").read_text().count("blocking-broken") == 1
+    assert sum("blocking-broken" in x for x in (usina / "data/falhas.jsonl").read_text().splitlines()) == 1
     run(usina, "retry", ref, "video")
     run(usina, "record-video", ref, "--job", "J2", "--credits", "1", "--url", "https://x.invalid/v2.mp4")
     run(usina, "fetch-video", ref, "--file", str(mp4(tmp_path / "v.mp4")))
@@ -206,7 +206,7 @@ def test_panel_apply_is_robust_idempotent_and_skips_stale(usina, tmp_path):
     out = json.loads(run(usina, "panel-apply", str(f)).stdout.strip().splitlines()[-1])
     assert out["applied_ids"] == ["d1", "d2"] and out["invalid_ids"] == ["d2"]
     run(usina, "panel-apply", str(f))   # 2ª vez: nada muda, nada duplicado no livro de falhas
-    assert (usina / "playbook/falhas.md").read_text().count("topete achatado") == 1
+    assert sum("topete achatado" in x for x in (usina / "data/falhas.jsonl").read_text().splitlines()) == 1
     # a etapa é refeita; a mesma decisão (velha) com outro id não pode reprovar a versão nova
     run(usina, "retry", ref, "storyboard")
     run(usina, "image", ref, "storyboard")

@@ -142,7 +142,7 @@ def test_three_strikes_discard(usina):
         run(usina, "retry", ref, "storyboard")
     plan = json.loads(run(usina, "plan").stdout)
     assert any(a["do"] == "discard" for a in plan["actions"])
-    assert (usina / "playbook" / "falhas.md").exists()
+    assert (usina / "data" / "falhas.jsonl").exists() and not (usina / "playbook" / "falhas.md").exists()
 
 
 def test_media_archive_roundtrip(usina, tmp_path):

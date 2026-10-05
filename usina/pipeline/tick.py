@@ -20,6 +20,51 @@ TREND_VARIANTS = 4      # playbook C5: "faça 4 variações e cure" o frame do p
 # Ações que geram gasto novo: param quando a página passa do estoque (ata D5). Poll/fetch/revisão/pacote seguem,
 # senão um vídeo já pago ficaria sem buscar.
 SPENDING = {"new_ideas", "video_submit", "write_script"}
+MAX_ACTIONS = 12  # SKILL passo 2: no máximo 12 ações por ciclo (rodada 5: o plano corta, antes só o texto pedia)
+
+
+def action_priority(a: dict) -> int:
+    """Ordem de corte do limite de 12 (rodada 5): primeiro o que destrava trabalho já pago (buscar e revisar vídeo),
+    depois o que não gasta (revisão de imagem, retry, descarte, pacote), e por último gasto novo
+    (imagem, vídeo, roteiro, ideias novas)."""
+    do = a.get("do")
+    cmd = str(a.get("cmd") or "")
+    if do == "check_balance":
+        return 0
+    if do in ("video_poll", "review_video") or " fetch-video " in cmd:
+        return 1
+    if do == "run" and (a.get("provider") or " image " in cmd):   # imagem nova (centavos)
+        return 3
+    if do in ("review_image", "discard", "run"):
+        return 2
+    if do == "video_submit":
+        return 4
+    if do == "write_script":
+        return 5
+    if do == "new_ideas":
+        return 6
+    return 2
+
+
+def cap_actions(out: dict, limit: int = MAX_ACTIONS) -> None:
+    """Ordena as ações pela prioridade (estável: dentro da faixa, a ordem do plano) e corta no limite.
+    `blocked` não é trabalho (só um aviso) e não ocupa vaga. O que foi cortado vai para `truncated` e `notes`."""
+    acts = sorted(out["actions"], key=action_priority)
+    kept, cut, n = [], [], 0
+    for a in acts:
+        if a.get("do") == "blocked":
+            kept.append(a)
+        elif n < limit:
+            kept.append(a)
+            n += 1
+        else:
+            cut.append(a)
+    out["actions"] = kept
+    if cut:
+        out["truncated"] = cut
+        desc = ", ".join(f"{a['do']} {a.get('item') or a.get('page') or ''}".strip() for a in cut)
+        out["notes"].append(f"Limite de {limit} ações por ciclo: {len(cut)} ação(ões) ficou(aram) para o próximo "
+                            f"ciclo (gasto novo sai primeiro): {desc}.")
 
 
 def trend_share(slug: str, now: float, exclude: str = "") -> tuple[int, int]:
@@ -70,8 +115,8 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
 
     if st == "ideia":
         acts.append({"do": "write_script", "item": pid,
-                     "how": f"Leia prompts/script.md, pages/{item.page}/page.yaml, `{cmd} memory {item.page}` e "
-                            f"playbook/falhas.md. Escreva o roteiro JSON para a ideia {item.idea!r} em "
+                     "how": f"Leia prompts/script.md, pages/{item.page}/page.yaml e `{cmd} memory {item.page}` "
+                            f"(falhas curadas do playbook e as registradas em data/falhas.jsonl). Escreva o roteiro JSON para a ideia {item.idea!r} em "
                             f"out/scripts/{item.id}.json e rode `{cmd} save-script {pid} out/scripts/{item.id}.json`."})
     elif st == "roteiro" and item.script.get("format") == "trend":
         mo = item.motion or {}
@@ -246,8 +291,11 @@ def _gag_actions(item: Item, b: dict, now: float) -> list[dict]:
             return [{"do": "run", "item": pid, "cmd": f"{cmd} skip-gag {pid} --why 'limite de tentativas do gag'"}]
         credits = float(s["gag_followup"].get("duration_s", 5)) * \
             b["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
-        ok, why = budget.can_spend_higgsfield(credits, now)
+        over = budget.gag_overflow(item.page, item.id)  # MC pago: o gag pode usar a folga de 20% do teto diário
+        ok, why = budget.can_spend_higgsfield(credits, now, over)
         bst, _ = budget.balance_status(now)
+        usd = credits * float(b.get("higgsfield_credit_usd", 0.05))
+        overflow = ok and over > 0 and budget.over_day_cap("higgsfield", usd, now)
         if budget.item_spend(item.page, item.id)["credits"] + credits > float(b["per_idea"].get("max_credits", 1e9)):
             return [{"do": "run", "item": pid, "cmd": f"{cmd} skip-gag {pid} --why 'teto de créditos da ideia'"}]
         if not ok and bst in ("unknown", "stale"):
@@ -256,7 +304,9 @@ def _gag_actions(item: Item, b: dict, now: float) -> list[dict]:
         if not ok:
             return [{"do": "blocked", "item": pid, "why": f"gag: {why}"}]
         return [{"do": "video_submit", "item": pid, "gag": True, "est_credits": credits, "provider": "higgsfield",
-                 "how": f"`{cmd} video-request {pid} --gag` (sobe o último frame do MC se pedir: record-upload {pid} last), "
+                 **({"day_overflow": True} if overflow else {}),
+                 "how": (f"Gag de MC já pago: usa a folga de {budget.GAG_DAY_OVERFLOW:.0%} sobre o teto diário "
+                         f"(o teto do mês segue valendo). " if overflow else "") + f"`{cmd} video-request {pid} --gag` (sobe o último frame do MC se pedir: record-upload {pid} last), "
                         f"envie com generate_video_batch e registre `{cmd} record-video {pid} --gag --job <id> --credits <n>`."}]
     if not gag.get("url"):
         return [{"do": "video_poll", "item": pid, "gag": True, "job_id": gag["job_id"],
@@ -293,7 +343,7 @@ def plan(now: float | None = None) -> dict:
     y = budget.yield_last(10)
     if y is not None and y < b["quality"]["min_yield_last10"]:
         out["notes"].append(f"Aproveitamento {y:.0%} < {b['quality']['min_yield_last10']:.0%} nas últimas 10. "
-                            f"Parando geração de vídeo; revise playbook/falhas.md.")
+                            f"Parando geração de vídeo; rode `python -m pipeline falhas-digest` e revise playbook/falhas.md.")
     if budget.degraded_mode(now):
         out["notes"].append("Acima de 80% do teto mensal: só 720p, sem Genjutsu.")
     elif s.month_pct >= min(b.get("alerts_pct", [50])):
@@ -368,6 +418,7 @@ def plan(now: float | None = None) -> dict:
                     out["notes"].append(f"{a['item']}: vídeo segurado pelo aproveitamento baixo.")
                 else:
                     out["actions"].append(a)
+    cap_actions(out)
     try:
         from .placar import cadence_check
         for c in cadence_check(now):

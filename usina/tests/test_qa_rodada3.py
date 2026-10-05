@@ -333,7 +333,7 @@ def test_gag_dropped_after_two_fails_packages_mc_only(usina, tmp_path):
     assert run(usina, "video-request", ref, "--gag", ok=False).returncode == 1
     run(usina, "approve", ref, "video")
     assert "emendado" not in run(usina, "package", ref).stdout                # sai só o motion control
-    assert "gag" in (usina / "playbook" / "falhas.md").read_text()
+    assert "gag" in (usina / "data" / "falhas.jsonl").read_text()
 
 
 def test_gag_mismatched_clip_is_reencoded(usina, tmp_path):

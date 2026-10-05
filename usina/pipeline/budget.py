@@ -83,15 +83,24 @@ def spend(now: float | None = None) -> Spend:
     return Spend(today=today, month_usd=round(month, 2), month_cap=float(b["month_cap"]), day_cap=b["day_cap"])
 
 
-def can_spend(provider: str, usd: float, now: float | None = None) -> tuple[bool, str]:
-    """Checa teto diário do provedor e teto do mês antes de uma geração paga."""
+# Rodada 5 (nota de implementação na ata, D5 intacta): o gag de uma trend cujo motion control já foi pago pode
+# usar até 20% acima do teto diário do Higgsfield, se o teto do mês deixar. Senão o teto em UTC empurra o gag
+# para o dia seguinte e o MC pago fica parado ("não desperdiçar o que já foi pago").
+GAG_DAY_OVERFLOW = 0.20
+
+
+def can_spend(provider: str, usd: float, now: float | None = None, day_overflow: float = 0.0) -> tuple[bool, str]:
+    """Checa teto diário do provedor e teto do mês antes de uma geração paga.
+
+    `day_overflow` (fração) estica só o teto diário; o teto do mês nunca estica."""
     reason = paused()
     if reason:
         return False, f"pausado: {reason}"
     s = spend(now)
     cap = float(s.day_cap.get(provider, 0) or 0)
-    if cap and s.today.get(provider, 0.0) + usd > cap:
-        return False, f"teto diário de {provider} (US$ {cap:.2f}) seria passado"
+    if cap and s.today.get(provider, 0.0) + usd > cap * (1 + max(0.0, day_overflow)) + 1e-9:
+        extra = f" nem com a folga de {day_overflow:.0%}" if day_overflow > 0 else ""
+        return False, f"teto diário de {provider} (US$ {cap:.2f}) seria passado{extra}"
     if s.month_usd + usd > s.month_cap:
         return False, f"teto do mês (US$ {s.month_cap:.0f}) seria passado"
     return True, "ok"
@@ -193,10 +202,22 @@ def balance_status(now: float | None = None) -> tuple[str, float | None]:
     return "ok", est
 
 
-def can_spend_higgsfield(credits: float, now: float | None = None) -> tuple[bool, str]:
+def gag_overflow(page: str, item: str) -> float:
+    """Folga do teto diário para o gag: só quando o motion control do item já foi pago (créditos no livro-caixa)."""
+    return GAG_DAY_OVERFLOW if item_spend(page, item)["credits"] > 0 else 0.0
+
+
+def over_day_cap(provider: str, usd: float, now: float | None = None) -> bool:
+    """O gasto passaria do teto diário puro (sem folga)? Serve para avisar que a folga do gag foi usada."""
+    s = spend(now)
+    cap = float(s.day_cap.get(provider, 0) or 0)
+    return bool(cap) and s.today.get(provider, 0.0) + usd > cap + 1e-9
+
+
+def can_spend_higgsfield(credits: float, now: float | None = None, day_overflow: float = 0.0) -> tuple[bool, str]:
     """Tetos em dólar + saldo mínimo de créditos (ata D5: saldo < 300 créditos, para)."""
     usd = credits * float(load_budget().get("higgsfield_credit_usd", 0.05))
-    ok, why = can_spend("higgsfield", usd, now)
+    ok, why = can_spend("higgsfield", usd, now, day_overflow)
     if not ok:
         return ok, why
     st, est = balance_status(now)

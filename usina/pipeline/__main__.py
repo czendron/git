@@ -1,7 +1,7 @@
 """CLI da Usina. Uso: python -m pipeline <comando> ...  (rodar dentro de usina/)
 
 Comandos principais:
-  pages | status | plan | memory <page>
+  pages | status | plan | memory <page> | falhas-digest [--page] [--since AAAA-MM-DD]
   new <page> "título" --idea "..."          cria item (estado ideia)
   save-script <page/id> arquivo.json         valida (lint) e salva o roteiro
   lint arquivo.json [--page slug]
@@ -38,7 +38,8 @@ from pathlib import Path
 from . import budget, images, launch, lint as lintmod, lock, media, placar, prompts
 from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, local, new_item, rel, slugify
 
-FAILS = ROOT / "playbook" / "falhas.md"
+FAILS = ROOT / "playbook" / "falhas.md"         # curado à mão (gente e agentes); o pipeline só lê
+FAILS_LOG = ROOT / "data" / "falhas.jsonl"      # escrito pelo pipeline: append-only, um JSON por linha (rodada 5)
 
 
 def _item(ref: str):
@@ -67,7 +68,7 @@ def _need_state(it, allowed, what: str, force: bool = False) -> None:
 
 # Assets do painel que ficam velhos quando a etapa é refeita (senão a Caixa mostra a imagem da versão anterior).
 STALE_ASSETS = {"storyboard": ["storyboard"], "frames": ["start", "end"],
-                "video": ["sheet", "gag", "cover", "video", "last", "gag_clip"]}
+                "video": ["sheet", "gag", "cover", "video", "last", "gag_clip", "gag_clip_sheet"]}
 
 
 def _clear_assets(it, *stages: str) -> None:
@@ -127,16 +128,73 @@ def cmd_memory(a):
     if not items:
         print("(sem histórico)")
     page_rows, general = _failures(a.page)
-    print(f"\nLivro de falhas (playbook/falhas.md), {a.page}: últimas {len(page_rows[-15:])}")
-    for r in page_rows[-15:]:
-        print(f"  {r}")
-    if not page_rows:
-        print("  (nenhuma)")
-    print(f"Livro de falhas, gerais: últimas {len(general[-15:])}")
-    for r in general[-15:]:
-        print(f"  {r}")
-    if not general:
-        print("  (nenhuma)")
+    logged = [_fail_row(r) for r in _failure_log() if r.get("page") == a.page]
+    for title, rows in ((f"Livro de falhas curado (playbook/falhas.md), {a.page}", page_rows),
+                        ("Livro de falhas curado, gerais", general),
+                        (f"Falhas registradas pelo pipeline (data/falhas.jsonl), {a.page}", logged)):
+        print(f"\n{title}: últimas {len(rows[-15:])}")
+        for r in rows[-15:]:
+            print(f"  {r}")
+        if not rows:
+            print("  (nenhuma)")
+
+
+def _failure_log() -> list[dict]:
+    """Linhas de data/falhas.jsonl (linha corrompida por merge ou escrita cortada é pulada, nunca derruba)."""
+    if not FAILS_LOG.exists():
+        return []
+    out = []
+    for line in FAILS_LOG.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(r, dict):
+            out.append(r)
+    out.sort(key=lambda r: float(r.get("at") or 0))
+    return out
+
+
+def _fail_row(r: dict) -> str:
+    return " | ".join(str(r.get(k) or "-") for k in ("date", "page", "stage", "item", "notes"))
+
+
+CATEGORY = re.compile(r"\[([^\[\]]{1,60})\]")
+GATE = re.compile(r"\b(G\d{1,2}|N\d)\b")
+
+
+def _fail_category(notes: str, stage: str) -> str:
+    """Categoria da falha: o último `[categoria]` das notas (formato do SKILL); sem ela, a etapa."""
+    cats = CATEGORY.findall(notes or "")
+    return cats[-1].strip().lower() if cats else f"sem categoria ({stage})"
+
+
+def cmd_falhas_digest(a):
+    """Resumo em markdown de data/falhas.jsonl agrupado por categoria, para um humano curar no playbook."""
+    rows = [r for r in _failure_log() if not a.page or r.get("page") == a.page]
+    if a.since:
+        rows = [r for r in rows if str(r.get("date") or "") >= a.since]
+    print(f"# Digest do livro de falhas ({len(rows)} registro(s)"
+          + (f", página {a.page}" if a.page else "") + (f", desde {a.since}" if a.since else "") + ")\n")
+    if not rows:
+        print("Nada registrado.")
+        return
+    print("Gerado de `data/falhas.jsonl`. Cure as lições que se repetem em `playbook/falhas.md` "
+          "(sintoma → causa → correção).\n")
+    groups: dict[str, list[dict]] = {}
+    for r in rows:
+        groups.setdefault(r.get("category") or _fail_category(r.get("notes", ""), r.get("stage", "?")), []).append(r)
+    for cat, rs in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+        pages = sorted({str(r.get("page")) for r in rs})
+        stages = sorted({str(r.get("stage")) for r in rs})
+        gates = sorted({g for r in rs for g in GATE.findall(str(r.get("notes") or ""))})
+        print(f"## {cat} ({len(rs)}x)\n")
+        print(f"- páginas: {', '.join(pages)}; etapas: {', '.join(stages)}" + (f"; portões: {', '.join(gates)}" if gates else ""))
+        for r in rs[-10:]:
+            print(f"- {r.get('date', '-')} `{r.get('page')}/{r.get('item')}` {r.get('stage')}: {r.get('notes')}")
+        if len(rs) > 10:
+            print(f"- (+{len(rs) - 10} mais antigas)")
+        print()
 
 
 GENERAL = {"geral", "gerais", "todas", "todos", "*", "-", "all", ""}
@@ -627,6 +685,7 @@ def cmd_retry(a):
         it.video["gag"] = {}
         it.gates.pop("gag", None)
         it.post.get("assets", {}).pop("gag_clip", None)
+        it.post.get("assets", {}).pop("gag_clip_sheet", None)
         it.save()
         print("gag limpo: peça de novo com video-request --gag")
         return
@@ -800,7 +859,8 @@ def _video_request_gag(a, page, it):
         raise StoreError(f"gag já usou {GAG_MAX_ATTEMPTS} tentativas: `skip-gag {a.ref}` e empacote só o motion control")
     b = budget.load_budget()
     est = _gag_est(it, b)
-    ok, why = budget.can_spend_higgsfield(est)
+    # rodada 5: MC já pago, o gag pode passar até 20% do teto diário (o do mês, nunca); nota na ata
+    ok, why = budget.can_spend_higgsfield(est, None, budget.gag_overflow(it.page, it.id))
     if not ok:
         raise StoreError(why)
     cap = b["per_idea"]
@@ -1360,7 +1420,7 @@ def cmd_panel_export(a):
 
 
 MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last", "source", "source_first", "gag_clip",
-              "package", "var1", "var2", "var3", "var4")
+              "gag_clip_sheet", "package", "var1", "var2", "var3", "var4")
 MAGIC = {".png": [b"\x89PNG"], ".jpg": [b"\xff\xd8\xff"], ".jpeg": [b"\xff\xd8\xff"],
          ".mp4": [b"ftyp"], ".mov": [b"ftyp"], ".m4v": [b"ftyp"]}
 
@@ -1380,6 +1440,8 @@ def _media_paths(it) -> dict:
     g = v.get("gag") or {}
     if g.get("path") and not g.get("dropped"):
         out["gag_clip"] = g["path"]
+    if g.get("sheet") and not g.get("dropped"):  # rodada 5: a folha do clipe do gag (gag-vN-sheet.jpg) também
+        out["gag_clip_sheet"] = g["sheet"]
     mo = it.motion or {}  # trend: sem a fonte e o 1º frame, a sessão seguinte não gera o frame nem sobe a fonte
     for k, f in (("source", "source_path"), ("source_first", "first_frame")):
         if mo.get(f):
@@ -1466,6 +1528,9 @@ def _lost_fix(ref: str, key: str) -> str:
         return f"monte o pacote de novo: `python -m pipeline package {ref}`"
     if key == "gag_clip":
         return f"`python -m pipeline retry {ref} gag` e peça o gag de novo"
+    if key == "gag_clip_sheet":
+        return (f"a folha sai do clipe do gag: `python -m pipeline fetch-video {ref} --gag` (baixa de novo pelo link) "
+                f"ou `--file <gag.mp4>`")
     stage = {"storyboard": "storyboard", "start": "frames", "end": "frames"}.get(key, "video")
     return f"refaça a etapa (`python -m pipeline retry {ref} {stage} --force`) ou restaure à mão"
 
@@ -1736,12 +1801,16 @@ def cmd_ledger(a):
 
 
 def _log_failure(it, stage: str, notes: str) -> None:
-    FAILS.parent.mkdir(parents=True, exist_ok=True)
-    if not FAILS.exists():
-        FAILS.write_text("# Livro de falhas\n\nCada reprovação vira uma linha. O roteirista lê antes de escrever.\n\n"
-                         "| data | página | etapa | item | o que falhou |\n|---|---|---|---|---|\n", encoding="utf-8")
-    with FAILS.open("a", encoding="utf-8") as f:
-        f.write(f"| {time.strftime('%Y-%m-%d')} | {it.page} | {stage} | {it.id} | {notes.replace('|', '/')} |\n")
+    """Uma reprovação vira uma linha em data/falhas.jsonl (rodada 5: antes ia para playbook/falhas.md, que gente e
+    agentes editam; dois ciclos davam conflito). Uma escrita só, em modo append: sessões no mesmo disco não se
+    atropelam, e o .gitattributes faz o git juntar as linhas de dois containers (merge=union)."""
+    FAILS_LOG.parent.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    row = {"at": round(now, 3), "date": time.strftime("%Y-%m-%d", time.gmtime(now)), "page": it.page, "item": it.id,
+           "stage": stage, "category": _fail_category(notes, stage), "notes": str(notes or "").strip()}
+    line = json.dumps(row, ensure_ascii=False) + "\n"
+    with FAILS_LOG.open("a", encoding="utf-8") as f:
+        f.write(line)
 
 
 # Comandos cujo sucesso quebra a sequência de erros (ata D5: "3 erros SEGUIDOS").
@@ -1757,6 +1826,8 @@ def main(argv=None):
     sp.add_parser("status").set_defaults(f=cmd_status)
     sp.add_parser("plan").set_defaults(f=cmd_plan)
     p = sp.add_parser("memory"); p.add_argument("page"); p.set_defaults(f=cmd_memory)
+    p = sp.add_parser("falhas-digest"); p.add_argument("--page"); p.add_argument("--since", help="AAAA-MM-DD")
+    p.set_defaults(f=cmd_falhas_digest)
     p = sp.add_parser("new"); p.add_argument("page"); p.add_argument("title"); p.add_argument("--idea", default="")
     p.add_argument("--source", default="pauta"); p.add_argument("--force", action="store_true")
     p.set_defaults(f=cmd_new)
