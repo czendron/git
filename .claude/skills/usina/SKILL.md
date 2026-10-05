@@ -12,7 +12,7 @@ Ata do conselho: `usina/docs/conselho-ata.md`. Método de qualidade: `usina/play
 - **Nunca** publicar, agendar ou apagar posts; nunca mandar DM, comentar, seguir ou curtir; nunca mexer em bio ou config de conta.
 - Nunca gerar pessoa real reconhecível; nunca remover metadados de IA; nunca ligar as páginas ao Papo de Gato; nunca tocar em cripto.
 - Nunca passar do teto (`usina/budget.yaml`). Se o plano disser `blocked`, pare aquela linha.
-- Se existir `usina/PAUSE` depois do passo 1 (o Caio pausa e retoma pelo painel, aba Saúde), só sincronize o painel e saia.
+- Se existir `usina/PAUSE` depois do passo 1 (o Caio pausa e retoma pelo painel, aba Saúde), só sincronize o painel, rode `P tick-end` e saia.
 - Páginas com `status: rascunho` não geram nada.
 
 ## 0. Preparar (uma vez por sessão)
@@ -24,6 +24,16 @@ alias P=".venv/bin/python -m pipeline"
 ```
 Saldo do Higgsfield (ata D5, mínimo de 300 créditos): `mcp__Higgsfield__balance` → `P balance <créditos>`. Sem leitura nas últimas 24 h o plano devolve `check_balance` e o `video-request` recusa.
 Referências locais: `P pages`. Se aparecer FALTA, rode `P fetch-refs <página>`. Se o download for bloqueado pela rede, use as imagens pelo Higgsfield (`--provider higgsfield`) e anote no relatório.
+
+## 0.2 Lock do ciclo (nunca dois ciclos ao mesmo tempo)
+```bash
+git pull --rebase -q
+P tick-start || exit 0          # ERRO "outro ciclo rodando": saia sem fazer nada (nem painel)
+git add usina/.lock && git commit -qm "usina: lock" -- usina/.lock && git push -q
+# push recusado (alguém empurrou antes): desfaça o seu lock, puxe e tente UMA vez
+#   P tick-end --force && git reset -q HEAD~1 && git pull --rebase -q && P tick-start || exit 0   (e repita o commit/push)
+```
+O lock (`usina/.lock`, dono + hora) vale 2 h; lock mais velho é de sessão que caiu e é ignorado. O push logo depois do `tick-start` faz as sessões em outros containers enxergarem o lock. Se o `plan` trouxer `other_tick`, outro ciclo pegou a vez: pare. O `video-request` também recusa enquanto o lock for de outro ciclo. **Sempre** libere no fim (`P tick-end`, passo 4), inclusive quando sair por PAUSE ou erro.
 
 ## 0.5 Restaurar a mídia (out/ não vai para o git)
 `P media-status`. Para cada item em `restore`: `Artifact(action="read", url=<painel>, path=<asset_id>)` → `P media-restore <ref> <key> --file <arquivo salvo>`. Sem isso, frames, vídeo e a fonte das trends de itens em andamento não existem nesta sessão.
@@ -62,7 +72,8 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 
 ## 4. Fechar
 ```bash
-cd .. && git add usina && git commit -m "usina: tick $(date -u +%FT%H:%MZ)" && git push -u origin HEAD
+P tick-end
+cd .. && git add -A usina && git commit -m "usina: tick $(date -u +%FT%H:%MZ)" && git push -u origin HEAD
 ```
 Os arquivos de mídia (`usina/out/`) ficam fora do git. Relatório final em até 10 linhas:
 - o que foi gerado e quanto custou (`P ledger`, `P status`);
