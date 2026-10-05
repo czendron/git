@@ -144,3 +144,31 @@ def normalize_reels(src: Path, dst: Path) -> Path:
 
 def have_ffmpeg() -> bool:
     return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
+
+
+def concat(a: Path, b: Path, dst: Path) -> tuple[Path, bool]:
+    """Emenda dois clipes (motion control + gag, playbook C5). Sem reencode quando os dois batem (codec, tamanho,
+    fps e áudio): concat demuxer com -c copy. Senão, reencoda o vídeo no tamanho/fps do 1º e descarta o áudio
+    (a música entra no app). Devolve (arquivo, reencodou?)."""
+    ia, ib = probe(a), probe(b)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    same = (ia["vcodec"], ia["width"], ia["height"], ia["acodec"]) == (ib["vcodec"], ib["width"], ib["height"], ib["acodec"]) \
+        and abs(ia["fps"] - ib["fps"]) < 0.01
+    if same:
+        lst = dst.with_suffix(".concat.txt")
+        lst.write_text("".join(f"file '{Path(p).resolve().as_posix()}'\n" for p in (a, b)), encoding="utf-8")
+        try:
+            _run(["ffmpeg", "-y", "-v", "error", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy",
+                  "-movflags", "+faststart", str(dst)])
+            return dst, False
+        except MediaError:
+            pass  # cai no reencode
+        finally:
+            lst.unlink(missing_ok=True)
+    w, h, fps = ia["width"], ia["height"], ia["fps"] or 30
+    fc = (f"[0:v]scale={w}:{h},setsar=1,fps={fps}[v0];"
+          f"[1:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,fps={fps}[v1];"
+          f"[v0][v1]concat=n=2:v=1:a=0[v]")
+    _run(["ffmpeg", "-y", "-v", "error", "-i", str(a), "-i", str(b), "-filter_complex", fc, "-map", "[v]",
+          "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "medium", "-movflags", "+faststart", str(dst)])
+    return dst, True

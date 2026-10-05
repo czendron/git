@@ -93,6 +93,47 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
         errors.append(f"self_score abaixo de 3 em: {', '.join(low)}")
     if page and script["page"] != page.get("slug"):
         errors.append(f"page '{script['page']}' não bate com '{page.get('slug')}'")
+    if script.get("gag_followup") is not None:
+        e, w = lint_gag(script["gag_followup"])
+        errors += e
+        warns += w
+    return errors, warns
+
+
+def lint_gag(g) -> tuple[list[str], list[str]]:
+    """Gag pós-motion control (playbook C5): clipe Seedance de 4–5 s a partir do último frame do MC,
+    com os 2 últimos estágios do C4 (en.stages de 2 + en.end_change)."""
+    errors: list[str] = []
+    warns: list[str] = []
+    if not isinstance(g, dict):
+        return ["gag_followup precisa ser um objeto {duration_s, en: {stages, end_change}}"], warns
+    dur = float(g.get("duration_s") or 0)
+    if not 4 <= dur <= 5:
+        errors.append(f"gag_followup.duration_s {dur}s fora de 4–5 s")
+    en = g.get("en") or {}
+    stages = en.get("stages") or []
+    if len(stages) != 2:
+        errors.append(f"gag_followup.en.stages tem {len(stages)} estágios (use 2: a armação e a piada)")
+    end = 0.0
+    for i, st in enumerate(stages, 1):
+        if not isinstance(st, dict) or not st.get("text") or not st.get("end_state"):
+            errors.append(f"gag_followup.en.stages[{i}] precisa de t, text e end_state")
+            continue
+        sp = _span(st.get("t", ""))
+        if not sp:
+            errors.append(f"gag_followup.en.stages[{i}]: tempo '{st.get('t')}' inválido")
+            continue
+        if abs(sp[0] - end) > 0.01:
+            errors.append(f"gag_followup.en.stages[{i}] começa em {sp[0]}s; o anterior terminou em {end}s")
+        end = sp[1]
+    if stages and dur and abs(end - dur) > 0.51:
+        errors.append(f"gag_followup.en.stages terminam em {end}s, mas duration_s é {dur}")
+    if not en.get("end_change"):
+        errors.append("falta gag_followup.en.end_change (o estado final da piada)")
+    if SLOW.search(_text(en)):
+        errors.append("gag_followup.en com palavra de câmera lenta (regra 19)")
+    if WIND.search(_text(en)):
+        warns.append("vento/brisa no gag_followup: faz o cabelo rígido balançar (regra 17)")
     return errors, warns
 
 

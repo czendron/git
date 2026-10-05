@@ -330,6 +330,59 @@ def motion_frame_prompt(script: dict, page: Page) -> str:
     ])
 
 
+def gag_prompt(script: dict, page: Page) -> str:
+    """Gag pós-motion control (playbook C5): Seedance 2.5, start_image = último frame do clipe de MC, só os stages
+    3 e 4 do C4 (aqui, os 2 estágios de gag_followup.en) e o estado final em end_change."""
+    en = script["en"]
+    g = script["gag_followup"]
+    gen = g["en"]
+    sub, pos, obj, noun = _p(page)
+    part, sil = silhouette(page)
+    nm = name(page)
+    extras = int(en.get("extras_count") or 0)
+    bpm = (script.get("music") or {}).get("bpm") or page.character.get("bpm", 95)
+    action = [f"[Stage {i} — {st['t']}] {st['text']} End state: {st['end_state']}" for i, st in enumerate(gen["stages"], 1)]
+    blocks = [
+        "SCENE CONTEXT",
+        f"This clip continues a dance video: the start frame is its last frame. EXACTLY 1 main character — {nm}, "
+        f"{ROLE.get(page.slug, 'the character')}, with {sil.split(',')[0]}"
+        + (f" — plus {crowd(extras)} in the background." if extras else " — and no one else in the set."),
+        "",
+        "ACTIVE REFERENCES",
+        "The start frame defines the opening composition, pose, location, lighting, passersby and camera: continue "
+        "from it exactly, with no jump.",
+        f"@Image 1 defines {nm}'s face — full-preserve, 100% matches the reference.",
+        f"@Image 2 defines only {pos} {part} shape and outfit — full-preserve. Do not take the grey backdrop, the panel "
+        f"layout or the extra views.",
+        "",
+        "CAMERA",
+        "Same camera, position and lens as the start frame, locked off. One continuous shot; no cut; no drift.",
+        "",
+        "ACTION",
+        *action,
+        f"Final state: {_sent(gen['end_change'])}",
+        f"Throughout: real-time at {bpm} BPM; {pos} face is visible in every frame.",
+        "",
+        "PERFORMANCE",
+        DEADPAN_VIDEO,
+        (f"Passersby continue their own tasks — {en['extras_tasks']} — none turns toward {obj}." if extras else ""),
+        "",
+        "PHYSICS",
+        f"The {part} is a single rigid mass — {sil}: it moves only as one solid block with {pos} skull and keeps its "
+        f"exact outline in every frame. Still air. Real-time speed, normal playback — no slow motion.",
+        "",
+        "LIGHTING",
+        f"{en['lighting']} Smartphone video look, deep depth of field, everything sharp.",
+        "",
+        "POSITIVE LOCKS",
+        (f"Exactly one main character and {crowd(extras)} for the whole clip. " if extras else
+         f"Exactly one person, {nm}, for the whole clip. ")
+        + f"{pos.capitalize()} face matches @Image 1 and {pos} {part} matches @Image 2. No captions, no subtitles, "
+          f"no text on screen.",
+    ]
+    return "\n".join(blocks).replace("\n\n\n", "\n\n")
+
+
 def caption(script: dict) -> str:
     tags = " ".join(t if t.startswith("#") else f"#{t}" for t in script.get("hashtags", []))
     return f"{script['caption'].strip()}\n\n{tags}".strip()

@@ -4,21 +4,68 @@
   "format": "trend",
   "premise": "Gersinho faz a coreografia da trend no calçadão de Copacabana, sério, enquanto banhistas passam sem olhar.",
   "gag_without_sound": "a coreografia viral feita por um tiozão brega de topete gigante que não muda a cara",
-  "trend": {"name": "Gang Gang (Chef Boy)", "source_hint": "motion library do Higgsfield ou recorte de 8-10 s da coreografia, 1 pessoa, corpo inteiro, câmera parada"},
-  "camera": {"mode": "static_passerby", "fov_deg": 63, "height": "altura do peito, 4 m", "movement": "igual à fonte"},
+  "trend": {
+    "name": "Gang Gang (Chef Boy)",
+    "source_hint": "motion library do Higgsfield ou recorte de 8-10 s da coreografia, 1 pessoa, corpo inteiro, câmera parada"
+  },
+  "camera": {
+    "mode": "static_passerby",
+    "fov_deg": 63,
+    "height": "altura do peito, 4 m",
+    "movement": "igual à fonte"
+  },
   "duration_s": 10,
-  "music": {"genre": "trend", "bpm": 95, "trend_sound_hint": "Gang Gang (Chef Boy), som original da trend no app", "fallback": "instrumental brega 95 BPM"},
-  "cover": {"from": "end_frame", "text_max4": "o brega chegou"},
+  "music": {
+    "genre": "trend",
+    "bpm": 95,
+    "trend_sound_hint": "Gang Gang (Chef Boy), som original da trend no app",
+    "fallback": "instrumental brega 95 BPM"
+  },
+  "cover": {
+    "from": "end_frame",
+    "text_max4": "o brega chegou"
+  },
   "caption": "Aprendi em 5 minutos. Melhorei em 3.",
-  "hashtags": ["#ganggang", "#brega", "#copacabana", "#gersonbrilhantina"],
-  "brand_safety": ["sem marca", "sem criança em destaque"],
+  "hashtags": [
+    "#ganggang",
+    "#brega",
+    "#copacabana",
+    "#gersonbrilhantina"
+  ],
+  "brand_safety": [
+    "sem marca",
+    "sem criança em destaque"
+  ],
   "risks": "a fonte com corte ou zoom; o topete balançar no giro; identidade derreter no movimento rápido",
-  "self_score": {"hook": 4, "absurdo": 4, "miniatura": 4, "clareza_sem_som": 4},
+  "self_score": {
+    "hook": 4,
+    "absurdo": 4,
+    "miniatura": 4,
+    "clareza_sem_som": 4
+  },
   "en": {
     "location": "the black-and-white wavy Portuguese stone pavement of the Copacabana boardwalk in Rio, the beach and ocean behind, a coconut-water kiosk at frame-left",
     "lighting": "Late-morning Rio sun from frame-right, hard shadows, bright sky, 5600K.",
     "extras_count": 5,
     "extras_tasks": "two joggers pass in the background, one vendor arranges coconuts at the kiosk, one woman walks a dog, one man reads his phone on a bench",
     "replace_subject": "the dancer"
+  },
+  "gag_followup": {
+    "duration_s": 5,
+    "en": {
+      "stages": [
+        {
+          "t": "0-2.5s",
+          "text": "He finishes the last move with his right index finger pointing up, lowers the hand and rests it on his belly, chin raised, staring into the lens.",
+          "end_state": "standing still, hand on belly, chin raised, eyes on the lens"
+        },
+        {
+          "t": "2.5-5s",
+          "text": "A grey seagull glides in from frame-right and lands on top of his rigid pompadour, folding its wings; he does not move or react and keeps staring into the lens.",
+          "end_state": "the seagull stands still on top of the pompadour; he stares deadpan into the lens"
+        }
+      ],
+      "end_change": "a grey seagull standing still on top of his rigid pompadour while he stares deadpan into the lens"
+    }
   }
 }

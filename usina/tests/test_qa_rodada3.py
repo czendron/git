@@ -241,3 +241,112 @@ def test_trend_variants_higgsfield_fallback(usina, tmp_path):
     assert it["state"] == "frames" and len(it["variants"]) == 2 and it["attempts"]["frames"] == 1
     run(usina, "pick", ref, "frames", "2")
     assert item_json(usina)["frames"]["start"]["higgsfield_id"] == "HJ2"
+
+
+# ---------- 5. gag pós-motion control (C5) ----------
+
+def dur(path):
+    import subprocess
+    return float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                                capture_output=True, text=True, check=True).stdout)
+
+
+def trend_in_revisao(root, tmp_path):
+    from test_qa_rodada2 import clip
+    ref = trend_with_source(root, tmp_path)
+    run(root, "image", ref, "frames", "--variants", "4")
+    run(root, "pick", ref, "frames", "1")
+    run(root, "review", ref, "frames", "pass")
+    run(root, "approve", ref, "frames")
+    run(root, "record-upload", ref, "start", "--hf-id", "ST")
+    run(root, "motion-source", ref, "--hf-id", "SRC")
+    run(root, "record-video", ref, "--job", "MC1", "--credits", "64")
+    run(root, "record-video", ref, "--url", "https://x/mc.mp4")
+    run(root, "fetch-video", ref, "--file", str(clip(tmp_path / "mc.mp4", dur=6)))
+    run(root, "review", ref, "video", "pass")
+    return ref
+
+
+def test_gag_lint(usina, tmp_path):
+    s = json.loads((usina / TREND).read_text())
+    s["gag_followup"]["duration_s"] = 8
+    s["gag_followup"]["en"]["stages"] = s["gag_followup"]["en"]["stages"][:1]
+    del s["gag_followup"]["en"]["end_change"]
+    f = tmp_path / "g.json"
+    f.write_text(json.dumps(s))
+    out = run(usina, "lint", str(f), ok=False).stdout
+    assert "4–5 s" in out and "use 2" in out and "end_change" in out
+
+
+def test_gag_followup_flow_and_concat(usina, tmp_path):
+    from test_qa_rodada2 import clip
+    ref = trend_in_revisao(usina, tmp_path)
+    acts = [a for a in plan(usina)["actions"] if a.get("item") == ref]
+    assert acts and acts[0]["do"] == "video_submit" and acts[0]["gag"]
+    assert not any(a.get("cmd", "").startswith("python -m pipeline package") for a in acts)
+    vr = json.loads(run(usina, "video-request", ref, "--gag").stdout)
+    assert vr["ready"] is False and vr["upload_first"][0]["key"] == "last"
+    run(usina, "record-upload", ref, "last", "--hf-id", "LAST")
+    vr = json.loads(run(usina, "video-request", ref, "--gag").stdout)
+    p = vr["requests"][0]["params"]
+    assert p["model"] == "seedance_2_5" and p["duration"] == 5
+    assert p["medias"][0] == {"role": "start_image", "value": "LAST"}
+    assert "seagull" in p["prompt"] and "last frame" in p["prompt"]
+    run(usina, "record-video", ref, "--gag", "--job", "G1", "--credits", "40")
+    run(usina, "record-video", ref, "--gag", "--job", "G1", "--credits", "40")     # idempotente
+    assert len([r for r in ledger(usina) if r["action"] == "video_submit" and r["note"] == "gag"]) == 1
+    assert run(usina, "video-request", ref, "--gag", ok=False).returncode == 1     # já enviado
+    assert [a for a in plan(usina)["actions"] if a.get("item") == ref][0]["do"] == "video_poll"
+    run(usina, "record-video", ref, "--gag", "--url", "https://x/gag.mp4")
+    run(usina, "fetch-video", ref, "--gag", "--file", str(clip(tmp_path / "gag.mp4", dur=4)))
+    a = [a for a in plan(usina)["actions"] if a.get("item") == ref][0]
+    assert a["do"] == "review_video" and a["stage"] == "gag"
+    run(usina, "approve", ref, "video")
+    r = run(usina, "package", ref, ok=False)
+    assert r.returncode == 1 and "gag" in r.stderr                               # gag sem QA
+    run(usina, "review", ref, "gag", "pass")
+    assert any(x.get("cmd", "").endswith(f"package {ref}") for x in plan(usina)["actions"])
+    out = run(usina, "package", ref).stdout
+    assert "sem reencode" in out
+    it = item_json(usina)
+    mp4 = usina / it["post"]["package"] / f"{ref.replace('/', '-')}.mp4"
+    assert abs(dur(mp4) - 10) < 0.3 and it["post"]["with_gag"]
+    assert "AI info' no post é OBRIGATÓRIO" in (usina / it["post"]["package"] / "CHECKLIST.md").read_text()
+
+
+def test_gag_dropped_after_two_fails_packages_mc_only(usina, tmp_path):
+    from test_qa_rodada2 import clip
+    ref = trend_in_revisao(usina, tmp_path)
+    run(usina, "record-upload", ref, "last", "--hf-id", "LAST")
+    for n in (1, 2):
+        run(usina, "record-video", ref, "--gag", "--job", f"G{n}", "--credits", "30")
+        run(usina, "record-video", ref, "--gag", "--url", f"https://x/g{n}.mp4")
+        run(usina, "fetch-video", ref, "--gag", "--file", str(clip(tmp_path / f"g{n}.mp4", dur=4)))
+        run(usina, "review", ref, "gag", "fail", "--notes", "emenda pulou")
+        if n == 1:
+            assert any(a.get("cmd", "").endswith(f"retry {ref} gag") for a in plan(usina)["actions"])
+            run(usina, "retry", ref, "gag")
+    it = item_json(usina)
+    assert it["video"]["gag"]["dropped"] and it["attempts"]["gag"] == 2
+    assert run(usina, "video-request", ref, "--gag", ok=False).returncode == 1
+    run(usina, "approve", ref, "video")
+    assert "emendado" not in run(usina, "package", ref).stdout                # sai só o motion control
+    assert "gag" in (usina / "playbook" / "falhas.md").read_text()
+
+
+def test_gag_mismatched_clip_is_reencoded(usina, tmp_path):
+    from test_qa_rodada2 import clip
+    ref = trend_in_revisao(usina, tmp_path)
+    run(usina, "record-upload", ref, "last", "--hf-id", "LAST")
+    run(usina, "record-video", ref, "--gag", "--job", "G0", "--credits", "30")
+    run(usina, "record-video", ref, "--gag", "--failed", "nsfw")                  # job falhou: pede de novo
+    assert "já registrada" in run(usina, "record-video", ref, "--gag", "--failed", "nsfw").stdout
+    assert [a for a in plan(usina)["actions"] if a.get("item") == ref][0]["do"] == "video_submit"
+    run(usina, "record-video", ref, "--gag", "--job", "G1", "--credits", "30")
+    run(usina, "record-video", ref, "--gag", "--url", "https://x/g1.mp4")
+    run(usina, "fetch-video", ref, "--gag", "--file", str(clip(tmp_path / "g1.mp4", dur=4, size="720x1280")))
+    run(usina, "review", ref, "gag", "pass")
+    run(usina, "approve", ref, "video")
+    assert "reencodado" in run(usina, "package", ref).stdout
+    it = item_json(usina)
+    assert abs(dur(usina / it["post"]["package"] / f"{ref.replace('/', '-')}.mp4") - 10) < 0.3

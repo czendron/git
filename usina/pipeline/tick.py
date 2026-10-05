@@ -187,13 +187,62 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                 acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} video"})
     elif st == "revisao":
         g = _gate(item, "video")
+        gag_acts = _gag_actions(item, b, now) if g["caio"] != "rejected" else []
+        acts += gag_acts
         if g["caio"] == "pending":
             acts.append({"do": "await_caio", "item": pid, "stage": "video"})
         elif g["caio"] == "rejected":
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} video"})
-        else:
+        elif not gag_acts:
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} package {pid}"})
     return acts
+
+
+GAG_MAX_ATTEMPTS = 2
+
+
+def _gag_actions(item: Item, b: dict, now: float) -> list[dict]:
+    """Gag pós-motion control (playbook C5): depois do QA do clipe de MC, um 2º clipe Seedance de 4–5 s com o
+    último frame do MC como start_image. Lista vazia = gag resolvido (aprovado, descartado ou não pedido)."""
+    s = item.script
+    if s.get("format") != "trend" or not s.get("gag_followup") or _gate(item, "video")["qa"] != "pass":
+        return []
+    pid = f"{item.page}/{item.id}"
+    cmd = "python -m pipeline"
+    gag = item.video.get("gag") or {}
+    gg = item.gates.get("gag") or {}
+    if gag.get("dropped") or gg.get("qa") == "pass":
+        return []
+    if gg.get("qa") == "fail":
+        return [{"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} gag"}]
+    if not gag.get("job_id"):
+        if item.attempts.get("gag", 0) >= GAG_MAX_ATTEMPTS:
+            return [{"do": "run", "item": pid, "cmd": f"{cmd} skip-gag {pid} --why 'limite de tentativas do gag'"}]
+        credits = float(s["gag_followup"].get("duration_s", 5)) * \
+            b["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
+        ok, why = budget.can_spend_higgsfield(credits, now)
+        bst, _ = budget.balance_status(now)
+        if budget.item_spend(item.page, item.id)["credits"] + credits > float(b["per_idea"].get("max_credits", 1e9)):
+            return [{"do": "run", "item": pid, "cmd": f"{cmd} skip-gag {pid} --why 'teto de créditos da ideia'"}]
+        if not ok and bst in ("unknown", "stale"):
+            return [{"do": "check_balance", "item": pid,
+                     "how": "mcp__Higgsfield__balance e depois `python -m pipeline balance <créditos>`"}]
+        if not ok:
+            return [{"do": "blocked", "item": pid, "why": f"gag: {why}"}]
+        return [{"do": "video_submit", "item": pid, "gag": True, "est_credits": credits, "provider": "higgsfield",
+                 "how": f"`{cmd} video-request {pid} --gag` (sobe o último frame do MC se pedir: record-upload {pid} last), "
+                        f"envie com generate_video_batch e registre `{cmd} record-video {pid} --gag --job <id> --credits <n>`."}]
+    if not gag.get("url"):
+        return [{"do": "video_poll", "item": pid, "gag": True, "job_id": gag["job_id"],
+                 "how": f"mcp__Higgsfield__jobs_wait; completo: `{cmd} record-video {pid} --gag --url <result_url>`; "
+                        f"falhou: `{cmd} record-video {pid} --gag --failed 'motivo'`"}]
+    if not gag.get("path"):
+        return [{"do": "run", "item": pid, "cmd": f"{cmd} fetch-video {pid} --gag"}]
+    return [{"do": "review_video", "item": pid, "stage": "gag", "rubric": "prompts/review_video.md",
+             "file": gag.get("sheet"),
+             "how": f"Abra a folha do gag e o último frame do MC ({item.video.get('last')}) com Read: a emenda não pode "
+                    f"pular (pose, luz, figurantes) e a piada tem que ler sem som. Registre "
+                    f"`{cmd} review {pid} gag pass|fail --notes '...'`."}]
 
 
 def plan(now: float | None = None) -> dict:

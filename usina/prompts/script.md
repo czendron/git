@@ -24,6 +24,7 @@ Fotorrealismo de celular 9:16, 8–12 s, sem diálogo e sem texto no vídeo. Dea
 ## Formatos
 - `proprio`: lugar + ação banal + piada. É o padrão, 60% do mix.
 - `trend`: motion control de uma coreografia viral, sempre com cenário, figurino e piada próprios (no máximo 25–30%).
+  O roteiro de trend segue `prompts/examples/gersinho-trend-calcadao.json`. Opcional: `gag_followup` = 2º clipe de 4–5 s (Seedance, a partir do último frame da dança) com `en.stages` de 2 estágios (armação e piada, `t`/`text`/`end_state`) e `en.end_change` (o estado final da piada). É a piada física da fórmula da casa depois da coreografia (playbook C5). A mesma trend nunca vai para duas páginas na mesma semana (ata D7).
 - `crossover`: dois personagens da casa. Cada página posta o seu próprio arquivo, do ponto de vista dela.
 
 ## Saída (JSON, só isso)
