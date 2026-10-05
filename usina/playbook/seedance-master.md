@@ -237,7 +237,7 @@ Notas:
 
 **Escolha:**
 - **Kling 3.0 Motion Control:** MCP `motion_control` (`image_id`, `motion_video_id`, `scene_control`) ou CLI workflow `kling3_0_motion_control` (`mode std|pro`, `background_source input_image|input_video`). Tem prompt de cena e **permite usar o cenário da imagem**. Nós sempre usamos o nosso cenário (ata D7), então o padrão é este, com `background_source = input_image`.
-- **Genjutsu (`hf_mult_motion_control`, via `generate_video`):** usa `image_references` + `video_references` e só expõe `resolution`. O catálogo não lista parâmetro de prompt nem de fonte do cenário. Use quando o Kling MC deformar a identidade, ou como teste A/B. Nunca use a ferramenta legada `motion_control` para o Genjutsu (`OS/model-guide.md` § Motion Transfer).
+- **Genjutsu (`hf_mult_motion_control`, via `generate_video`):** usa `image_references` + `video_references` + **prompt de cena**. Corrigido em 05/10 pelo tutorial assistido (`videos-analisados.md` §3): ele aceita a descrição de ambiente, câmera e visual, sai em até 1080p, preserva caminhada, tremor e timing da fonte, e aceita 2 personagens. A fonte pode vir da **motion library** do Higgsfield. Use como padrão para trend quando quiser manter tudo dentro do Higgsfield; o Kling MC fica como A/B. Nunca use a ferramenta legada `motion_control` para o Genjutsu.
 
 **Requisitos do vídeo-fonte** (`higgsfield-motion` § Motion Reference Input Checklist; `higgsfield-troubleshoot` § MC Failures):
 - [ ] Um único dançarino, da cabeça aos pés no quadro o tempo todo, sem oclusão.
@@ -246,6 +246,8 @@ Notas:
 - [ ] Velocidade lenta a moderada. Se o output sair **mais curto que a fonte**, o movimento era rápido demais: desacelere a fonte para 50–75% e corte de novo.
 - [ ] 9:16, bom contraste entre corpo e fundo, pessoa real (não animação).
 - [ ] O baixar e subir no Higgsfield é feito antes, com o arquivo .mp4 (README).
+
+**Imagem do personagem = edição do 1º frame da fonte** (`videos-analisados.md` §2). Pegue o primeiro frame do vídeo-fonte (`python -m pipeline` usa ffmpeg) e edite no GPT Image 2.5 com o rosto e a silhueta como referências: `Replace the dancer with the man from image 2 and image 3 — same face, same pompadour and outfit. Keep the exact pose, framing, location and light of image 1. Must look like a real smartphone photo inside the original scene. Deadpan: lips closed, lip corners level.` Faça 4 variações e cure. Assim pose, enquadramento e cenário batem com a fonte.
 
 **Requisitos da imagem do personagem:** frame A do C2 em modo passante (63°, corpo inteiro e pés visíveis), com **a mesma pose e o mesmo enquadramento do primeiro frame da fonte**, rosto legível, topete inteiro com 10% de folga acima, braços sem cobrir o rosto e figurantes posicionados longe da trajetória da dança.
 
@@ -282,9 +284,13 @@ Protect: the pompadour outline, the deadpan mouth, the passersby ignoring him.
 [Content to Preserve] Keep his identity, pompadour shape, outfit, body motion, the passersby, the camera and all timing from @Video 1.
 ```
 
+**(d) Object swap do Genjutsu** (`videos-analisados.md` §3): troca só o figurino ou o prop errado num vídeo que ficou bom. O resto da cena fica intacto.
+
 **(c) Aproveitamento:** antes de descartar, marque entrada e saída do trecho bom. Um clipe "ruim" muitas vezes tem 2–3 s utilizáveis (`sd20/FAILURE-MODES.md` § Failed-generation salvage). Registre tudo em `playbook/falhas.md`.
 
 ---
+
+**Teste de moderação de rosto (personagem novo):** antes do primeiro vídeo, rode 4 s em 480p. Se o Seedance 2.5 bloquear o rosto, gere uma ficha nova e neutra (C1) e teste de novo (`videos-analisados.md` §1).
 
 ## D) Tabela de diagnóstico de falhas
 
