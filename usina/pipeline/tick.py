@@ -67,6 +67,20 @@ def cap_actions(out: dict, limit: int = MAX_ACTIONS) -> None:
                             f"ciclo (gasto novo sai primeiro): {desc}.")
 
 
+NEW_IDEAS_PER_CYCLE = 3  # rodada 6: a estreia pedia 10 ideias numa ação só (fricção 2 da rodada 5)
+
+
+def new_ideas_cap(page: Page, b: dict) -> int:
+    """Ideias novas por ciclo e por página: `new_ideas_per_cycle` do page.yaml, senão do budget.yaml, senão 3."""
+    for v in (page.data.get("new_ideas_per_cycle"), b.get("new_ideas_per_cycle"), NEW_IDEAS_PER_CYCLE):
+        try:
+            if v is not None and int(v) >= 1:
+                return int(v)
+        except (TypeError, ValueError):
+            continue
+    return NEW_IDEAS_PER_CYCLE
+
+
 def trend_share(slug: str, now: float, exclude: str = "") -> tuple[int, int]:
     """(roteiros, trends) da página nos últimos 30 dias, sem descartados (ata D7: teto de 30% de trend)."""
     recent = [i for i in list_items(slug) if i.script and now - i.created_at < 30 * 86400
@@ -391,7 +405,12 @@ def plan(now: float | None = None) -> dict:
             out["notes"].append(f"{page.slug}: trend em {t30 / n30:.0%} dos roteiros dos últimos 30 dias, acima do teto "
                                 f"de {TREND_CAP:.0%} (ata D7): nada de trend nova até equilibrar.")
         missing = target - len(items)
+        per_cycle = new_ideas_cap(page, b)
+        if missing > per_cycle and not full:
+            out["notes"].append(f"{page.slug}: faltam {missing} ideias para o estoque; {per_cycle} neste ciclo "
+                                f"(new_ideas_per_cycle), o resto nos próximos.")
         if missing > 0 and not full:
+            stock_missing, missing = missing, min(missing, per_cycle)
             n, t = trend_share(page.slug, now)
             share = t / n if n else 0.0
             allow_trend = (t + 1) / (n + 1) <= TREND_CAP
@@ -399,7 +418,8 @@ def plan(now: float | None = None) -> dict:
                    f"{share:.0%} (teto {TREND_CAP:.0%}).")
             if not allow_trend:
                 mix += " NÃO crie trend agora (estouraria o teto)."
-            out["actions"].append({"do": "new_ideas", "page": page.slug, "count": missing, "trend_share_30d": round(share, 2),
+            out["actions"].append({"do": "new_ideas", "page": page.slug, "count": missing, "stock_missing": stock_missing,
+                                   "trend_share_30d": round(share, 2),
                                    "allow_trend": allow_trend,
                                    "how": f"Escolha {missing} ideia(s) (radar, pauta ou roteiros de crossover) e crie com "
                                           f"`python -m pipeline new {page.slug} 'título' --idea '...'`.{mix}"})

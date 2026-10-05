@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 
+from . import budget
 from .store import Page, get_page, list_items, StoreError
 
 DEFAULTS = {
@@ -38,7 +39,7 @@ def launched_at(page: Page) -> tuple[float | None, str]:
     posted = [i.post.get("posted_at") for i in list_items(page.slug) if i.state == "postado" and i.post.get("posted_at")]
     if posted:
         ts = min(posted)
-        return ts, f"1º post em {time.strftime('%Y-%m-%d', time.gmtime(ts))}"
+        return ts, f"1º post em {budget._day(ts)}"
     return None, "sem launched_at nem post registrado"
 
 

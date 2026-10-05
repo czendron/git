@@ -122,7 +122,8 @@ def test_launch_gate_ficha_days_and_stock(usina):
     assert c["can_generate"] and not c["can_post"] and "0/10 prontos" in c["summary"]
     p = plan(usina)
     ni = [a for a in p["actions"] if a["do"] == "new_ideas" and a["page"] == "marlene"]
-    assert ni and ni[0]["count"] == 10                                # estoque de estreia, não 3
+    assert ni and ni[0]["stock_missing"] == 10                        # estoque de estreia, não 3
+    assert ni[0]["count"] == 3                                        # rodada 6: no máximo 3 ideias por ciclo
     assert any("estreia: 0/10" in n for n in p["notes"])
     set_page(usina, "wanderley", status="ativo", refs=refs)
     c = json.loads(run(usina, "launch-check", "wanderley").stdout)

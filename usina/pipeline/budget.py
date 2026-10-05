@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 
@@ -50,12 +52,28 @@ def rows() -> list[dict]:
     return out
 
 
-def _day(ts: float) -> str:
-    return time.strftime("%Y-%m-%d", time.gmtime(ts))
+DEFAULT_TZ = "Australia/Sydney"   # rodada 6: o Caio mora na Austrália; os tetos viram à meia-noite dele
 
 
-def _month(ts: float) -> str:
-    return time.strftime("%Y-%m", time.gmtime(ts))
+def tz(b: dict | None = None) -> ZoneInfo:
+    """Fuso dos tetos diário e mensal (`timezone` no budget.yaml). Fuso inválido cai no padrão, nunca em UTC calado."""
+    name = str((b if b is not None else load_budget()).get("timezone") or DEFAULT_TZ)
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return ZoneInfo(DEFAULT_TZ)
+
+
+def local_dt(ts: float, zone: ZoneInfo | None = None) -> datetime:
+    return datetime.fromtimestamp(float(ts), zone or tz())
+
+
+def _day(ts: float, zone: ZoneInfo | None = None) -> str:
+    return local_dt(ts, zone).strftime("%Y-%m-%d")
+
+
+def _month(ts: float, zone: ZoneInfo | None = None) -> str:
+    return local_dt(ts, zone).strftime("%Y-%m")
 
 
 @dataclass
@@ -73,18 +91,20 @@ class Spend:
 def spend(now: float | None = None) -> Spend:
     now = now or time.time()
     b = load_budget()
+    zone = tz(b)
+    day_now, month_now = _day(now, zone), _month(now, zone)
     today: dict[str, float] = {}
     month = 0.0
     for r in rows():
-        if _month(r["at"]) == _month(now):
+        if _month(r["at"], zone) == month_now:
             month += r["usd"]
-        if _day(r["at"]) == _day(now):
+        if _day(r["at"], zone) == day_now:
             today[r["provider"]] = today.get(r["provider"], 0.0) + r["usd"]
     return Spend(today=today, month_usd=round(month, 2), month_cap=float(b["month_cap"]), day_cap=b["day_cap"])
 
 
 # Rodada 5 (nota de implementação na ata, D5 intacta): o gag de uma trend cujo motion control já foi pago pode
-# usar até 20% acima do teto diário do Higgsfield, se o teto do mês deixar. Senão o teto em UTC empurra o gag
+# usar até 20% acima do teto diário do Higgsfield, se o teto do mês deixar. Senão a virada do dia empurra o gag
 # para o dia seguinte e o MC pago fica parado ("não desperdiçar o que já foi pago").
 GAG_DAY_OVERFLOW = 0.20
 

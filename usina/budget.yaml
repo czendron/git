@@ -1,5 +1,6 @@
 # Tetos de gasto (ata do conselho, D5). O pipeline lê isso antes de qualquer geração paga.
 currency: USD
+timezone: Australia/Sydney   # tetos diário e mensal viram à meia-noite deste fuso (o Caio mora na Austrália; rodada 6)
 month_cap: 300          # Higgsfield + OpenAI no mês
 day_cap:
   higgsfield: 12
@@ -14,6 +15,7 @@ per_idea:
 quality:
   min_yield_last10: 0.30      # aproveitamento mínimo das últimas 10 gerações de vídeo
 max_unposted_per_page: 5
+new_ideas_per_cycle: 3       # teto de ideias novas por ciclo por página (rodada 6); `new_ideas_per_cycle` no page.yaml sobrepõe
 max_consecutive_errors: 3
 # Custos estimados por ação (para o livro-caixa quando a API não informa)
 cost_estimates:
