@@ -56,7 +56,7 @@ def _vendor(who="DONA CIDA, the pastel vendor", **kw):
 def test_queue_and_examples_have_no_errors_nor_new_warnings():
     pg = get_page("gersinho").data
     files = [json.loads(f.read_text())["script"] for f in QUEUE] + [_load(BUS), _load(TREND)]
-    assert len(files) == 5
+    assert len(files) >= 5  # a fila cresce; todo roteiro salvo tem que passar
     for s in files:
         e, w = L.lint(s, pg)
         assert e == [], (s["title"], e)
