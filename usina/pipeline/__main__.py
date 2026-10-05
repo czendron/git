@@ -196,12 +196,18 @@ def cmd_image(a):
                  and it.gates.get("frames", {}).get("qa") == "pending"
                  and it.frames.get("start", {}).get("higgsfield_id") and not it.frames.get("end"))
     if not hf_second:
-        _need_state(it, ["roteiro"] if stage == "storyboard" else ["storyboard"], f"image {stage}", a.force)
+        trend_frames = stage == "frames" and it.script.get("format") == "trend"
+        _need_state(it, ["roteiro"] if stage == "storyboard" or trend_frames else ["storyboard"], f"image {stage}", a.force)
     n = it.attempts.get(stage, 0) + (0 if hf_second else 1)
     jobs = []
     if stage == "storyboard":
         prompt, size = prompts.storyboard_prompt(it.script, page)
         jobs.append(("storyboard", prompt, size, []))
+    elif stage == "frames" and it.script.get("format") == "trend":
+        first = local((it.motion or {}).get("first_frame"))
+        if not first or not first.exists():
+            raise StoreError("trend sem o 1º frame da fonte: rode `motion-source <ref> --file fonte.mp4` antes")
+        jobs.append(("start", prompts.motion_frame_prompt(it.script, page), "1024x1536", ["__SOURCE_FIRST__"]))
     elif stage == "frames":
         sb = local(it.storyboard.get("path"))
         with_sb = bool(sb and sb.exists())
@@ -255,7 +261,9 @@ def cmd_image(a):
         name = key if key == stage else f"{stage}-{key}"
         out = wd / f"{name}-v{n}.png"
         (wd / f"{name}-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
-        if extra == ["__FRAME_A__"]:
+        if extra == ["__SOURCE_FIRST__"]:  # image 1 = 1º frame da fonte, depois rosto e silhueta
+            img_refs = [local(it.motion["first_frame"])] + refs
+        elif extra == ["__FRAME_A__"]:
             img_refs = [local(target["start"]["path"])] + refs   # Frame B = edição do Frame A (playbook C2)
         else:
             img_refs = refs + extra
@@ -364,6 +372,8 @@ def cmd_approve(a):
 def cmd_retry(a):
     page, it = _item(a.ref)
     prev = {"storyboard": "roteiro", "frames": "storyboard", "video": "frames"}[a.stage]
+    if a.stage == "frames" and it.script.get("format") == "trend":
+        prev = "roteiro"  # trend não tem storyboard: o vídeo-fonte faz esse papel
     _need_state(it, {"storyboard": ["storyboard"], "frames": ["frames"], "video": ["video", "revisao"]}[a.stage],
                 f"retry {a.stage}", a.force)
     it.gates[a.stage] = {"qa": "pending", "caio": "pending"}
@@ -394,10 +404,13 @@ def cmd_video_request(a):
         raise StoreError("vídeo desligado em budget.yaml (switches.video_enabled)")
     s = it.script
     b = budget.load_budget()
-    est = float(s.get("duration_s", 10)) * b["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
+    rate_key = "hf_mult_motion_control_per_s" if s.get("format") == "trend" else "seedance_2_5_720p_per_s"
+    est = float(s.get("duration_s", 10)) * b["cost_estimates"]["higgsfield_credits"][rate_key]
     ok, why = budget.can_spend("higgsfield", est * float(b.get("higgsfield_credit_usd", 0.05)))
     if not ok:
         raise StoreError(why)
+    if s.get("format") == "trend":
+        return _video_request_trend(a, page, it, b)
     need_upload, medias = [], []
     for key, role in (("start", "start_image"), ("end", "end_image")):
         f = it.frames.get(key)
@@ -445,6 +458,75 @@ def cmd_video_request(a):
     })
 
 
+def _video_request_trend(a, page, it, b):
+    """Motion control (Genjutsu): frame do personagem (edição do 1º frame da fonte) + vídeo-fonte + prompt de cena."""
+    s = it.script
+    mo = it.motion or {}
+    need = []
+    f = it.frames.get("start") or {}
+    if not f.get("higgsfield_id"):
+        need.append({"key": "start", "path": f.get("path"), "type": "image"})
+    if not mo.get("source_hf_id"):
+        need.append({"key": "source", "path": mo.get("source_path"), "type": "video"})
+    if need:
+        _print({"ready": False, "upload_first": need,
+                "how": ("Imagem: media_upload + PUT + media_confirm(type='image') -> "
+                        f"`python -m pipeline record-upload {a.ref} start --hf-id <id>`. Vídeo-fonte: o mesmo com "
+                        f"type='video' -> `python -m pipeline motion-source {a.ref} --hf-id <id>`.")})
+        return
+    prompt = prompts.motion_scene_prompt(s, page)
+    (_workdir(it) / f"video-v{it.attempts.get('video', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
+    res = "720p" if budget.degraded_mode() else (a.resolution or str(page.data.get("video_resolution", "720p")))
+    _print({
+        "ready": True,
+        "mcp_tool": "mcp__Higgsfield__generate_video_batch",
+        "requests": [{"index": 0, "params": {
+            "model": "hf_mult_motion_control", "resolution": res, "prompt": prompt,
+            "medias": [{"role": "image_references", "value": f["higgsfield_id"]},
+                       {"role": "video_references", "value": mo["source_hf_id"]}]}}],
+        "note": "Genjutsu: a duração é a da fonte. Se a saída vier mais curta que a fonte, o movimento era rápido demais: "
+                "desacelere a fonte para 50-75% e corte de novo (playbook C5).",
+        "then": f"python -m pipeline record-video {a.ref} --job <job_id> --credits <créditos>",
+    })
+
+
+def cmd_motion_source(a):
+    """Registra o vídeo-fonte de uma trend: arquivo local (extrai o 1º frame) e/ou id no Higgsfield."""
+    page, it = _item(a.ref)
+    if it.script.get("format") != "trend":
+        raise StoreError("motion-source só vale para roteiro com format 'trend'")
+    mo = dict(it.motion or {})
+    if a.file:
+        src = Path(a.file)
+        info = media.probe(src)
+        if info["duration"] > 30:
+            raise StoreError(f"fonte com {info['duration']:.0f}s: corte no trecho da coreografia (até 10-15 s)")
+        wd = _workdir(it)
+        dst = wd / f"source{src.suffix or '.mp4'}"
+        if src.resolve() != dst.resolve():
+            shutil.copy(src, dst)
+        first = media.frame_at(dst, 0.05, wd / "source-first.jpg")
+        cuts = media.detect_cuts(dst)
+        mo.update({"source_path": rel(dst), "first_frame": rel(first), "duration": info["duration"],
+                   "cuts": cuts, "size": [info["width"], info["height"]]})
+        warns = []
+        if cuts:
+            warns.append(f"a fonte tem cortes em {cuts}: o motion control quer um plano contínuo (playbook C5)")
+        if info["duration"] > 12:
+            warns.append("fonte longa: o ideal é 8-10 s")
+        if info["width"] > info["height"]:
+            warns.append("fonte horizontal: prefira 9:16")
+        for w in warns:
+            print(f"aviso: {w}")
+    if a.hf_id:
+        mo["source_hf_id"] = a.hf_id
+    it.motion = mo
+    if mo.get("duration"):
+        it.script["duration_s"] = round(float(mo["duration"]), 1)
+    it.save()
+    print(f"fonte registrada: {mo.get('source_path', '')} {mo.get('source_hf_id', '')}".strip())
+
+
 def cmd_record_video(a):
     page, it = _item(a.ref)
     if a.failed is not None:
@@ -473,7 +555,7 @@ def cmd_record_video(a):
         if it.state != "video":
             it.set_state("video", f"vídeo v{it.attempts['video']} enviado")
         credits = a.credits if a.credits is not None else \
-            float(it.script.get("duration_s", 10)) * budget.load_budget()["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
+            float(it.script.get("duration_s", 10)) * budget.load_budget()["cost_estimates"]["higgsfield_credits"]["hf_mult_motion_control_per_s" if it.script.get("format") == "trend" else "seedance_2_5_720p_per_s"]
         budget.record(it.page, it.id, "higgsfield", "video_submit", credits=credits, job_id=a.job)
     if a.url:
         if not it.video.get("job_id"):
@@ -920,6 +1002,8 @@ def main(argv=None):
     p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true", help="(sem efeito: tudo é exportado)"); p.set_defaults(f=cmd_panel_export)
     p = sp.add_parser("panel-asset"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("url")
     p.set_defaults(f=cmd_panel_asset)
+    p = sp.add_parser("motion-source"); p.add_argument("ref"); p.add_argument("--file"); p.add_argument("--hf-id")
+    p.set_defaults(f=cmd_motion_source)
     p = sp.add_parser("media-status"); p.add_argument("--ref"); p.set_defaults(f=cmd_media_status)
     p = sp.add_parser("media-restore"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("--file", required=True)
     p.set_defaults(f=cmd_media_restore)

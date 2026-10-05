@@ -159,3 +159,31 @@ def test_media_archive_roundtrip(usina, tmp_path):
     assert st["restore"] and st["restore"][0]["asset_id"] == "a" * 32
     run(usina, "media-restore", ref, "storyboard", "--file", str(backup))
     assert sb.exists()
+
+
+def test_trend_motion_flow(usina, tmp_path):
+    ref = run(usina, "new", "gersinho", "Trend", "--idea", "gang gang").stdout.strip()
+    run(usina, "save-script", ref, "prompts/examples/gersinho-trend-calcadao.json")
+    plan = json.loads(run(usina, "plan").stdout)
+    assert any(w["stage"] == "fonte" for w in plan["waiting_caio"])
+    src = tmp_path / "src.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=360x640:rate=30:duration=8",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)], check=True)
+    run(usina, "motion-source", ref, "--file", str(src))
+    plan = json.loads(run(usina, "plan").stdout)
+    assert any(a.get("cmd", "").endswith("frames") for a in plan["actions"])
+    run(usina, "image", ref, "frames")
+    item = json.loads(next((usina / "data/queue/gersinho").glob("*trend*.json")).read_text())
+    assert item["frames"]["start"]["prompt"].startswith("Edit image 1. Replace the dancer")
+    assert "end" not in item["frames"]
+    run(usina, "review", ref, "frames", "pass")
+    run(usina, "approve", ref, "frames")
+    vr = json.loads(run(usina, "video-request", ref).stdout)
+    assert vr["ready"] is False and {u["key"] for u in vr["upload_first"]} == {"start", "source"}
+    run(usina, "record-upload", ref, "start", "--hf-id", "00000000-0000-0000-0000-000000000009")
+    run(usina, "motion-source", ref, "--hf-id", "00000000-0000-0000-0000-000000000008")
+    vr = json.loads(run(usina, "video-request", ref).stdout)
+    p = vr["requests"][0]["params"]
+    assert p["model"] == "hf_mult_motion_control"
+    assert [m["role"] for m in p["medias"]] == ["image_references", "video_references"]
+    assert "Real-time speed" in p["prompt"]

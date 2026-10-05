@@ -307,6 +307,28 @@ def motion_scene_prompt(script: dict, page: Page) -> str:
             f"deadpan: lips closed, lip corners level, eyes toward the lens. {crowd_line} Real-time speed.")
 
 
+def motion_frame_prompt(script: dict, page: Page) -> str:
+    """Frame do personagem para motion control = edição do 1º frame do vídeo-fonte (videos-analisados.md §2).
+
+    image 1 = primeiro frame da fonte, image 2 = rosto, image 3 = silhueta.
+    """
+    en = script["en"]
+    sub, pos, obj, noun = _p(page)
+    part, sil = silhouette(page)
+    who = en.get("replace_subject", "the dancer")
+    return "\n".join([
+        f"Edit image 1. Replace {who} with the {noun} from image 2 and image 3 — same face as image 2, same {part} "
+        f"shape and outfit as image 3 ({sil}).",
+        f"Keep the exact pose, body position, framing, camera angle and lens of image 1. Place the scene in: "
+        f"{en['location']}. {en['lighting']}",
+        f"The {part} is fully inside the frame with 10% headroom above it. {DEADPAN_FRAME}",
+        f"Background: exactly {en['extras_count']} ordinary passersby busy with their own tasks — {en['extras_tasks']} — "
+        f"none of them looking at {obj}, all of them away from {pos} dance path.",
+        "Must look like a real vertical smartphone photo taken in that place: real skin texture, natural exposure, "
+        "everything sharp. Exactly one main character. No text, no captions, no watermarks.",
+    ])
+
+
 def caption(script: dict) -> str:
     tags = " ".join(t if t.startswith("#") else f"#{t}" for t in script.get("hashtags", []))
     return f"{script['caption'].strip()}\n\n{tags}".strip()

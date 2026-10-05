@@ -116,6 +116,7 @@ class Item:
     script: dict = field(default_factory=dict)
     storyboard: dict = field(default_factory=dict) # {"path":..,"prompt":..,"attempts":n,"higgsfield_id":..}
     frames: dict = field(default_factory=dict)     # {"start": {"path":..,"prompt":..,"higgsfield_id":..}, "end": {...}}
+    motion: dict = field(default_factory=dict)     # trend: {"source_path","source_hf_id","first_frame","duration","cuts"}
     gates: dict = field(default_factory=dict)      # {"storyboard": {"qa":..,"caio":..,"notes":..}, ...}
     attempts: dict = field(default_factory=dict)   # {"storyboard": n, "frames": n, "video": n}
     cost: dict = field(default_factory=dict)       # {"usd": x, "credits": y}

@@ -40,7 +40,47 @@ def _span(t: str) -> tuple[float, float] | None:
     return (float(m.group(1)), float(m.group(2))) if m else None
 
 
+TREND_REQUIRED = ["page", "title", "format", "premise", "gag_without_sound", "camera", "duration_s", "caption",
+                  "hashtags", "self_score", "music", "trend", "en"]
+TREND_EN = ["location", "lighting", "extras_count", "extras_tasks", "replace_subject"]
+
+
+def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
+    """Roteiro de trend (motion control): o movimento vem do vídeo-fonte; o roteiro define cenário, figurantes e piada."""
+    errors: list[str] = []
+    warns: list[str] = []
+    for k in TREND_REQUIRED:
+        if k not in script or script[k] in (None, "", [], {}):
+            errors.append(f"falta o campo '{k}'")
+    if errors:
+        return errors, warns
+    for k in TREND_EN:
+        if script["en"].get(k) in (None, ""):
+            errors.append(f"falta en.{k}")
+    tr = script["trend"]
+    if not tr.get("name") or not tr.get("source_hint"):
+        errors.append("trend precisa de name e source_hint (de onde vem o vídeo-fonte)")
+    dur = float(script["duration_s"])
+    if not 3 <= dur <= 15:
+        errors.append(f"duração {dur}s fora de 3–15 s para motion control (corte a fonte no trecho da coreografia)")
+    if SLOW.search(_text(script["en"])):
+        errors.append("bloco en com palavra de câmera lenta (regra 19)")
+    scan = {k: v for k, v in script.items() if k not in ("brand_safety", "risks", "originality_note")}
+    full = _text(scan).lower()
+    for w in UNSAFE:
+        if re.search(r"(?<![\wà-ú])" + re.escape(w) + r"(?![\wà-ú])", full):
+            errors.append(f"brand safety: '{w}'")
+    low = [k for k, v in script["self_score"].items() if isinstance(v, (int, float)) and v < 3]
+    if low:
+        errors.append(f"self_score abaixo de 3 em: {', '.join(low)}")
+    if page and script["page"] != page.get("slug"):
+        errors.append(f"page '{script['page']}' não bate com '{page.get('slug')}'")
+    return errors, warns
+
+
 def lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
+    if isinstance(script, dict) and script.get("format") == "trend":
+        return lint_trend(script, page)
     """Valida o roteiro. Roteiro malformado (tipo errado num campo) vira erro de lint, nunca traceback."""
     if not isinstance(script, dict):
         return ["o roteiro precisa ser um objeto JSON"], []

@@ -37,7 +37,8 @@ def _gate(item: Item, stage: str) -> dict:
 
 def _est_video_credits(item: Item, b: dict) -> float:
     d = float(item.script.get("duration_s", 10))
-    per = b["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
+    key = "hf_mult_motion_control_per_s" if item.script.get("format") == "trend" else "seedance_2_5_720p_per_s"
+    per = b["cost_estimates"]["higgsfield_credits"][key]
     return d * per
 
 
@@ -54,6 +55,17 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                      "how": f"Leia prompts/script.md, pages/{item.page}/page.yaml, `{cmd} memory {item.page}` e "
                             f"playbook/falhas.md. Escreva o roteiro JSON para a ideia {item.idea!r} em "
                             f"out/scripts/{item.id}.json e rode `{cmd} save-script {pid} out/scripts/{item.id}.json`."})
+    elif st == "roteiro" and item.script.get("format") == "trend":
+        mo = item.motion or {}
+        if not mo.get("first_frame"):
+            acts.append({"do": "await_caio", "item": pid, "stage": "fonte",
+                         "how": f"Trend precisa do vídeo-fonte (.mp4, 1 pessoa, corpo inteiro, câmera parada, 8-10 s): "
+                                f"motion library do Higgsfield ou trend recortada. `{cmd} motion-source {pid} --file fonte.mp4`"})
+        elif att.get("frames", 0) >= max_img:
+            acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'frame de trend reprovado 3x'"})
+        else:
+            acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames",
+                         "cost_usd": b["cost_estimates"]["openai_image"]["high"], "provider": "openai"})
     elif st == "roteiro":
         if att.get("storyboard", 0) >= max_img:
             acts.append({"do": "discard", "item": pid, "why": "storyboard reprovado 3x",
