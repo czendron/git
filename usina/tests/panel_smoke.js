@@ -37,6 +37,13 @@ const fs = require('fs');
   console.log('veto buttons:', vetos.length);
   if (vetos.length) { await vetos[0].click(); await page.waitForTimeout(100); }
   console.log('veto after:', (await page.$$('[data-veto]')).length);
-  console.log('WRITES:', JSON.stringify(await page.evaluate(() => window.__writes.map(w => ({c:w.c, stage:w.d.stage, verdict:w.d.verdict, ref:w.d.ref})))));
+  // rodada 4: pronto = Baixar MP4 + Postei; Caixa sem card de vídeo enquanto o gag da trend está em produção
+  console.log('DOWNLOADS:', JSON.stringify(await page.$$eval('#fila a[download]', as => as.map(a => a.getAttribute('href')))));
+  const posts = await page.$$('[data-post]');
+  console.log('post buttons:', posts.length);
+  if (posts.length) { await page.fill('[data-link]', 'https://instagram.com/reel/abc'); await posts[0].click(); await page.waitForTimeout(100); }
+  console.log('post after:', (await page.$$('[data-post]')).length);
+  console.log('CAIXA cards:', await page.textContent('#n-caixa'));
+  console.log('WRITES:', JSON.stringify(await page.evaluate(() => window.__writes.map(w => ({c:w.c, stage:w.d.stage, verdict:w.d.verdict, ref:w.d.ref, notes:w.d.notes})))));
   await browser.close();
 })();

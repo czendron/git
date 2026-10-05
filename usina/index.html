@@ -128,7 +128,7 @@ table.jobs th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text
         <p class="lede">Cada vídeo em produção, da ideia ao pacote pronto para postar. Atualizada pela automação a cada ciclo.</p>
       </div>
       <div class="row"><select id="f-page" aria-label="Página"><option value="">Todas as páginas</option></select></div>
-      <div class="scroll"><table class="jobs"><thead><tr><th>Vídeo</th><th>Página</th><th>Etapa</th><th>Portões</th><th>Atualizado</th><th>Veto</th></tr></thead><tbody id="fila"></tbody></table></div>
+      <div class="scroll"><table class="jobs"><thead><tr><th>Vídeo</th><th>Página</th><th>Etapa</th><th>Portões</th><th>Atualizado</th><th>Ação</th></tr></thead><tbody id="fila"></tbody></table></div>
     </section>
 
     <!-- PAGINAS -->
@@ -715,6 +715,8 @@ function pendingFor(f){
     // quando a decisão é marcada applied antes do próximo export da fila, e volta quando a etapa é refeita.
     const qaAt = Number(g.qa_at || 0) * 1000;
     const decided = state.decisoes.some(d => d.ref === f.ref && d.stage === st && (!d.applied || Number(d.at || 0) >= qaAt));
+    // Trend com gag em produção: o vídeo final ainda não existe (ata D3: o Caio aprova o final, MC + gag).
+    if (st === "video" && f.gagPending) continue;
     if (g.qa === "pass" && g.caio === "pending" && !decided) {
       if ((st === "storyboard" && f.state === "storyboard") || (st === "frames" && f.state === "frames") || (st === "video" && f.state === "revisao")) out.push(st);
     }
@@ -761,6 +763,14 @@ function renderCaixa(){
     state.decisoes.push({ _id:id, ...doc }); renderCaixa();
   }));
 }
+// Pronto: o MP4 do pacote (asset arquivado pela automação), a legenda e o "Postei" (vira postado no próximo ciclo).
+function postCell(f){
+  const a = f.assets || {};
+  const dl = a.package ? `<a href="${esc(a.package)}" download="${esc(f.ref.replace("/","-"))}.mp4">Baixar MP4</a>` : `<span class="note">MP4 sobe no próximo ciclo</span>`;
+  const cap = f.caption ? `<details><summary class="note">Legenda e capa</summary><p class="note">${esc(f.caption)}</p>${f.cover_text?`<p class="note">Capa: ${esc(f.cover_text)}</p>`:""}</details>` : "";
+  if (state.decisoes.some(d => d.ref === f.ref && d.stage === "post")) return `${dl}${cap}<span class="note">postado (vale no próximo ciclo)</span>`;
+  return `${dl}${cap}<div class="row"><input data-link="${esc(f.ref)}" placeholder="link do post (opcional)" aria-label="Link do post"><button class="btn ghost" data-post="${esc(f.ref)}" title="Registra que você postou pelo app">Postei</button></div>`;
+}
 function renderFila(){
   $("#n-fila").textContent = state.fila.filter(f => !["postado","descartado"].includes(f.state)).length;
   const sel = $("#f-page"); const cur = sel.value;
@@ -774,8 +784,15 @@ function renderFila(){
     return `<tr><td>${esc(f.title)}<div class="note">${esc(String(f.premise ?? "").slice(0,120))}</div></td><td>${esc(f.page)}</td>
       <td><span class="chip ${f.state==="pronto"?"ok":f.state==="descartado"||f.state==="erro"?"bad":"info"}">${esc(STATE_LABEL[f.state]||f.state)}</span></td>
       <td>${gates||"—"}</td><td class="note">${new Date(f.updatedAt||0).toLocaleString("pt-BR")}</td>
-      <td>${["ideia","roteiro","storyboard"].includes(f.state) ? (state.decisoes.some(d => d.ref === f.ref && d.stage === "ideia") ? `<span class="note">vetado</span>` : `<button class="btn ghost" data-veto="${esc(f.ref)}" title="Descarta a ideia no próximo ciclo, antes de gastar com vídeo">Vetar</button>`) : ""}</td></tr>`;
+      <td>${["ideia","roteiro","storyboard"].includes(f.state) ? (state.decisoes.some(d => d.ref === f.ref && d.stage === "ideia") ? `<span class="note">vetado</span>` : `<button class="btn ghost" data-veto="${esc(f.ref)}" title="Descarta a ideia no próximo ciclo, antes de gastar com vídeo">Vetar</button>`) : f.state === "pronto" ? postCell(f) : ""}</td></tr>`;
   }).join("");
+  body.querySelectorAll("[data-post]").forEach(b => b.addEventListener("click", async () => {
+    const ref = b.dataset.post; b.disabled = true;
+    const link = ((body.querySelector(`[data-link="${CSS.escape(ref)}"]`)||{}).value || "").trim();
+    const doc = { ref, stage:"post", verdict:"posted", notes:link, at:now(), applied:false };
+    try { await put("decisoes", ref.replace("/","--") + "--post--" + now(), doc); state.decisoes.push(doc); renderFila(); }
+    catch(e){ b.disabled = false; b.textContent = "Não salvou"; }
+  }));
   body.querySelectorAll("[data-veto]").forEach(b => b.addEventListener("click", async () => {
     const ref = b.dataset.veto; b.disabled = true;
     const doc = { ref, stage:"ideia", verdict:"reject", notes:"vetado na Fila", at:now(), applied:false };
