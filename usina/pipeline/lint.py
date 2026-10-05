@@ -124,9 +124,22 @@ GENERIC_WHO = {"man", "men", "person", "people", "guy", "guys", "woman", "women"
 WHO_FILLER = {"the", "a", "an", "one", "other", "another", "second", "o", "um", "uma", "outro", "outra", "that",
               "this", "some", "segundo", "segunda", "de", "da", "do", "in", "on", "at", "with", "from", "of", "by",
               "near", "who", "that", "is", "standing", "frame-left", "frame-right", "left", "right", "center"}
-ANIMALS = {"dog", "cat", "seagull", "gull", "pigeon", "bird", "horse", "chicken", "rooster", "monkey", "parrot",
-           "goat", "cow", "duck", "pig", "donkey", "lizard", "capybara", "squirrel", "crab", "fly", "bee",
-           "cachorro", "gato", "gaivota", "pombo", "galinha", "galo", "macaco", "papagaio", "capivara", "vira-lata"}
+ANIMALS = {"dog", "puppy", "stray", "mutt", "cat", "kitten", "seagull", "gull", "pigeon", "dove", "bird", "horse",
+           "pony", "chicken", "hen", "rooster", "chick", "monkey", "marmoset", "parrot", "parakeet", "macaw",
+           "goat", "billy-goat", "cow", "ox", "bull", "calf", "duck", "goose", "pig", "donkey", "mule", "lizard",
+           "iguana", "gecko", "capybara", "squirrel", "crab", "fly", "bee", "vulture", "buzzard", "sparrow", "toucan",
+           "egret", "heron", "turtle", "tortoise", "frog", "toad", "fish", "rat", "mouse", "cockroach", "ant",
+           "butterfly", "dragonfly", "sheep", "lamb", "rabbit", "bunny", "opossum", "armadillo", "anteater",
+           "sloth", "coati", "alligator", "caiman", "snake", "owl", "hawk", "falcon", "crow",
+           "cachorro", "cachorra", "cão", "cao", "cadela", "vira-lata", "viralata", "filhote", "gato", "gata",
+           "gatinho", "gaivota", "pombo", "pomba", "rolinha", "pardal", "galinha", "galo", "pinto", "pintinho",
+           "macaco", "macaca", "mico", "sagui", "papagaio", "periquito", "arara", "capivara", "urubu", "cavalo",
+           "égua", "egua", "jegue", "jumento", "burro", "mula", "vaca", "boi", "bezerro", "touro", "bode", "cabra",
+           "cabrito", "pato", "ganso", "porco", "lagarto", "lagartixa", "calango", "teiú", "teiu", "iguana",
+           "esquilo", "caranguejo", "siri", "mosca", "abelha", "tucano", "garça", "garca", "tartaruga", "jabuti",
+           "sapo", "rã", "peixe", "rato", "barata", "formiga", "borboleta", "ovelha", "carneiro", "coelho",
+           "gambá", "gamba", "tatu", "tamanduá", "tamandua", "preguiça", "quati", "jacaré", "jacare", "cobra",
+           "coruja", "gavião", "gaviao", "carcará", "carcara", "corvo", "bem-te-vi", "sabiá", "sabia"}
 # O substantivo do protagonista (o que o prompt e os frames usam para ele) não pode nomear a contraparte.
 PROTAG_NOUNS = {"gersinho": {"man", "gerson", "gersinho", "singer"},
                 "marlene": {"woman", "marlene", "auntie", "tia"},
@@ -175,9 +188,38 @@ def _stem(w: str) -> str:
     return w
 
 
+# -ing / -ed / -ly que são substantivo, não particípio nem advérbio.
+_END_ING = {"string", "ceiling", "awning", "railing", "building", "ring", "wing", "king", "thing", "spring", "swing",
+            "sling", "wedding", "clothing", "painting", "drawing", "opening", "landing", "ending", "filling", "icing",
+            "frosting", "pudding", "stuffing", "dumpling", "duckling", "evening", "morning", "wiring", "piping",
+            "siding", "decking", "flooring", "roofing", "fencing", "padding", "lining", "seating", "parking",
+            "crossing", "bedding", "carving", "sibling", "darling", "earring", "lightning", "ping", "sting", "wring",
+            "stocking", "railings", "strings", "awnings", "ceilings", "buildings", "rings", "wings", "things",
+            "springs", "swings", "earrings", "paintings", "drawings", "openings", "landings", "stockings",
+            "dumplings", "ducklings", "siblings", "crossings", "carvings", "slings"}
+_END_ED = {"bed", "beds", "shed", "sheds", "sled", "seed", "seeds", "reed", "reeds", "weed", "weeds", "steed",
+           "speed", "feed", "need", "creed", "deed"}
+_END_LY = {"fly", "belly", "jelly", "lily", "rally", "ally", "family", "holly", "gully", "trolly", "bully", "lolly"}
+# Quantificadores e comparativos: modificam o núcleo, nunca são ele ("two fewer cups", "one more cup").
+_END_QUANT = {"fewer", "more", "less", "most", "least", "many", "much", "few", "several", "enough", "extra", "other",
+              "same", "whole", "entire", "single"}
+
+
+def _end_breaks(t: str) -> bool:
+    if not t[0].isalpha() or t.endswith("°") or t in _END_DETS or t in _END_STOP:
+        return True
+    if t in _END_ING or t in _END_ED or t in _END_LY:
+        return False
+    return t.endswith(("ed", "ing", "ly"))
+
+
 def end_nouns(text: str) -> list[str]:
     """Núcleos dos sintagmas nominais ('the two glass door leaves are closed' -> 'leaves'), sem corpo nem cenário
-    genérico: os props e lugares que o frame final mostra (videos-analisados §15)."""
+    genérico: os props e lugares que o frame final mostra (videos-analisados §15).
+    Palavra em -ing fica no sintagma quando é substantivo conhecido ('the white string', 'the awning'), quando vem
+    logo depois do determinante e fecha o sintagma ('the landing') ou quando modifica o núcleo seguinte ('the folding
+    chair'; idem -ed: 'the striped awning'); fora disso é particípio ('the man standing'). Quantificadores e
+    comparativos não são núcleo."""
     toks = re.findall(r"[a-z][a-z'-]*|[,.;:()]|\d+(?:\.\d+)?", str(text or "").lower())
     out: list[str] = []
     i = 0
@@ -188,8 +230,20 @@ def end_nouns(text: str) -> list[str]:
         j, phrase = i + 1, []
         while j < len(toks) and len(phrase) < 5:
             t = toks[j]
-            if (t in _END_DETS or t in _END_STOP or not t[0].isalpha() or t.endswith(("ed", "ing", "ly"))
-                    or t.endswith("°")):
+            if t in _END_QUANT:
+                j += 1
+                continue
+            if _end_breaks(t):
+                nxt = toks[j + 1] if j + 1 < len(toks) else ""
+                ing = t[0].isalpha() and t.endswith("ing") and t not in _END_STOP and t not in _END_DETS
+                pre = (ing or t.endswith("ed")) and t not in _END_STOP and t not in _END_DETS
+                if pre and nxt and not _end_breaks(nxt) and nxt not in _END_QUANT:
+                    phrase.append(t)      # 'the folding chair', 'the striped awning'
+                    j += 1
+                    continue
+                if ing and not phrase and (not nxt or _end_breaks(nxt)):
+                    phrase.append(t)      # 'the landing', 'the opening'
+                    j += 1
                 break
             phrase.append(t)
             j += 1
@@ -199,6 +253,33 @@ def end_nouns(text: str) -> list[str]:
                 out.append(head)
         i = j if j > i + 1 else i + 1
     return out
+
+
+# end_props: só entra no §15 o item que mudou de estado entre o frame A e o B. Cenário parado ("the red motorcycle
+# unchanged at frame-left", "the poles", "the stall") não precisa ser repetido nos últimos estágios.
+END_STATIC = re.compile(r"\b(unchanged|unmoved|static|as in frame a|as at the start|as before|still in place|"
+                        r"in (?:the )?same place|untouched|intact|igual|parad[oa]s?|no mesmo lugar)\b", re.I)
+END_CHANGED = re.compile(r"\b(moved|moves|broken|breaks|broke|fallen|fell|falls|new|now|open|opened|opens|closed|"
+                         r"closes|shut|stopped|stops|retracted|knocked|tipped|toppled|spilled|spilt|torn|tore|bent|"
+                         r"dropped|landed|lands|resting|rests|perched|stuck|caught|wedged|clamped|hanging|hangs|gone|"
+                         r"missing|burst|popped|crushed|wet|soaked|drenched|flipped|overturned|upside[- ]down|"
+                         r"tilted|tilting|deflated|inflated|snapped|cracked|dented|covered|empty|emptied|full|filled|"
+                         r"lifted|raised|lowered|turned|rotated|swung|pushed|pulled|ripped|split|melted|"
+                         r"on (?:top of )?(?:the |his |her )?(?:pompadour|head|hair|shoulder|shoulders|face))\b",
+                         re.I)
+
+
+def end_props_changed(end_props) -> str:
+    """Os trechos de `end_props` (separados por vírgula ou ponto e vírgula) que mudaram de estado; o resto é
+    cenário parado e fica fora do §15."""
+    parts = [p.strip() for p in re.split(r"[,;]", str(end_props or "")) if p.strip()]
+    return ", ".join(p for p in parts if END_CHANGED.search(p) and not END_STATIC.search(p))
+
+
+def end_text(en: dict) -> str:
+    """O que o §15 exige nos últimos estágios: `end_change` inteiro + os itens de `end_props` que mudaram."""
+    en = en or {}
+    return " ".join(x for x in (str(en.get("end_change") or ""), end_props_changed(en.get("end_props"))) if x)
 
 
 def lint_end_nouns(stages, end_text: str, where: str = "en.stages") -> list[str]:
@@ -232,8 +313,32 @@ def is_offscreen(cp) -> bool:
     return isinstance(cp, dict) and bool(OFFSCREEN.search(str(cp.get("position") or "")))
 
 
+HUMAN_KINDS = {"human", "humano", "humana", "pessoa", "person", "people", "gente"}
+
+
+def cp_kind(cp) -> str:
+    """'human' | 'animal' | 'object' | '' (sem `kind`). `counterpart.kind` manda quando existe."""
+    kind = str((cp or {}).get("kind") or "").strip().lower() if isinstance(cp, dict) else ""
+    if not kind:
+        return ""
+    if kind in HUMAN_KINDS:
+        return "human"
+    if kind in ("animal", "bicho", "animal de estimação"):
+        return "animal"
+    return "object"
+
+
 def is_human(cp) -> bool:
-    return isinstance(cp, dict) and bool(cp.get("who")) and _cp_noun(cp.get("who")) not in ANIMALS
+    """Contraparte humana: `kind` decide quando existe; sem ele, o substantivo de `who` não é bicho nem objeto."""
+    if not isinstance(cp, dict) or not cp.get("who"):
+        return False
+    kind = cp_kind(cp)
+    if kind:
+        return kind == "human"
+    noun = _cp_noun(cp.get("who"))
+    head = re.split(r"\b(?:at|in|on|with|from|near|by|who|that|com|na|no|perto)\b|[,(]", str(cp.get("who")), maxsplit=1)[0]
+    words = set(re.findall(r"[a-zà-ú'-]+", head.lower()))  # PT põe o adjetivo depois: 'o vira-lata caramelo'
+    return noun not in ANIMALS and noun not in OBJECTS and not words & ANIMALS
 
 
 # Rodada 7 (lacuna do lint-tutoriais): contraparte humana COM rosto no quadro ganha ficha própria antes dos frames.
@@ -249,10 +354,7 @@ def needs_sheet(cp) -> bool:
     """Contraparte humana que aparece no quadro (não B4.10, não bicho, não objeto): precisa de ficha própria."""
     if not isinstance(cp, dict) or not str(cp.get("who") or "").strip() or is_offscreen(cp):
         return False
-    kind = str(cp.get("kind") or "").strip().lower()
-    if kind:
-        return kind in ("human", "humano", "pessoa", "person")
-    return is_human(cp) and _cp_noun(cp.get("who")) not in OBJECTS
+    return is_human(cp)
 
 
 def sheet_counterparts(script: dict) -> list[dict]:
@@ -347,6 +449,27 @@ def lint_counterpart(stages, where: str = "en.stages", allow_behind: bool = Fals
     return errors, warns
 
 
+LIMB_HOLD = re.compile(r"\b(hold\w*|still|stays?|staying|remains?|rests?|resting|frozen|freez\w*|motionless|"
+                       r"unmoving|in place|does not move|doesn't move|no movement|static|parad[oa]|im[oó]vel)\b", re.I)
+LIMB_ENTERS = re.compile(r"\b(enter\w*|comes? in|reach\w* in|pokes? in|slides? in|travels?|moves?|moving|swings?|"
+                         r"pulls? (?:back|out|away)|withdraw\w*|retract\w*|exits?|leaves? the frame)\b", re.I)
+
+
+def _limb_moves(st: dict, cp: dict) -> bool:
+    """B4.10: o vetor de tela só é exigido no estágio em que o membro entra ou se move. Estágio que só segura
+    (counterpart.task/vector ou a oração do membro dizendo hold/still/stays, sem verbo de movimento) pede só a
+    posição."""
+    own = " ".join(str(cp.get(k) or "") for k in ("task", "vector"))
+    if LIMB_ENTERS.search(own):
+        return True
+    res = [r for r in (_noun_re(_cp_noun(cp.get("who"))), _noun_re(_cp_noun(cp.get("limb")))) if r is not None]
+    clauses = [c for c in CLAUSES.split(str(st.get("text") or "")) if c and c.strip()]
+    mine = [c for c in clauses if any(r.search(c) for r in res)]
+    if any(_cp_acts(c, r) for c in mine for r in res):
+        return True
+    return not LIMB_HOLD.search(" ".join([own, *mine]))
+
+
 def lint_stages(stages, premise: str = "", where: str = "en.stages", allow_behind: bool = False,
                 protagonist: set[str] | frozenset = frozenset(), allow_cut: bool = False) -> tuple[list[str], list[str]]:
     """Orientação por estágio (regra 18) e quem encara quem quando outro ator interage com ele (falha do boxe).
@@ -381,7 +504,7 @@ def lint_stages(stages, premise: str = "", where: str = "en.stages", allow_behin
             elif not off and not DEG.search(str(cp.get("facing"))):
                 errors.append(f"{where}[{i}].counterpart.facing: diga o ângulo em graus (ex.: 'in profile facing "
                               f"frame-left toward him, 90° to the lens')")
-        if off and not SCREEN_VEC.search(str(cp.get("vector") or "") + " " + text):
+        if off and _limb_moves(st, cp) and not SCREEN_VEC.search(str(cp.get("vector") or "") + " " + text):
             errors.append(f"{where}[{i}].counterpart: '{cp['who']}' fica fora do quadro (B4.10), então rosto e olhar "
                           f"não são exigidos, mas o membro que entra precisa de vetor de tela em counterpart.vector "
                           f"(ex.: 'the right glove travels screen-right to screen-left and stops against his "
@@ -622,8 +745,7 @@ def lint_gag(g, premise: str = "", allow_behind: bool = False,
                        _cut_declared(g, en))
     errors += e
     warns += w
-    warns += lint_end_nouns(stages, " ".join(str(en.get(k) or "") for k in ("end_change", "end_props")),
-                            "gag_followup.en.stages")
+    warns += lint_end_nouns(stages, end_text(en), "gag_followup.en.stages")
     if SLOW.search(_text(en)):
         errors.append("gag_followup.en com palavra de câmera lenta (regra 19)")
     if WIND.search(_text(en)):
@@ -683,7 +805,7 @@ def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]
     errors += e
     warns += w
     if script.get("end_frame") or en.get("end_change"):
-        warns += lint_end_nouns(stages, " ".join(str(en.get(k) or "") for k in ("end_change", "end_props")))
+        warns += lint_end_nouns(stages, end_text(en))
     e, w = lint_crowd(en)
     errors += e
     warns += w

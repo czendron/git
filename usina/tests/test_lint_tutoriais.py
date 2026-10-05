@@ -164,7 +164,7 @@ def test_end_frame_noun_missing_from_last_stages_warns(bus):
 def test_end_nouns_in_gag_followup():
     s = _load(TREND)
     s["gag_followup"]["en"]["end_change"] = "a grey seagull standing on top of his rigid pompadour, a feather on his shoulder"
-    s["gag_followup"]["en"]["end_props"] = "one paper cup on the ground"
+    s["gag_followup"]["en"]["end_props"] = "one paper cup dropped on the ground"
     w = _lint(s)[1]
     assert any("gag_followup.en.stages" in x and "'cup'" in x for x in w)
     assert not any("'seagull'" in x for x in w)
@@ -291,3 +291,83 @@ def test_trend_warns_without_consent_and_deadpan_source():
 
 def test_frame_b_keeps_light_and_sharpness_of_frame_a(bus, page):
     assert "Same light direction, exposure and sharpness as image 1." in prompts.frame_b_prompt(bus, page)
+
+
+# ---------------- falsos positivos do lote 2 (roteiros-gersinho-lote2.md) ----------------
+
+@pytest.mark.parametrize("text,noun", [("the white string hangs above him", "string"),
+                                       ("the ceiling of the elevator", "ceiling"),
+                                       ("the striped awning over the stall", "awning"),
+                                       ("the metal railing", "railing"),
+                                       ("the yellow building at frame-left", "building"),
+                                       ("the folding chair", "chair")])
+def test_end_nouns_keeps_ing_nouns(text, noun):
+    n = L.end_nouns(text)
+    assert n[0] == noun, n
+    assert "white" not in n and "folding" not in n
+
+
+def test_end_nouns_still_drops_participles():
+    assert L.end_nouns("the man standing near the cart, the boy waving") == ["cart", "boy"]
+
+
+def test_end_nouns_skips_comparatives_and_quantifiers():
+    n = L.end_nouns("two fewer cups on the tray, one more balloon, the less crowded side, a few more")
+    assert {"cups", "tray", "balloon"} <= set(n)
+    assert not {"fewer", "more", "less", "few"} & set(n)
+
+
+def test_static_end_props_are_not_required(bus):
+    s = deepcopy(bus)
+    s["en"]["end_props"] = "the grey poles unchanged, the fruit stall, the two moored boats at frame-left"
+    assert not any("§15" in x for x in _lint(s)[1])
+    assert L.end_props_changed(s["en"]["end_props"]) == ""
+    s["en"]["end_props"] = "the grey poles unchanged, the fruit stall now knocked over onto the curb"
+    w = _lint(s)[1]
+    assert any("§15" in x and "'stall'" in x for x in w)
+    assert not any("'poles'" in x for x in w)
+    assert L.end_props_changed("the helmet perched on top of the pompadour, the red motorcycle unchanged at "
+                               "frame-left") == "the helmet perched on top of the pompadour"
+    assert "end_change" in L.end_text({"end_change": "the end_change noun"})
+
+
+def test_offscreen_limb_holding_still_needs_position_only(bus):
+    s = _with_cp(bus, "The boxer's right glove enters from the frame-right edge and stops against his pompadour.",
+                 _glove(vector="travels screen-right to screen-left and stops against the pompadour"))
+    st = s["en"]["stages"][3]
+    st["facing"] = FACING
+    st["counterpart"] = _glove(task="the glove holds still against the pompadour")
+    assert not any("vetor de tela" in x for x in _lint(s)[0])
+    st["counterpart"] = _glove()
+    st["text"] = "He keeps the pose; the boxer's right glove stays still against his pompadour."
+    assert not any("vetor de tela" in x for x in _lint(s)[0])
+    st["text"] = "He keeps the pose; the boxer's right glove pulls back out of the frame."
+    assert any(x.startswith("en.stages[4].counterpart") and "vetor de tela" in x for x in _lint(s)[0])
+    st["counterpart"] = _glove(vector="travels screen-left to screen-right and exits the frame")
+    assert not any("vetor de tela" in x for x in _lint(s)[0])
+
+
+@pytest.mark.parametrize("who", ["the black vulture", "o urubu do Ver-o-Peso", "the grey pigeon", "o pombo",
+                                 "the stray dog", "o cachorro", "o vira-lata caramelo", "the cat", "o gato",
+                                 "the chicken", "a galinha", "the horse", "o cavalo", "the donkey", "o jegue",
+                                 "the parrot", "o papagaio", "the capybara", "a capivara", "the monkey", "o mico",
+                                 "o macaco", "the cow", "a vaca", "the goat", "o bode"])
+def test_common_brazilian_animals_are_not_human(who):
+    assert not L.is_human({"who": who})
+    assert not L.needs_sheet({"who": who, "position": "frame-right"})
+
+
+def test_counterpart_kind_is_authoritative(bus):
+    assert not L.is_human({"who": "SEU ZÉ", "kind": "animal"})
+    assert not L.is_human({"who": "DONA CIDA", "kind": "object"})
+    assert L.is_human({"who": "the dog-costume mascot", "kind": "human"})
+    assert L.is_human({"who": "DONA CIDA, the pastel vendor"})
+    assert not L.is_human({"who": "the red sandbag"})
+    named = {"who": "SEU ZÉ", "kind": "animal", "position": "on top of his pompadour", "facing": CP_FACING}
+    s = _with_cp(bus, "SEU ZÉ lands on top of his pompadour.", named)
+    s["en"]["stages"][3]["counterpart"] = {**named, "task": "folds his wings"}
+    assert not any("B4.10 passo 0" in x for x in _lint(s)[1])  # info de rosto humano só para gente
+    human = {**named, "kind": "human", "position": "frame-right, 1 m from him"}
+    s = _with_cp(bus, "SEU ZÉ holds a pastel out in front of his chest.", human)
+    s["en"]["stages"][3]["counterpart"] = {**human, "task": "wipes his hands, eyes on him"}
+    assert any("B4.10 passo 0" in x for x in _lint(s)[1])

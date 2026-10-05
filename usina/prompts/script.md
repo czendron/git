@@ -79,7 +79,7 @@ Fotorrealismo de celular 9:16, 8–12 s, sem diálogo e sem texto no vídeo. Dea
     ],
     "end_change": "frame B: what changes compared with frame A, e.g. 'the folding door is closed and the pompadour sticks out above it, clamped'",
     "vacated": "places that become empty, stated explicitly (or empty string)",
-    "end_props": "prop orientation in frame B (or empty string)",
+    "end_props": "prop orientation in frame B, items separated by commas; say what changed (moved, broken, fallen, new, now open) or mark scenery as unchanged (or empty string)",
     "props_lock": "prop counts and orientation for the whole clip (or empty string)",
     "lighting": "source, direction, Kelvin, time of day",
     "panels": ["state for panel 1 (= start pose)", "signature move at its peak", "gag trigger, physical cause visible", "gag result, settled"]
@@ -99,7 +99,7 @@ No estágio seguinte, ele pega o pastel e o vendedor, que não age mais, ganha t
 
 **Nome do ator (playbook B4.11).** `counterpart.who` é um nome próprio ou um papel com descritor visível (`"DONA CIDA"`, `"the pastel vendor"`, `"the boxer in red gloves"`), nunca `"the man"`, `"a woman"`, `"um cara"` ou `"a pessoa"` sozinhos, e nunca o substantivo do protagonista (`man` para Gersinho e Wanderley, `woman` para Marlene, o nome ou o papel deles). No `text`, a contraparte humana aparece por esse nome: nada de `"the other man"`, `"a man"` nem `@Image 3` como sujeito. O pipeline liga cada imagem a um nome uma vez no ACTIVE REFERENCES e troca o primeiro `he`/`she` de cada estágio pelo nome do personagem.
 
-**Ficha da contraparte humana no quadro (rodada 7, B4.11).** Pessoa que aparece com rosto no quadro ganha ficha própria antes dos frames: o plano pede `image <ref> counterpart` (OpenAI, uma pessoa fictícia e não reconhecível) e a ficha entra como imagem a mais nos frames A/B e no vídeo, ligada ao nome dela. Descreva a aparência em inglês em `counterpart.look` (idade, corpo, cabelo, roupa; nada de gente real): `"look": "a short woman in her sixties with grey curly hair and a flowered apron"`. Sem `look`, a ficha sai genérica para o papel do `who`. Contraparte fora do quadro (B4.10), bicho e objeto não ganham ficha; se o substantivo enganar, diga `"kind": "human"|"animal"|"object"`. Uma ficha por item: com duas pessoas no quadro, só a primeira ganha (prefira uma).
+**Ficha da contraparte humana no quadro (rodada 7, B4.11).** Pessoa que aparece com rosto no quadro ganha ficha própria antes dos frames: o plano pede `image <ref> counterpart` (OpenAI, uma pessoa fictícia e não reconhecível) e a ficha entra como imagem a mais nos frames A/B e no vídeo, ligada ao nome dela. Descreva a aparência em inglês em `counterpart.look` (idade, corpo, cabelo, roupa; nada de gente real): `"look": "a short woman in her sixties with grey curly hair and a flowered apron"`. Sem `look`, a ficha sai genérica para o papel do `who`. Contraparte fora do quadro (B4.10), bicho e objeto não ganham ficha. `"kind": "human"|"animal"|"object"` manda quando está no `counterpart` (ficha, aviso de rosto humano e nome no texto); sem ele, o lint reconhece os bichos comuns em inglês e português (urubu/vulture, pombo, cachorro/vira-lata, gato, galinha, cavalo, jegue, papagaio, capivara, mico/macaco, vaca, bode…). Uma ficha por item: com duas pessoas no quadro, só a primeira ganha (prefira uma).
 
 **Dono do beat (C4).** Um beat de piada por estágio. O dono é quem age: o personagem, ou a contraparte quando ela é o sujeito. Se o texto não deixa claro, ponha `"owner": "the vendor"` no estágio.
 
@@ -108,7 +108,8 @@ No estágio seguinte, ele pega o pastel e o vendedor, que não age mais, ganha t
 "counterpart": {"who": "the boxer in red gloves", "position": "off-screen, enters from the frame-right edge",
                 "limb": "his right red glove", "vector": "travels screen-right to screen-left and stops against the side of the pompadour"}
 ```
-Contraparte humana com rosto no quadro em 2 ou mais estágios gera o aviso `info: … considere B4.10 passo 0`.
+O vetor só é exigido no estágio em que o membro **entra ou se move**. Num estágio em que ele só segura (`"task": "the glove holds still against the pompadour"`, ou o texto dizendo `stays still`), basta a `position` com a borda.
+Contraparte humana (não bicho nem objeto) com rosto no quadro em 2 ou mais estágios gera o aviso `info: … considere B4.10 passo 0`.
 
 **Corte.** O clipe é um plano-sequência: `cut to`, `hard cut` e `shot 2` no `text` são erro. Se o gag precisa mesmo de um corte num clipe só (B2), declare no topo do roteiro `"cut": {"at": 6.5}`; o prompt vira `Exactly one HARD CUT at 6.5s`.
 Notas 1–5. Com qualquer nota abaixo de 3, reescreva antes de entregar.
@@ -122,7 +123,7 @@ Regras que o lint confere no bloco `en` (crítica de prompts, `docs/qa/critica-p
 - `fov_deg` igual ao do modo (selfie 84°, os outros 63°), e o mesmo `shot` em todos os painéis de um plano travado.
 - Verbos vagos ("dances", "fights", "reacts", "interacts") viram aviso: escreva o movimento do corpo.
 - Tempo (playbook B1): o estágio do gag (o penúltimo) tem **≥2 s** e o último (o resultado parado) **≥0,5 s**. No `gag_followup`, o 2º estágio junta piada e resultado: **≥2,5 s**.
-- Fim (`videos-analisados.md` §15): os objetos e lugares de `end_change`/`end_props` (a porta, a emenda, a cabine, a haste do guarda-chuva) aparecem escritos no `text` dos 2 últimos estágios. Senão é aviso: o modelo salta para o end frame no último segundo.
+- Fim (`videos-analisados.md` §15): os objetos e lugares de `end_change` (a porta, a emenda, a cabine, a haste do guarda-chuva) aparecem escritos no `text` dos 2 últimos estágios. Senão é aviso: o modelo salta para o end frame no último segundo. De `end_props` só entram os itens (separados por vírgula) que **mudaram de estado** entre o frame A e o B: com verbo de mudança (`moved`, `broken`, `fallen`, `knocked over`, `now open`, `new`, `dropped`, `perched on the pompadour`…). Cenário parado (`the grey poles`, `the fruit stall`, `the red motorcycle unchanged at frame-left`) fica fora; para deixar explícito, escreva `unchanged`/`static` no item. Palavras em -ing que são substantivo (`string`, `ceiling`, `awning`, `railing`, `building`) contam como substantivo; comparativos (`fewer`, `more`, `less`) não.
 - Atores com nome, contraparte fora do quadro e corte: ver acima (B4.11, B4.10, B2). Detalhes em `docs/qa/lint-tutoriais.md`.
 
 O bloco `en` é o que vira prompt (os modelos obedecem melhor em inglês). Escreva-o seguindo `playbook/seedance-master.md` (grade de beats B1 e template C4): só coisas visíveis e mensuráveis, frases positivas (diga o que acontece, não o que evitar), esquerda e direita do ponto de vista da câmera, emoção como músculo. **Não descreva a aparência do personagem**: ela vem da imagem de referência, e o pipeline injeta só a âncora mínima.
