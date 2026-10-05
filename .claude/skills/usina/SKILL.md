@@ -47,6 +47,8 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 | `review_video` | Abra com Read a folha (`*-sheet.jpg`), a folha do gag (`*-gag.jpg`) e o último frame, aplique `prompts/review_video.md` (12 portões e 9 notas) e veja os `cuts` no item. Registre com `P review ... video pass|fail --notes ...`. Na reprovação, decida a próxima tentativa pela triagem C6, mudando **uma** variável: `--no-grid`, `--repair "..."` ou reescrever o roteiro. |
 | `discard` / `blocked` | Rode o comando de descarte ou anote o bloqueio no relatório. |
 
+**Trend (format `trend`, motion control):** o roteiro segue `prompts/examples/gersinho-trend-calcadao.json`. Sem vídeo-fonte, o item fica em `waiting_caio` com a etapa `fonte`; o Caio (ou você, com um .mp4 da motion library do Higgsfield) roda `P motion-source <ref> --file fonte.mp4`. O frame do personagem é edição do 1º frame da fonte (`image ... frames`). No `video-request`, suba o frame (`record-upload ... start`) e a fonte como vídeo (`media_upload` type video → `motion-source <ref> --hf-id <id>`).
+
 `waiting_caio` não é ação sua: só lista o que espera o Caio no painel.
 
 ## 3. Painel
