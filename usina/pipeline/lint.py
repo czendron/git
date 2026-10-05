@@ -27,6 +27,98 @@ UNSAFE = ["camisa de time", "camisa do flamengo", "corinthians", "palmeiras", "i
 BACK = re.compile(r"\b(de costas|costas para a c[aâ]mera|back to (the )?camera|turns? (his|her) back)\b", re.I)
 
 
+# ---- crítica de prompt (docs/qa/critica-prompts.md): falhas mecanicamente detectáveis ----
+DEG = re.compile(r"\d+(?:\.\d+)?\s*(?:°|deg\b|degrees?\b)", re.I)
+LENS = re.compile(r"\b(lens|camera)\b", re.I)
+BACK_EN = re.compile(r"\b(180\s*°|back (is )?(turned )?to(ward)? the (lens|camera)|turns? (his|her) back|faces? away)", re.I)
+# Outro ator (gente ou bicho) + verbo de interação na mesma oração = precisa dizer quem encara quem.
+ACTOR = re.compile(r"\b(man|woman|men|women|boy|girl|guy|lady|person|someone|stranger|another|passerby|passersby|"
+                   r"passenger|pedestrian|vendor|driver|worker|boxer|opponent|fighter|partner|referee|"
+                   r"dog|cat|seagull|pigeon|bird|horse|chicken|monkey)\b", re.I)
+INTERACT = re.compile(r"\b(punch\w*|hit|hits|hitting|strik\w*|slap\w*|kick\w*|push\w*|shov\w*|grab\w*|pull\w*|"
+                      r"hug\w*|kiss\w*|hands? (him|her)|giv\w*|offer\w*|throw\w*|toss\w*|catch\w*|touch\w*|"
+                      r"tap\w*|bump\w*|lands?|landing|perch\w*|approach\w*|walks? up to|faces?|facing|"
+                      r"confront\w*|swing\w* at|block\w*|dodg\w*|steps? toward)\b", re.I)
+# Verbos vagos: o modelo escolhe sozinho o que fazer (regra 20; o "desafia o boxe" virou soco).
+VAGUE = re.compile(r"\b(dances|dancing|does a dance|fights?|fighting|spars?|sparring|reacts?|reacting|interacts?|"
+                   r"interacting|confronts?|plays? with|messes with|moves around|grooves?|vibes?)\b", re.I)
+CROWD = re.compile(r"\b(crowded|crowd|packed|full of people|throngs?|lotad[oa])\b", re.I)
+NUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+       "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+CAMERA_FOV = {"selfie_pov": 84, "static_passerby": 63, "static_low": 63, "static_high": 63, "tracking_side": 63}
+
+
+def task_count(tasks: str) -> int | None:
+    """Soma das pessoas com tarefa em en.extras_tasks ("two joggers ..., one vendor ...") ou None se ilegível."""
+    total, found = 0, False
+    for clause in re.split(r"[,;]|\band (?=(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\b)",
+                           str(tasks or "")):
+        m = re.match(r"\s*(?:and\s+)?(\d+|[a-z]+)\b", clause.lower())
+        if m and (m.group(1).isdigit() or m.group(1) in NUM):
+            total += int(m.group(1)) if m.group(1).isdigit() else NUM[m.group(1)]
+            found = True
+    return total if found else None
+
+
+def lint_stages(stages, premise: str = "", where: str = "en.stages") -> tuple[list[str], list[str]]:
+    """Orientação por estágio (regra 18) e quem encara quem quando outro ator interage com ele (falha do boxe)."""
+    errors: list[str] = []
+    warns: list[str] = []
+    back_ok = "costas" in str(premise or "")
+    for i, st in enumerate(stages or [], 1):
+        if not isinstance(st, dict):
+            continue
+        facing = str(st.get("facing") or "")
+        if not facing:
+            errors.append(f"{where}[{i}]: falta 'facing' (orientação dele neste estágio, em graus a partir da lente, "
+                          f"ex.: 'chest 0° to the lens, eyes on the lens')")
+        elif not (DEG.search(facing) and LENS.search(facing)):
+            errors.append(f"{where}[{i}].facing '{facing}': diga o ângulo em graus em relação à lente (regra 18)")
+        if BACK_EN.search(facing + " " + str(st.get("text", ""))) and not back_ok:
+            errors.append(f"{where}[{i}]: ele fica de costas para a câmera (só se a piada for isso, regra 5 do roteirista)")
+        clauses = re.split(r"[;.]", str(st.get("text", "")))
+        if any(ACTOR.search(c) and INTERACT.search(c) for c in clauses):
+            cp = st.get("counterpart")
+            if not isinstance(cp, dict) or not cp.get("who") or not cp.get("position") or not cp.get("facing"):
+                errors.append(f"{where}[{i}]: outro ator interage com ele; declare 'counterpart' {{who, position, "
+                              f"facing}} (onde está e para onde olha no momento-chave)")
+            elif not DEG.search(str(cp.get("facing"))):
+                errors.append(f"{where}[{i}].counterpart.facing: diga o ângulo em graus (ex.: 'in profile facing "
+                              f"frame-left toward him, 90° to the lens')")
+        m = VAGUE.search(str(st.get("text", "")))
+        if m:
+            warns.append(f"{where}[{i}]: verbo vago '{m.group(0)}': escreva o movimento do corpo (pé, direção, mão)")
+    return errors, warns
+
+
+def lint_crowd(en: dict, where: str = "en") -> tuple[list[str], list[str]]:
+    """Figurantes: tarefa para cada um (regra 14) e nenhuma multidão que contradiga a contagem exata (regra 13)."""
+    errors: list[str] = []
+    warns: list[str] = []
+    try:
+        n = int(en.get("extras_count") or 0)
+    except (TypeError, ValueError):
+        return errors, warns
+    if n:
+        k = task_count(en.get("extras_tasks", ""))
+        if k is None:
+            warns.append(f"{where}.extras_tasks: não deu para contar as tarefas; escreva 'two joggers ..., one vendor ...'")
+        elif k < n:
+            errors.append(f"{where}.extras_tasks dá tarefa a {k} de {n} figurantes: os outros {n - k} ficam sem "
+                          f"tarefa e reagem a ele (regra 14)")
+        elif k > n:
+            errors.append(f"{where}.extras_tasks descreve {k} pessoas, mas extras_count é {n} (regra 13)")
+    m = CROWD.search(" ".join(str(en.get(k, "")) for k in ("gag_sentence", "location", "location_map", "position")))
+    if m:
+        errors.append(f"{where}: '{m.group(0)}' contradiz a contagem exata de figurantes ({n}); descreva só as "
+                      f"pessoas contadas (regra 13)")
+    hands = str(en.get("hands", ""))
+    if n and re.search(r"hands in (the )?frame", hands, re.I) and not re.search(r"\bfor (him|her)\b", hands, re.I):
+        errors.append(f"{where}.hands diz 'hands in frame, both his' com {n} figurantes no quadro: escreva "
+                      f"'He has exactly two hands: ...' (as mãos dos figurantes também aparecem)")
+    return errors, warns
+
+
 def _text(obj) -> str:
     if isinstance(obj, dict):
         return " ".join(_text(v) for v in obj.values())
@@ -75,6 +167,9 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
         errors.append("en.extras_count deve ser um número")
     if WIND.search(_text(script["en"])):
         warns.append("vento/brisa no bloco en: faz o cabelo rígido balançar (regra 17)")
+    e, w = lint_crowd(script["en"])
+    errors += e
+    warns += w
     tr = script["trend"]
     if not tr.get("name") or not tr.get("source_hint"):
         errors.append("trend precisa de name e source_hint (de onde vem o vídeo-fonte)")
@@ -94,13 +189,13 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
     if page and script["page"] != page.get("slug"):
         errors.append(f"page '{script['page']}' não bate com '{page.get('slug')}'")
     if script.get("gag_followup") is not None:
-        e, w = lint_gag(script["gag_followup"])
+        e, w = lint_gag(script["gag_followup"], script.get("premise", ""))
         errors += e
         warns += w
     return errors, warns
 
 
-def lint_gag(g) -> tuple[list[str], list[str]]:
+def lint_gag(g, premise: str = "") -> tuple[list[str], list[str]]:
     """Gag pós-motion control (playbook C5): clipe Seedance de 4–5 s a partir do último frame do MC,
     com os 2 últimos estágios do C4 (en.stages de 2 + en.end_change)."""
     errors: list[str] = []
@@ -130,6 +225,9 @@ def lint_gag(g) -> tuple[list[str], list[str]]:
         errors.append(f"gag_followup.en.stages terminam em {end}s, mas duration_s é {dur}")
     if not en.get("end_change"):
         errors.append("falta gag_followup.en.end_change (o estado final da piada)")
+    e, w = lint_stages(stages, premise, "gag_followup.en.stages")
+    errors += e
+    warns += w
     if SLOW.search(_text(en)):
         errors.append("gag_followup.en com palavra de câmera lenta (regra 19)")
     if WIND.search(_text(en)):
@@ -183,6 +281,12 @@ def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]
             warns.append("estágio do gag com menos de 1,5 s")
     if stages and abs(send - float(script.get("duration_s", 0))) > 0.51:
         errors.append(f"en.stages terminam em {send}s, mas duration_s é {script.get('duration_s')}")
+    e, w = lint_stages(stages, script.get("premise", ""))
+    errors += e
+    warns += w
+    e, w = lint_crowd(en)
+    errors += e
+    warns += w
     if isinstance(en.get("panels"), list) and stages and len(en["panels"]) != len(stages):
         errors.append("en.panels precisa ter um painel por estágio (mesmo número)")
     if SLOW.search(_text(en)):
@@ -239,10 +343,16 @@ def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]
     panels = script["storyboard_panels"]
     if not 3 <= len(panels) <= 6:
         errors.append(f"{len(panels)} painéis de storyboard (use 3–6 para 8–12 s)")
-    if fov is not None and script["camera"].get("mode") == "selfie_pov" and int(fov) != 84:
-        warns.append("selfie usa 84° (playbook regra 21)")
-    if fov is not None and script["camera"].get("mode") == "static_passerby" and int(fov) != 63:
-        warns.append("passante usa 63° (playbook regra 21)")
+    want = CAMERA_FOV.get(cam.get("mode"))
+    if fov is not None and want and int(fov) != want:
+        # o prompt usa o FOV do modo; um fov_deg diferente no roteiro é uma contradição calada (regra 21)
+        errors.append(f"camera.fov_deg {fov} não bate com o modo {cam.get('mode')} ({want}°, playbook regra 21)")
+    if cam.get("mode") == "selfie_pov" and not re.search(r"\bphone\b", str(en.get("hands", "")), re.I):
+        errors.append("selfie: a mão direita segura o celular; diga isso em en.hands (senão aparece uma 3ª mão)")
+    shots = {str(p.get("shot", "")).strip() for p in panels if isinstance(p, dict)}
+    if cam.get("mode") != "tracking_side" and len(shots) > 1:
+        warns.append(f"storyboard_panels com enquadramentos diferentes ({sorted(shots)}) num plano travado: "
+                     f"vira corte (regra 6)")
 
     scan = {k: v for k, v in script.items() if k not in ("brand_safety", "risks", "originality_note")}
     full = _text(scan).lower()

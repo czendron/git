@@ -839,7 +839,14 @@ def _video_request_trend(a, page, it, b):
                         f"`python -m pipeline record-upload {a.ref} start --hf-id <id>`. Vídeo-fonte: o mesmo com "
                         f"type='video' -> `python -m pipeline motion-source {a.ref} --hf-id <id>`.")})
         return
-    prompt = prompts.motion_scene_prompt(s, page)
+    # Ficha em toda geração (videos-analisados §5): rosto e silhueta entram depois do frame do personagem, com o papel
+    # declarado no prompt (o Genjutsu trata cada imagem como um sujeito; o prompt diz que são o mesmo homem).
+    # --no-sheet volta ao pedido só com o frame, para A/B se o modelo duplicar o personagem.
+    sheet_ids = [] if getattr(a, "no_sheet", False) else _hf_ref_ids(page)
+    if not getattr(a, "no_sheet", False) and len(sheet_ids) < 2:
+        raise StoreError(f"{page.slug}: precisa de higgsfield_id para face e silhouette no page.yaml "
+                         f"(ou rode com --no-sheet)")
+    prompt = prompts.motion_scene_prompt(s, page, with_sheet=bool(sheet_ids))
     (_workdir(it) / f"video-v{it.attempts.get('video', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     res = "720p" if budget.degraded_mode() else (a.resolution or str(page.data.get("video_resolution", "720p")))
     _print({
@@ -847,8 +854,9 @@ def _video_request_trend(a, page, it, b):
         "mcp_tool": "mcp__Higgsfield__generate_video_batch",
         "requests": [{"index": 0, "params": {
             "model": "hf_mult_motion_control", "resolution": res, "prompt": prompt,
-            "medias": [{"role": "image_references", "value": f["higgsfield_id"]},
-                       {"role": "video_references", "value": mo["source_hf_id"]}]}}],
+            "medias": [{"role": "image_references", "value": f["higgsfield_id"]}]
+                      + [{"role": "image_references", "value": i} for i in sheet_ids]
+                      + [{"role": "video_references", "value": mo["source_hf_id"]}]}}],
         "note": "Genjutsu: a duração é a da fonte. Se a saída vier mais curta que a fonte, o movimento era rápido demais: "
                 "desacelere a fonte para 50-75% e corte de novo (playbook C5).",
         "then": f"python -m pipeline record-video {a.ref} --job <job_id> --credits <créditos>",
@@ -1607,6 +1615,8 @@ def main(argv=None):
     p.add_argument("--resolution", choices=["480p", "720p", "1080p"], help="480p = draft de estrutura")
     p.add_argument("--repair", default="", help="REPAIR SCOPE (playbook C6a): o que mudar, uma variável")
     p.add_argument("--gag", action="store_true", help="trend: 2º clipe (gag, Seedance 4-5 s) a partir do último frame do MC")
+    p.add_argument("--no-sheet", action="store_true",
+                   help="trend: Genjutsu só com o frame do personagem, sem rosto e silhueta (A/B se duplicar o personagem)")
     p.set_defaults(f=cmd_video_request)
     p = sp.add_parser("skip-gag"); p.add_argument("ref"); p.add_argument("--why", default="")
     p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_skip_gag)
