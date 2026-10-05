@@ -748,7 +748,7 @@ function renderCaixa(){
     const a = f.assets || {};
     const media = st === "storyboard" ? img(a.storyboard, "storyboard")
       : st === "frames" ? `<div class="row" style="flex-wrap:nowrap;gap:6px">${img(a.start,"primeiro frame")}${img(a.end,"último frame")}</div>`
-      : `${img(a.sheet,"folha do vídeo")}${f.videoUrl?`<a href="${esc(f.videoUrl)}" target="_blank" rel="noopener">Assistir o vídeo ↗</a>`:""}${f.gagUrl?` · <a href="${esc(f.gagUrl)}" target="_blank" rel="noopener">Assistir o gag ↗</a>`:""}${(f.cuts||[]).length?`<span class="chip bad">cortes em ${esc(f.cuts.map(c => Number(c).toFixed(1)).join(", "))} s</span>`:""}`;
+      : `${img(a.sheet,"folha do vídeo")}${img(a.gag_clip_sheet,"folha do clipe do gag")}${f.videoUrl?`<a href="${esc(f.videoUrl)}" target="_blank" rel="noopener">Assistir o vídeo ↗</a>`:""}${f.gagUrl?` · <a href="${esc(f.gagUrl)}" target="_blank" rel="noopener">Assistir o gag ↗</a>`:""}${(f.cuts||[]).length?`<span class="chip bad">cortes em ${esc(f.cuts.map(c => Number(c).toFixed(1)).join(", "))} s</span>`:""}`;
     const qa = ((f.gates||{})[st]||{}).qa_notes;
     return `<article class="card">
       <div class="chips"><span class="chip br">${esc(f.handle||f.page)}</span><span class="chip info">${esc(STAGE_LABEL[st])}</span><span class="chip">${esc(f.duration||"")}s</span></div>
