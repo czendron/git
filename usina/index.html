@@ -320,6 +320,7 @@ const hashTab = location.hash.replace("#",""); if (hashTab && $("#v-"+hashTab)) 
 /* ---------- error copy ---------- */
 function mcpCopy(e){
   const c = e && e.code;
+  if (c === "hf_locked") return e.message;
   if (c === "server_not_connected") return "Conecte o Higgsfield em claude.ai → Configurações → Conectores.";
   if (c === "needs_reauth") return "A conexão com o Higgsfield expirou. Reconecte em claude.ai → Configurações → Conectores.";
   if (c === "not_in_manifest") return "O acesso ao Higgsfield foi negado para esta página. Libere no menu Permissões do artifact.";
@@ -348,6 +349,7 @@ async function hf(tool, input){
 function textOf(x){ try { return typeof x === "string" ? x : JSON.stringify(x); } catch(e){ return String(x); } }
 // Batch submit; if Higgsfield answers with a preset recommendation (nothing submitted), retry once declining it.
 async function submitBatch(tool, requests){
+  if (!(state.saude && state.saude.hfSpend === true)) throw { code:"hf_locked", message:"Gasto no Higgsfield travado (budget.yaml, switches.higgsfield_spend_enabled: false). Nada foi enviado." };
   try { return await hf(tool, { requests }); }
   catch(e){
     const blob = textOf(e && e.message) + " " + textOf(e && e.result);
@@ -620,6 +622,7 @@ $("#b-motion").addEventListener("click", async () => {
     let vid = src;
     if (!UUID.test(src)) {
       m.textContent = "Importando o vídeo…";
+      if (!(state.saude && state.saude.hfSpend === true)) throw { code:"hf_locked", message:"Gasto no Higgsfield travado (budget.yaml, switches.higgsfield_spend_enabled: false). Nada foi enviado." };
       vid = findId(await hf("media_import_url", { url:src, type:"video" }));
       if (!vid) throw { code:"tool_error", message:"não devolveu o ID do vídeo importado" };
     }

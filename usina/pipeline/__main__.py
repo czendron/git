@@ -1541,7 +1541,7 @@ def cmd_panel_export(a):
     pl = mkplan()
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
-        "actions": len(pl["actions"]), "waiting": [w["item"] + " · " + w["stage"] for w in _waiting(pl)],
+        "actions": len(pl["actions"]), "hfSpend": bool(_switches().get("higgsfield_spend_enabled", False)), "waiting": [w["item"] + " · " + w["stage"] for w in _waiting(pl)],
         "ledger": budget.rows()[-15:], "balance": pl.get("balance"),
         "errors": {"consecutive": budget.health().get("consecutive_errors", 0),
                    "max": budget.load_budget().get("max_consecutive_errors", 3),
