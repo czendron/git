@@ -119,7 +119,7 @@ Convenção: `{{...}}` é campo a preencher. O texto em inglês vai ao modelo co
 
 ### C1. Ficha de personagem (GPT Image 2.5)
 
-Use o Formato A (JSON), porque o GPT Image respeita layout por regiões (`higgsfield-gpt-image-2` § 3). Gere em `quality: high` e 2:3, ou outra proporção vertical disponível. Evite "photorealistic" com rosto (deixa a pele plástica) e use linguagem de fotografia (`gpt-image-2` § 1, § 4).
+Use o Formato A (JSON), porque o GPT Image respeita layout por regiões (`higgsfield-gpt-image-2` § 3). Gere em `quality: high`, na **maior resolução disponível** (o `rosto.png` é um recorte de 1/4 da ficha), e 2:3 ou outra proporção vertical disponível. Uma ficha por figurino (`videos-analisados.md` §5–6). Evite "photorealistic" com rosto (deixa a pele plástica) e use linguagem de fotografia (`gpt-image-2` § 1, § 4).
 
 ```json
 {
@@ -245,17 +245,19 @@ Notas:
 - [ ] 8–10 s, cortado no trecho da coreografia (≤10 s, critério do radar). O limite é de 3–30 s.
 - [ ] Velocidade lenta a moderada. Se o output sair **mais curto que a fonte**, o movimento era rápido demais: desacelere a fonte para 50–75% e corte de novo.
 - [ ] 9:16, bom contraste entre corpo e fundo, pessoa real (não animação).
+- [ ] Mãos visíveis a fonte inteira (o Kling inventa e borra as mãos que não vê) e corpo suficiente no quadro (perto demais, o Kling recusa com "not enough upper body"). Ver `videos-analisados.md` §8.
+- [ ] Assinatura recorrente: prefira uma fonte gravada pelo Caio (corpo inteiro, câmera parada, deadpan), reusada em todos os vídeos do personagem (§8).
 - [ ] O baixar e subir no Higgsfield é feito antes, com o arquivo .mp4 (README).
 
 **Imagem do personagem = edição do 1º frame da fonte** (`videos-analisados.md` §2). Pegue o primeiro frame do vídeo-fonte (`python -m pipeline` usa ffmpeg) e edite no GPT Image 2.5 com o rosto e a silhueta como referências: `Replace the dancer with the man from image 2 and image 3 — same face, same pompadour and outfit. Keep the exact pose, framing, location and light of image 1. Must look like a real smartphone photo inside the original scene. Deadpan: lips closed, lip corners level.` Faça 4 variações e cure. Assim pose, enquadramento e cenário batem com a fonte.
 
-**Requisitos da imagem do personagem:** frame A do C2 em modo passante (63°, corpo inteiro e pés visíveis), com **a mesma pose e o mesmo enquadramento do primeiro frame da fonte**, rosto legível, topete inteiro com 10% de folga acima, braços sem cobrir o rosto e figurantes posicionados longe da trajetória da dança.
+**Requisitos da imagem do personagem:** frame A do C2 em modo passante (63°, corpo inteiro e pés visíveis), com **a mesma pose, o mesmo enquadramento e o mesmo tamanho de sujeito do primeiro frame da fonte** (marcas de chão e props que a dança toca na mesma linha e ângulo; senão sai física quebrada, `videos-analisados.md` §8), rosto legível, topete inteiro com 10% de folga acima, braços sem cobrir o rosto e figurantes posicionados longe da trajetória da dança.
 
 **Prompt do Kling MC (só cena: o movimento vem do vídeo):**
 ```
-Keep the scene, lighting and passersby from the character image. Overcast midday daylight at a São Paulo bus stop, smartphone video look, everything sharp. The man's giant black pompadour is a rigid lacquered solid that moves only as one block with his head and keeps its exact outline. His face stays deadpan: lips closed, lip corners level, eyes toward the lens. Exactly 5 passersby continue their own tasks; none looks at him. Real-time speed.
+Keep the scene, lighting and passersby from the character image. Overcast midday daylight at a São Paulo bus stop, smartphone video look, everything sharp. The man's giant black pompadour is a rigid lacquered solid that moves only as one block with his head and keeps its exact outline. His face stays deadpan: lips closed, lip corners level, eyes toward the lens. Exactly 5 passersby continue their own tasks — {{one task each, e.g. 'one walks past frame-left to frame-right, one checks a phone, one buys pastel'}} — moving throughout the clip; none looks at him. Real-time speed.
 ```
-Orientação: `Video Orientation` / `Matches Video` (corpo inteiro dançando). **O gag vem depois:** pegue o último frame do clipe de MC como `start_image` de um clipe de 4–5 s no Seedance 2.5 (C4, só os stages 3 e 4) e emende os dois. *(Ainda manual: o pipeline gera só o clipe de motion control; ver `docs/qa/rodada-2.md`, sugestão 3.)*
+Os figurantes e a câmera **precisam estar escritos**: a fonte não traz movimento de fundo e o Kling 3.0 tende a deixar o fundo parado (`videos-analisados.md` §8). Orientação: `Video Orientation` / `Matches Video` (no Kling/OpenArt, *Exact*, até 30 s). *Partial* (outra posição, câmera livre) só vai até 10 s. O Kling MC 2.6 é um A/B mais barato; o 3.0 exagera a nitidez de pele e barba. **O gag vem depois:** pegue o último frame do clipe de MC como `start_image` de um clipe de 4–5 s no Seedance 2.5 (C4, só os stages 3 e 4) e emende os dois. *(Ainda manual: o pipeline gera só o clipe de motion control; ver `docs/qa/rodada-2.md`, sugestão 3.)*
 
 ### C6. Prompt de reparo
 
@@ -373,7 +375,7 @@ Referências passadas ao revisor: `rosto.png`, `silhueta.png`, frame A, frame B 
 | Entrega que precisa de 4K ou do parâmetro `genre` | Seedance 2.0 `std` | 4–15 s | O 2.5 para em 1080p. No nosso caso, raramente: o upscale só entra nos vídeos que performaram (Topaz / `bytedance_video_upscale`). |
 | Plano simples, um só plano de profundidade, câmera parada, custo baixo | **Kling 3.0** | `std`, 9:16, start e end frame, 3–15 s | Opção mais barata para cena simples sem movimento pesado. Bom fallback quando o Seedance insiste num defeito (troca de motor no 3º degrau do Retry Ladder). |
 | Trend de dança com o nosso cenário | **Kling 3.0 Motion Control** | `background_source: input_image`, `std` para iterar, `pro` para entregar; 720p | Tem o seletor de cenário e prompt de cena. A duração é a da fonte. |
-| Trend quando o Kling MC deforma a identidade, ou para teste A/B | **Genjutsu** `hf_mult_motion_control` | `image_references` + `video_references`, 720p | Transferência nativa do Higgsfield. Não há prompt nem seletor de cenário documentados, e nada foi avaliado em campo. |
+| Trend (padrão do pipeline; Kling MC fica como A/B) | **Genjutsu** `hf_mult_motion_control` | `image_references` + `video_references`, 720p | Transferência nativa do Higgsfield. Aceita prompt de cena (ambiente, câmera, visual) e sai em até 1080p (C5 e `videos-analisados.md` §3); padrão do pipeline para trend. Ainda não avaliado em campo. |
 | Correção em uma camada | Seedance 2.5 `video_edit` | cobra a duração do vídeo-fonte | Mais barato que regerar quando a composição e o timing já estão bons |
 | Emenda do gag depois do MC | Seedance 2.5 `omni_reference`, 4–5 s | `start_image` = último frame do MC | O MC não faz o gag. A emenda cruza o corte no meio do movimento. |
 
