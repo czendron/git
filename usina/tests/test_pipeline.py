@@ -18,6 +18,8 @@ def usina(tmp_path):
         if (HERE / d).exists():
             shutil.copytree(HERE / d, root / d, ignore=shutil.ignore_patterns("*.png", "__pycache__"))
     shutil.copy(HERE / "budget.yaml", root / "budget.yaml")
+    bt = (root / "budget.yaml").read_text().replace("video_enabled: false", "video_enabled: true")
+    (root / "budget.yaml").write_text(bt)
     (root / "data" / "queue").mkdir(parents=True)
     from PIL import Image
     refs = root / "pages" / "gersinho" / "refs"
@@ -120,6 +122,12 @@ def test_budget_blocks_video(usina):
         run(usina, "approve", ref, st)
     plan = json.loads(run(usina, "plan").stdout)
     assert any(a["do"] == "blocked" for a in plan["actions"])
+
+
+def test_video_switch_off_by_default():
+    import yaml
+    b = yaml.safe_load((HERE / "budget.yaml").read_text())
+    assert b["switches"]["video_enabled"] is False
 
 
 def test_three_strikes_discard(usina):

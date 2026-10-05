@@ -498,6 +498,86 @@ def cmd_split_sheet(a):
           f"suba as duas no Higgsfield e grave os higgsfield_id.")
 
 
+def _panel_doc(it, page) -> dict:
+    s = it.script or {}
+    return {
+        "page": it.page, "itemId": it.id, "ref": f"{it.page}/{it.id}", "state": it.state,
+        "title": s.get("title") or it.idea.get("title", it.id), "premise": s.get("premise") or it.idea.get("text", ""),
+        "gag": s.get("gag_without_sound", ""), "duration": s.get("duration_s"), "format": s.get("format", ""),
+        "gates": it.gates, "attempts": it.attempts, "assets": it.post.get("assets", {}),
+        "caption": it.post.get("caption", ""), "cover_text": s.get("cover", {}).get("text_max4", ""),
+        "music": s.get("music", {}), "videoUrl": it.video.get("url", ""), "cuts": it.video.get("cuts", []),
+        "package": it.post.get("package", ""), "handle": page.character.get("handle", ""),
+        "updatedAt": int(it.updated_at * 1000), "createdAt": int(it.created_at * 1000),
+    }
+
+
+def cmd_panel_export(a):
+    """Gera os documentos do painel (coleções fila, paginas, saude) para a sessão gravar com ArtifactData batch."""
+    from .tick import plan as mkplan
+    writes = []
+    pages = {p.slug: p for p in load_pages()}
+    for it in list_items():
+        if it.state in ("descartado",) and not a.all:
+            continue
+        writes.append({"op": "set", "collection": "fila", "doc_id": f"{it.page}--{it.id}",
+                       "data": _panel_doc(it, pages[it.page])})
+    for slug, p in pages.items():
+        ch = p.character
+        writes.append({"op": "set", "collection": "paginas", "doc_id": slug, "data": {
+            "slug": slug, "status": p.data.get("status"), "name": ch.get("name"), "handle": ch.get("handle"),
+            "silhouette": ch.get("silhouette_letter"), "bpm": ch.get("bpm"), "dance": ch.get("dance_style"),
+            "world": ch.get("world"), "gag": ch.get("recurring_gag"), "relationship": ch.get("relationship"),
+            "signature": ch.get("signature_move"), "cadence": p.data.get("cadence", {}),
+            "refsReady": len(p.available_refs()) >= 2, "launchedAt": p.data.get("launched_at", "")}})
+    pl = mkplan()
+    writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
+        "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
+        "actions": len(pl["actions"]), "waiting": [w["item"] + " · " + w["stage"] for w in pl["waiting_caio"]],
+        "ledger": budget.rows()[-15:]}})
+    out = OUT / "panel" / "batch.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(writes, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{len(writes)} documentos em {out.relative_to(ROOT)} (ArtifactData batch, até 50 por chamada; "
+          f"documentos já existentes precisam do if_version lido antes)")
+
+
+def cmd_panel_asset(a):
+    """Grava a URL de um asset do painel (imagem subida com Artifact asset:true) no item."""
+    page, it = _item(a.ref)
+    it.post.setdefault("assets", {})[a.key] = a.url
+    it.save()
+    print("ok")
+
+
+def cmd_panel_apply(a):
+    """Aplica as decisões do Caio vindas do painel (coleção decisoes, exportada para JSON)."""
+    rows = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    done = []
+    for r in rows:
+        d = r.get("data", r)
+        if d.get("applied"):
+            continue
+        ref, stage, verdict = d.get("ref"), d.get("stage"), d.get("verdict")
+        if stage not in ("storyboard", "frames", "video") or verdict not in ("approve", "reject"):
+            print(f"ignorado: {d}")
+            continue
+        try:
+            page, it = _item(ref)
+        except StoreError as e:
+            print(f"ignorado ({e})")
+            continue
+        g = it.gates.setdefault(stage, {"qa": "pending", "caio": "pending"})
+        g["caio"] = "approved" if verdict == "approve" else "rejected"
+        g["caio_notes"] = d.get("notes", "")
+        if verdict == "reject" and d.get("notes"):
+            _log_failure(it, stage, f"(Caio) {d['notes']}")
+        it.save()
+        done.append(r.get("id") or d.get("id"))
+        print(f"{ref} {stage}: {g['caio']}")
+    print(json.dumps({"applied_ids": done}))
+
+
 def cmd_pause(a):
     budget.PAUSE_FILE.write_text(a.reason or "pausado pelo Caio", encoding="utf-8")
     print("PAUSADO")
@@ -565,6 +645,10 @@ def main(argv=None):
     p = sp.add_parser("package"); p.add_argument("ref"); p.set_defaults(f=cmd_package)
     p = sp.add_parser("posted"); p.add_argument("ref"); p.add_argument("--link"); p.set_defaults(f=cmd_posted)
     p = sp.add_parser("fetch-refs"); p.add_argument("page"); p.set_defaults(f=cmd_fetch_refs)
+    p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true"); p.set_defaults(f=cmd_panel_export)
+    p = sp.add_parser("panel-asset"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("url")
+    p.set_defaults(f=cmd_panel_asset)
+    p = sp.add_parser("panel-apply"); p.add_argument("file"); p.set_defaults(f=cmd_panel_apply)
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
     sp.add_parser("ledger").set_defaults(f=cmd_ledger)

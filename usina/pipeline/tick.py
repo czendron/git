@@ -92,6 +92,9 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
         elif needs_caio(page, "frames", now) and g["caio"] == "pending":
             acts.append({"do": "await_caio", "item": pid, "stage": "frames"})
         else:
+            if not b.get("switches", {}).get("video_enabled", False):
+                acts.append({"do": "blocked", "item": pid, "why": "vídeo desligado em budget.yaml (switches.video_enabled)"})
+                return acts
             credits = _est_video_credits(item, b)
             usd = credits * float(b.get("higgsfield_credit_usd", 0.05))
             ok, why = budget.can_spend("higgsfield", usd, now)
@@ -148,6 +151,13 @@ def plan(now: float | None = None) -> dict:
     if budget.degraded_mode(now):
         out["notes"].append("Acima de 80% do teto mensal: só 720p, sem Genjutsu.")
 
+    import os
+    sw = b.get("switches", {})
+    if sw.get("image_provider", "openai") == "openai" and not os.getenv("OPENAI_API_KEY") \
+            and os.getenv("USINA_MOCK") != "1":
+        out["notes"].append("OPENAI_API_KEY ausente: etapas de imagem bloqueadas (libere api.openai.com e a chave no ambiente)."
+                            + (" Fallback Higgsfield permitido." if sw.get("image_fallback_allowed") else ""))
+        out["images_blocked"] = not sw.get("image_fallback_allowed", False)
     for page in load_pages(include_drafts=False):
         items = [i for i in list_items(page.slug) if i.state in ACTIVE]
         ready = [i for i in items if i.state == "pronto"]
@@ -164,6 +174,8 @@ def plan(now: float | None = None) -> dict:
             for a in plan_item(it, page, b, now):
                 if a["do"] == "await_caio":
                     out["waiting_caio"].append(a)
+                elif out.get("images_blocked") and a.get("provider") == "openai":
+                    out["notes"].append(f"{a['item']}: imagem esperando a OPENAI_API_KEY.")
                 elif a["do"] == "video_submit" and y is not None and y < b["quality"]["min_yield_last10"]:
                     out["notes"].append(f"{a['item']}: vídeo segurado pelo aproveitamento baixo.")
                 else:

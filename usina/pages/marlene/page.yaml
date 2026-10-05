@@ -20,9 +20,9 @@ character:
     - o laquê é um capacete e não mexe nunca, nem com vento
     - dança só da cintura pra baixo; tronco e cabelo imóveis
     - ninguém em volta reage
-  signature_move: "abre o leque num estalo no tempo forte e se abana devagar"
+  signature_move: "abre o leque num estalo no tempo forte e se abana no ritmo da música"
   recurring_gag: "tira de dentro do cabelo um objeto impossível (controle remoto, pão francês, guarda-chuva)"
-  dance_style: axé anos 90 em câmera lenta
+  dance_style: axé anos 90, passos curtos só da cintura pra baixo, no tempo real
   bpm: 100
   world: "fila do banco, sacolão, hidroginástica, salão de beleza, chá de bebê, ponto de ônibus"
   camera_default: "estática de passante, altura do peito"

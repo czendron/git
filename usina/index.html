@@ -91,7 +91,11 @@ table.jobs th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text
   <nav class="rail" aria-label="Seções">
     <div class="brand">Usina de<br>Virais<small>Higgsfield · Seedance 2.5 · 9:16</small></div>
     <div class="tabs" role="tablist">
-      <button class="tab" role="tab" data-tab="radar" aria-selected="true">Radar <span class="n" id="n-ideas">0</span></button>
+      <button class="tab" role="tab" data-tab="caixa" aria-selected="true">Caixa <span class="n" id="n-caixa">0</span></button>
+      <button class="tab" role="tab" data-tab="fila">Fila <span class="n" id="n-fila">0</span></button>
+      <button class="tab" role="tab" data-tab="paginas">Páginas</button>
+      <button class="tab" role="tab" data-tab="saude">Saúde</button>
+      <button class="tab" role="tab" data-tab="radar">Radar <span class="n" id="n-ideas">0</span></button>
       <button class="tab" role="tab" data-tab="elenco">Elenco <span class="n" id="n-chars">0</span></button>
       <button class="tab" role="tab" data-tab="roteiro">Roteiro <span class="n" id="n-scripts">0</span></button>
       <button class="tab" role="tab" data-tab="motion">Motion control</button>
@@ -105,8 +109,61 @@ table.jobs th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text
   </nav>
 
   <main>
+    <!-- CAIXA -->
+    <section class="view" id="v-caixa">
+      <div>
+        <span class="eyebrow">Aprovação</span>
+        <h1>Caixa de aprovação</h1>
+        <p class="lede">O que a usina produziu e o revisor de IA já aprovou. Sua decisão vale no próximo ciclo da automação. Recusar com um motivo ensina o sistema: o motivo vai para o livro de falhas.</p>
+      </div>
+      <div class="grid" id="caixa"></div>
+    </section>
+
+    <!-- FILA -->
+    <section class="view" id="v-fila" hidden>
+      <div>
+        <span class="eyebrow">Produção</span>
+        <h1>Fila</h1>
+        <p class="lede">Cada vídeo em produção, da ideia ao pacote pronto para postar. Atualizada pela automação a cada ciclo.</p>
+      </div>
+      <div class="row"><select id="f-page" aria-label="Página"><option value="">Todas as páginas</option></select></div>
+      <div class="scroll"><table class="jobs"><thead><tr><th>Vídeo</th><th>Página</th><th>Etapa</th><th>Portões</th><th>Atualizado</th></tr></thead><tbody id="fila"></tbody></table></div>
+    </section>
+
+    <!-- PAGINAS -->
+    <section class="view" id="v-paginas" hidden>
+      <div>
+        <span class="eyebrow">3 personagens, uma fórmula</span>
+        <h1>Páginas</h1>
+        <p class="lede">Silhuetas I, O e —: cada uma se lê na miniatura. Páginas em rascunho não geram nada até você ativar e aprovar a ficha.</p>
+      </div>
+      <div class="grid" id="paginas"></div>
+    </section>
+
+    <!-- SAUDE -->
+    <section class="view" id="v-saude" hidden>
+      <div>
+        <span class="eyebrow">Operação</span>
+        <h1>Saúde e placar</h1>
+        <p class="lede">Gasto contra o teto, o que travou no último ciclo e as métricas dos posts. O placar você preenche em 2 minutos por dia.</p>
+      </div>
+      <div class="grid" id="saude"></div>
+      <div class="panel">
+        <h2>Placar (24 h depois de postar)</h2>
+        <div class="form">
+          <label>Vídeo postado<select id="pl-item"></select></label>
+          <label>Views 24 h<input id="pl-views" type="number" min="0" inputmode="numeric"></label>
+          <label>Envios<input id="pl-shares" type="number" min="0" inputmode="numeric"></label>
+          <label>Seguidores ganhos<input id="pl-follows" type="number" min="0" inputmode="numeric"></label>
+          <label>Retenção 3 s (%)<input id="pl-ret" type="number" min="0" max="100" inputmode="numeric"></label>
+        </div>
+        <div class="row"><button class="btn" id="b-placar">Salvar números</button><span id="pl-msg" class="note"></span></div>
+        <div class="scroll"><table class="jobs"><thead><tr><th>Vídeo</th><th>Views</th><th>Envios</th><th>Envios/views</th><th>Seguidores</th><th>Ret. 3 s</th></tr></thead><tbody id="placar"></tbody></table></div>
+      </div>
+    </section>
+
     <!-- RADAR -->
-    <section class="view" id="v-radar">
+    <section class="view" id="v-radar" hidden>
       <div>
         <span class="eyebrow">Pesquisa</span>
         <h1>Radar de virais</h1>
@@ -622,8 +679,114 @@ $("#b-balance").addEventListener("click", async () => {
 });
 setInterval(() => { if (document.visibilityState === "visible" && state.jobs.some(j => !TERMINAL.has(j.status))) refreshJobs(false); }, 25000);
 
+/* ---------- CAIXA / FILA / PAGINAS / SAUDE ---------- */
+Object.assign(state, { fila:[], paginas:[], saude:null, decisoes:[], placar:[] });
+const STAGE_LABEL = { storyboard:"Storyboard", frames:"Primeiro e último frame", video:"Vídeo final" };
+const STATE_LABEL = { ideia:"ideia", roteiro:"roteiro", storyboard:"storyboard", frames:"frames", video:"vídeo", revisao:"revisão", pronto:"pronto pra postar", postado:"postado", descartado:"descartado", erro:"erro", pausado:"pausado" };
+function pendingFor(f){
+  const out = [];
+  for (const st of ["storyboard","frames","video"]) {
+    const g = (f.gates||{})[st]; if (!g) continue;
+    const decided = state.decisoes.some(d => d.ref === f.ref && d.stage === st && !d.applied);
+    if (g.qa === "pass" && g.caio === "pending" && !decided) {
+      if ((st === "storyboard" && f.state === "storyboard") || (st === "frames" && f.state === "frames") || (st === "video" && f.state === "revisao")) out.push(st);
+    }
+  }
+  return out;
+}
+function img(url, alt){ return url ? `<img src="${esc(url)}" alt="${esc(alt)}" loading="lazy" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--paper)">` : ""; }
+function renderCaixa(){
+  const host = $("#caixa"); const cards = [];
+  for (const f of state.fila) for (const st of pendingFor(f)) cards.push([f, st]);
+  $("#n-caixa").textContent = cards.length;
+  if (!cards.length) { host.innerHTML = `<div class="empty">Nada esperando você. Quando a usina terminar um storyboard, um par de frames ou um vídeo e o revisor de IA aprovar, aparece aqui.</div>`; return; }
+  host.innerHTML = cards.map(([f, st]) => {
+    const a = f.assets || {};
+    const media = st === "storyboard" ? img(a.storyboard, "storyboard")
+      : st === "frames" ? `<div class="row" style="flex-wrap:nowrap;gap:6px">${img(a.start,"primeiro frame")}${img(a.end,"último frame")}</div>`
+      : `${img(a.sheet,"folha do vídeo")}${f.videoUrl?`<a href="${esc(f.videoUrl)}" target="_blank" rel="noopener">Assistir o vídeo ↗</a>`:""}${(f.cuts||[]).length?`<span class="chip bad">cortes em ${esc(f.cuts.join(", "))} s</span>`:""}`;
+    const qa = ((f.gates||{})[st]||{}).qa_notes;
+    return `<article class="card">
+      <div class="chips"><span class="chip br">${esc(f.handle||f.page)}</span><span class="chip info">${esc(STAGE_LABEL[st])}</span><span class="chip">${esc(f.duration||"")}s</span></div>
+      <h3>${esc(f.title)}</h3>
+      <p>${esc(f.premise)}</p>
+      ${f.gag?`<p><strong>Sem som:</strong> ${esc(f.gag)}</p>`:""}
+      ${media || `<p class="note">A imagem ainda não foi enviada ao painel. Ela aparece no próximo ciclo.</p>`}
+      ${qa?`<p class="note"><strong>Revisor de IA:</strong> ${esc(qa)}</p>`:""}
+      ${st==="video"&&f.caption?`<p class="note"><strong>Legenda:</strong> ${esc(f.caption)}</p>`:""}
+      <label>Motivo (obrigatório para refazer)<input data-notes="${esc(f.ref)}|${st}" placeholder="ex.: topete achatou no painel 3"></label>
+      <div class="row"><button class="btn sign" data-dec="approve" data-ref="${esc(f.ref)}" data-st="${st}">Aprovar</button><button class="btn ghost" data-dec="reject" data-ref="${esc(f.ref)}" data-st="${st}">Refazer</button></div>
+    </article>`;
+  }).join("");
+  host.querySelectorAll("[data-dec]").forEach(b => b.addEventListener("click", async () => {
+    const ref = b.dataset.ref, st = b.dataset.st, verdict = b.dataset.dec;
+    const notes = (host.querySelector(`[data-notes="${CSS.escape(ref+"|"+st)}"]`)||{}).value || "";
+    if (verdict === "reject" && !notes.trim()) { b.textContent = "Escreva o motivo"; return; }
+    b.disabled = true;
+    const id = ref.replace("/","--") + "--" + st + "--" + now();
+    const doc = { ref, stage:st, verdict, notes:notes.trim(), at:now(), applied:false };
+    try { await put("decisoes", id, doc); } catch(e){ b.disabled = false; b.textContent = "Não salvou: só quem edita o painel decide"; return; }
+    state.decisoes.push({ _id:id, ...doc }); renderCaixa();
+  }));
+}
+function renderFila(){
+  $("#n-fila").textContent = state.fila.filter(f => !["postado","descartado"].includes(f.state)).length;
+  const sel = $("#f-page"); const cur = sel.value;
+  const pages = [...new Set(state.fila.map(f => f.page))];
+  sel.innerHTML = `<option value="">Todas as páginas</option>` + pages.map(p => `<option ${p===cur?"selected":""}>${esc(p)}</option>`).join("");
+  const rows = state.fila.filter(f => !sel.value || f.page === sel.value);
+  const body = $("#fila");
+  if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="note">A fila está vazia. O próximo ciclo da automação cria as ideias do dia.</td></tr>`; return; }
+  body.innerHTML = rows.map(f => {
+    const gates = Object.entries(f.gates||{}).map(([k,g]) => `<span class="chip ${g.qa==="pass"?"ok":g.qa==="fail"?"bad":"warn"}" title="revisor de IA: ${esc(g.qa)} · Caio: ${esc(g.caio)}">${esc(k)} ${g.caio==="approved"?"✓":g.caio==="rejected"?"✗":"…"}</span>`).join(" ");
+    return `<tr><td>${esc(f.title)}<div class="note">${esc(f.premise).slice(0,120)}</div></td><td>${esc(f.page)}</td>
+      <td><span class="chip ${f.state==="pronto"?"ok":f.state==="descartado"||f.state==="erro"?"bad":"info"}">${esc(STATE_LABEL[f.state]||f.state)}</span></td>
+      <td>${gates||"—"}</td><td class="note">${new Date(f.updatedAt||0).toLocaleString("pt-BR")}</td></tr>`;
+  }).join("");
+}
+$("#f-page").addEventListener("change", renderFila);
+function renderPaginas(){
+  const host = $("#paginas");
+  if (!state.paginas.length) { host.innerHTML = `<div class="empty">As páginas aparecem aqui depois do primeiro ciclo da automação.</div>`; return; }
+  host.innerHTML = state.paginas.map(p => `<article class="card">
+    <div class="row" style="justify-content:space-between"><span class="ticker">${esc(p.name)}</span><span class="chip ${p.status==="ativo"?"ok":"warn"}">${esc(p.status)}</span></div>
+    <div class="chips"><span class="chip br">silhueta ${esc(p.silhouette)}</span><span class="chip">${esc(p.bpm)} BPM</span><span class="chip">${esc(p.handle)}</span></div>
+    <p><strong>Dança:</strong> ${esc(p.dance)}</p>
+    <p><strong>Assinatura:</strong> ${esc(p.signature)}</p>
+    <p><strong>Piada recorrente:</strong> ${esc(p.gag)}</p>
+    <p><strong>Mundo:</strong> ${esc(p.world)}</p>
+    <p><strong>Relação:</strong> ${esc(p.relationship)}</p>
+    <p class="note">${p.refsReady?"Ficha de referência pronta.":"Falta a ficha de referência (rosto + silhueta)."} ${p.status==="rascunho"?"Para ativar: aprovar a ficha e mudar status para ativo no page.yaml.":""}</p>
+  </article>`).join("");
+}
+function renderSaude(){
+  const s = state.saude, host = $("#saude");
+  if (!s) { host.innerHTML = `<div class="empty">Sem dados ainda. A automação grava a saúde a cada ciclo.</div>`; return; }
+  const sp = s.spend || {}; const pct = sp.month_pct || 0;
+  host.innerHTML = `
+    <article class="card"><span class="eyebrow">Gasto do mês</span><h2 style="font-family:var(--f-display);font-weight:400;font-size:28px">US$ ${esc(sp.month_usd)} <span class="note">de ${esc(sp.month_cap)}</span></h2>
+      <div style="height:8px;background:var(--line);border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.min(100,pct)}%;background:${pct>=80?"var(--bad)":pct>=50?"var(--warn)":"var(--ok)"}"></div></div>
+      <p class="note">Hoje: ${esc(Object.entries(sp.today||{}).map(([k,v]) => `${k} US$ ${Number(v).toFixed(2)}`).join(" · ") || "nada")}</p></article>
+    <article class="card"><span class="eyebrow">Último ciclo</span><h3>${new Date(s.at||0).toLocaleString("pt-BR")}</h3>
+      ${s.paused?`<p class="msg bad">Pausado: ${esc(s.paused)}</p>`:`<p class="msg ok">Rodando</p>`}
+      <p class="note">${esc(s.actions)} ações pendentes · ${esc((s.waiting||[]).length)} esperando você</p>
+      ${(s.notes||[]).map(n => `<p class="note">• ${esc(n)}</p>`).join("")}</article>
+    <article class="card"><span class="eyebrow">Livro-caixa (últimas)</span>${(s.ledger||[]).slice(-8).reverse().map(r => `<p class="note mono">${new Date(r.at*1000).toLocaleDateString("pt-BR")} ${esc(r.page)} ${esc(r.action)} US$ ${Number(r.usd).toFixed(2)}</p>`).join("") || `<p class="note">vazio</p>`}</article>`;
+  const posted = state.fila.filter(f => f.state === "postado" || f.state === "pronto");
+  $("#pl-item").innerHTML = posted.length ? posted.map(f => `<option value="${esc(f.ref)}">${esc(f.page)} · ${esc(f.title)}</option>`).join("") : `<option value="">Nenhum vídeo pronto ainda</option>`;
+  const body = $("#placar");
+  body.innerHTML = state.placar.length ? state.placar.map(r => `<tr><td>${esc(r.title||r.ref)}</td><td>${esc(r.views)}</td><td>${esc(r.shares)}</td><td>${r.views?((100*r.shares/r.views).toFixed(1)+"%"):"—"}</td><td>${esc(r.follows)}</td><td>${esc(r.ret3)}%</td></tr>`).join("") : `<tr><td colspan="6" class="note">Sem números ainda.</td></tr>`;
+}
+$("#b-placar").addEventListener("click", async () => {
+  const ref = $("#pl-item").value, m = $("#pl-msg");
+  if (!ref) { m.textContent = "Escolha um vídeo."; return; }
+  const f = state.fila.find(x => x.ref === ref) || {};
+  const doc = { ref, title:f.title||ref, page:f.page||"", views:Number($("#pl-views").value||0), shares:Number($("#pl-shares").value||0), follows:Number($("#pl-follows").value||0), ret3:Number($("#pl-ret").value||0), createdAt:now() };
+  try { await put("placar", ref.replace("/","--"), doc); m.textContent = "Salvo."; } catch(e){ m.textContent = "Não salvou: só quem edita o painel lança números."; }
+});
+
 /* ---------- boot ---------- */
-renderIdeas(); renderChars(); renderScripts(); renderJobs(); renderYt();
+renderIdeas(); renderChars(); renderScripts(); renderJobs(); renderYt(); renderCaixa(); renderFila(); renderPaginas(); renderSaude();
 (async () => {
   const c = window.claude;
   if (!c || !c.use) { ["#d-hf","#d-claude","#d-db"].forEach(s => $(s).classList.add("off")); return; }
@@ -638,6 +801,11 @@ renderIdeas(); renderChars(); renderScripts(); renderJobs(); renderYt();
     listen("scripts", "scripts", "createdAt", renderScripts);
     listen("jobs", "jobs", "createdAt", renderJobs);
     listen("analyses", "ytdocs", "createdAt", renderYt);
+    listen("fila", "fila", "updatedAt", () => { renderCaixa(); renderFila(); renderSaude(); });
+    listen("decisoes", "decisoes", "at", renderCaixa);
+    listen("placar", "placar", "createdAt", renderSaude);
+    S.db.collection("paginas").onSnapshot(snap => { state.paginas = snap.docs.map(d => ({ _id:d.id, ...d.data() })); renderPaginas(); }, () => {});
+    S.db.doc("saude/atual").onSnapshot(snap => { state.saude = snap.exists ? snap.data() : null; renderSaude(); }, () => {});
   }
 })();
 })();

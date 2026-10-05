@@ -28,3 +28,8 @@ cost_estimates:
     kling3_0_per_s: 2
     hf_mult_motion_control_per_s: 8
     gpt_image_2_5: 2
+# Interruptores do Caio (05/10): "não gera vídeos no Higgsfield ainda" e "use a API do ChatGPT pra imagens".
+switches:
+  video_enabled: false        # true libera o envio de vídeos ao Higgsfield
+  image_provider: openai      # openai (API do ChatGPT) | higgsfield (fallback com o mesmo modelo GPT Image)
+  image_fallback_allowed: false
