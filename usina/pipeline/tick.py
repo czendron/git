@@ -14,6 +14,11 @@ from .store import Item, Page, list_items, load_pages
 ACTIVE = ["ideia", "roteiro", "storyboard", "frames", "video", "revisao", "pronto"]
 CALIBRATION_DAYS = 14
 BUFFER_DAYS = 3  # quantos dias de posts manter no estoque (ideias em produção + prontos)
+TREND_MAX_AGE_DAYS = 7  # ata D7 (radar): trend com menos de 7 dias; esperando a fonte há mais que isso, morreu
+TREND_CAP = 0.30        # ata D7: no máximo 30% de trend por página em 30 dias
+# Ações que geram gasto novo: param quando a página passa do estoque (ata D5). Poll/fetch/revisão/pacote seguem,
+# senão um vídeo já pago ficaria sem buscar.
+SPENDING = {"new_ideas", "video_submit", "write_script"}
 
 
 def needs_caio(page: Page, stage: str, now: float | None = None) -> bool:
@@ -21,12 +26,17 @@ def needs_caio(page: Page, stage: str, now: float | None = None) -> bool:
     if stage == "video":
         return True
     launched = page.data.get("launched_at")
-    if not launched:
-        return True
     now = now or time.time()
-    try:
-        ts = time.mktime(time.strptime(str(launched), "%Y-%m-%d"))
-    except ValueError:
+    ts = None
+    if launched:
+        try:
+            ts = time.mktime(time.strptime(str(launched), "%Y-%m-%d"))
+        except ValueError:
+            return True
+    else:  # sem launched_at no page.yaml, a estreia é o 1º post registrado (`posted`)
+        posted = [i.post.get("posted_at") for i in list_items(page.slug) if i.state == "postado" and i.post.get("posted_at")]
+        ts = min(posted) if posted else None
+    if ts is None:
         return True
     return (now - ts) < CALIBRATION_DAYS * 86400
 
@@ -57,7 +67,10 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                             f"out/scripts/{item.id}.json e rode `{cmd} save-script {pid} out/scripts/{item.id}.json`."})
     elif st == "roteiro" and item.script.get("format") == "trend":
         mo = item.motion or {}
-        if not mo.get("first_frame"):
+        if not mo.get("first_frame") and now - item.created_at > TREND_MAX_AGE_DAYS * 86400:
+            acts.append({"do": "discard", "item": pid,
+                         "how": f"{cmd} discard {pid} --why 'trend sem vídeo-fonte há mais de {TREND_MAX_AGE_DAYS} dias'"})
+        elif not mo.get("first_frame"):
             acts.append({"do": "await_caio", "item": pid, "stage": "fonte",
                          "how": f"Trend precisa do vídeo-fonte (.mp4, 1 pessoa, corpo inteiro, câmera parada, 8-10 s): "
                                 f"motion library do Higgsfield ou trend recortada. `{cmd} motion-source {pid} --file fonte.mp4`"})
@@ -117,9 +130,17 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                 acts.append({"do": "blocked", "item": pid, "why": "vídeo desligado em budget.yaml (switches.video_enabled)"})
                 return acts
             credits = _est_video_credits(item, b)
-            usd = credits * float(b.get("higgsfield_credit_usd", 0.05))
-            ok, why = budget.can_spend("higgsfield", usd, now)
-            if not ok:
+            ok, why = budget.can_spend_higgsfield(credits, now)
+            bst, _ = budget.balance_status(now)
+            if item.script.get("format") == "trend" and budget.degraded_mode(now):
+                acts.append({"do": "blocked", "item": pid,
+                             "why": "acima de 80% do teto do mês: Genjutsu/motion control cortado (ata D5)"})
+            elif not ok and bst in ("unknown", "stale") and budget.can_spend(
+                    "higgsfield", credits * float(b.get("higgsfield_credit_usd", 0.05)), now)[0]:
+                acts.append({"do": "check_balance", "item": pid,
+                             "how": "mcp__Higgsfield__balance e depois `python -m pipeline balance <créditos>`; "
+                                    "rode `plan` de novo"})
+            elif not ok:
                 acts.append({"do": "blocked", "item": pid, "why": why})
             elif att.get("video", 0) >= b["per_idea"]["max_video_attempts"]:
                 acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'limite de tentativas de vídeo'"})
@@ -174,6 +195,17 @@ def plan(now: float | None = None) -> dict:
                             f"Parando geração de vídeo; revise playbook/falhas.md.")
     if budget.degraded_mode(now):
         out["notes"].append("Acima de 80% do teto mensal: só 720p, sem Genjutsu.")
+    elif s.month_pct >= min(b.get("alerts_pct", [50])):
+        out["notes"].append(f"Aviso: {s.month_pct:.0f}% do teto do mês já gasto (ata D5).")
+    h = budget.health()
+    if h.get("consecutive_errors"):
+        out["notes"].append(f"{h['consecutive_errors']} erro(s) seguido(s) registrado(s) "
+                            f"(pausa sozinho em {b.get('max_consecutive_errors', 3)}).")
+    bst, est = budget.balance_status(now)
+    out["balance"] = {"status": bst, "credits_est": est, "min": b.get("min_higgsfield_credits")}
+    if bst == "low":
+        out["notes"].append(f"Saldo do Higgsfield ~{est:.0f} créditos, abaixo de {b.get('min_higgsfield_credits')}: "
+                            f"vídeo parado (ata D5). Peça recarga ao Caio.")
 
     import os
     sw = b.get("switches", {})
@@ -185,18 +217,32 @@ def plan(now: float | None = None) -> dict:
     for page in load_pages(include_drafts=False):
         items = [i for i in list_items(page.slug) if i.state in ACTIVE]
         ready = [i for i in items if i.state == "pronto"]
-        if len(ready) >= b["max_unposted_per_page"]:
-            out["notes"].append(f"{page.slug}: {len(ready)} prontos sem postar; não gero mais.")
-            continue
+        # ata D5: "mais de 5 vídeos prontos e não postados na página: para de gerar" (gasto novo; o resto segue)
+        full = len(ready) > b["max_unposted_per_page"]
+        if full:
+            out["notes"].append(f"{page.slug}: {len(ready)} prontos sem postar (> {b['max_unposted_per_page']}); "
+                                f"não gero mais até o Caio postar.")
         target = int(page.data.get("cadence", {}).get("posts_per_day", 1)) * BUFFER_DAYS
         missing = target - len(items)
-        if missing > 0:
-            out["actions"].append({"do": "new_ideas", "page": page.slug, "count": missing,
+        if missing > 0 and not full:
+            recent = [i for i in list_items(page.slug) if i.script and now - i.created_at < 30 * 86400
+                      and i.state != "descartado"]
+            share = (sum(1 for i in recent if i.script.get("format") == "trend") / len(recent)) if recent else 0.0
+            mix = (f" Mix da ata D7: 60% próprio, 25% trend, 15% série/crossover; trend nos últimos 30 dias: "
+                   f"{share:.0%} (teto {TREND_CAP:.0%}).")
+            if share >= TREND_CAP:
+                mix += " NÃO crie trend agora."
+            out["actions"].append({"do": "new_ideas", "page": page.slug, "count": missing, "trend_share_30d": round(share, 2),
                                    "how": f"Escolha {missing} ideia(s) (radar, pauta ou roteiros de crossover) e crie com "
-                                          f"`python -m pipeline new {page.slug} 'título' --idea '...'`"})
+                                          f"`python -m pipeline new {page.slug} 'título' --idea '...'`.{mix}"})
         for it in sorted(items, key=lambda i: ACTIVE.index(i.state), reverse=True):
             for a in plan_item(it, page, b, now):
-                if a["do"] == "await_caio":
+                if full and (a["do"] in SPENDING or a.get("provider")):
+                    continue
+                if a["do"] == "check_balance":
+                    if not any(x["do"] == "check_balance" for x in out["actions"]):
+                        out["actions"].insert(0, {k: v for k, v in a.items() if k != "item"})
+                elif a["do"] == "await_caio":
                     out["waiting_caio"].append(a)
                 elif out.get("images_blocked") and a.get("provider") == "openai":
                     out["notes"].append(f"{a['item']}: imagem esperando a OPENAI_API_KEY.")
@@ -204,4 +250,11 @@ def plan(now: float | None = None) -> dict:
                     out["notes"].append(f"{a['item']}: vídeo segurado pelo aproveitamento baixo.")
                 else:
                     out["actions"].append(a)
+    try:
+        from .placar import cadence_check
+        for c in cadence_check(now):
+            if c["trigger"]:
+                out["notes"].append(c["suggestion"])
+    except Exception as e:  # noqa: BLE001 - o placar nunca derruba o plano
+        out["notes"].append(f"placar ilegível: {e}")
     return out

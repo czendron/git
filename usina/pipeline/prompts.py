@@ -322,8 +322,9 @@ def motion_frame_prompt(script: dict, page: Page) -> str:
         f"Keep the exact pose, body position, framing, camera angle and lens of image 1. Place the scene in: "
         f"{en['location']}. {en['lighting']}",
         f"The {part} is fully inside the frame with 10% headroom above it. {DEADPAN_FRAME}",
-        f"Background: exactly {en['extras_count']} ordinary passersby busy with their own tasks — {en['extras_tasks']} — "
-        f"none of them looking at {obj}, all of them away from {pos} dance path.",
+        (f"Background: {crowd(en['extras_count'])}, ordinary people busy with their own tasks — {en['extras_tasks']} — "
+         f"none of them looking at {obj}, all of them away from {pos} dance path." if int(en.get("extras_count") or 0)
+         else f"Remove everyone else: {sub} is the only person in the photograph."),
         "Must look like a real vertical smartphone photo taken in that place: real skin texture, natural exposure, "
         "everything sharp. Exactly one main character. No text, no captions, no watermarks.",
     ])

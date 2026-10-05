@@ -21,6 +21,9 @@ def usina(tmp_path):
     bt = (root / "budget.yaml").read_text().replace("video_enabled: false", "video_enabled: true")
     (root / "budget.yaml").write_text(bt)
     (root / "data" / "queue").mkdir(parents=True)
+    import time
+    # saldo do Higgsfield lido agora (ata D5: sem saldo conhecido, o vídeo não sai); testes de saldo sobrescrevem
+    (root / "data" / "health.json").write_text(json.dumps({"balance": {"credits": 5000, "at": time.time()}}))
     from PIL import Image
     refs = root / "pages" / "gersinho" / "refs"
     refs.mkdir(parents=True, exist_ok=True)

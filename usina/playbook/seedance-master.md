@@ -236,7 +236,7 @@ Notas:
 ### C5. Motion control para trend (Kling 3.0 MC / Genjutsu)
 
 **Escolha:**
-- **Kling 3.0 Motion Control:** MCP `motion_control` (`image_id`, `motion_video_id`, `scene_control`) ou CLI workflow `kling3_0_motion_control` (`mode std|pro`, `background_source input_image|input_video`). Tem prompt de cena e **permite usar o cenário da imagem**. Nós sempre usamos o nosso cenário (ata D7), então o padrão é este, com `background_source = input_image`.
+- **Kling 3.0 Motion Control:** MCP `motion_control` (`image_id`, `motion_video_id`, `scene_control`) ou CLI workflow `kling3_0_motion_control` (`mode std|pro`, `background_source input_image|input_video`). Tem prompt de cena e **permite usar o cenário da imagem**. Nós sempre usamos o nosso cenário (ata D7): no Kling, isso é `background_source = input_image`. Desde 05/10 fica como A/B do Genjutsu, que é o padrão do pipeline (`video-request` de trend).
 - **Genjutsu (`hf_mult_motion_control`, via `generate_video`):** usa `image_references` + `video_references` + **prompt de cena**. Corrigido em 05/10 pelo tutorial assistido (`videos-analisados.md` §3): ele aceita a descrição de ambiente, câmera e visual, sai em até 1080p, preserva caminhada, tremor e timing da fonte, e aceita 2 personagens. A fonte pode vir da **motion library** do Higgsfield. Use como padrão para trend quando quiser manter tudo dentro do Higgsfield; o Kling MC fica como A/B. Nunca use a ferramenta legada `motion_control` para o Genjutsu.
 
 **Requisitos do vídeo-fonte** (`higgsfield-motion` § Motion Reference Input Checklist; `higgsfield-troubleshoot` § MC Failures):
@@ -255,7 +255,7 @@ Notas:
 ```
 Keep the scene, lighting and passersby from the character image. Overcast midday daylight at a São Paulo bus stop, smartphone video look, everything sharp. The man's giant black pompadour is a rigid lacquered solid that moves only as one block with his head and keeps its exact outline. His face stays deadpan: lips closed, lip corners level, eyes toward the lens. Exactly 5 passersby continue their own tasks; none looks at him. Real-time speed.
 ```
-Orientação: `Video Orientation` / `Matches Video` (corpo inteiro dançando). **O gag vem depois:** pegue o último frame do clipe de MC como `start_image` de um clipe de 4–5 s no Seedance 2.5 (C4, só os stages 3 e 4) e emende os dois.
+Orientação: `Video Orientation` / `Matches Video` (corpo inteiro dançando). **O gag vem depois:** pegue o último frame do clipe de MC como `start_image` de um clipe de 4–5 s no Seedance 2.5 (C4, só os stages 3 e 4) e emende os dois. *(Ainda manual: o pipeline gera só o clipe de motion control; ver `docs/qa/rodada-2.md`, sugestão 3.)*
 
 ### C6. Prompt de reparo
 

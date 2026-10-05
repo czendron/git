@@ -13,6 +13,10 @@ Comandos principais:
   retry <page/id> storyboard|frames|video | discard <page/id> --why "..."
   video-request <page/id> | record-video <page/id> [--job ...] [--url ...] [--credits n]
   fetch-video <page/id> [--file local.mp4] | package <page/id> | posted <page/id> [--link]
+  motion-source <page/id> --file fonte.mp4 | --hf-id <id>               (trend: vídeo-fonte do motion control)
+  media-status [--ref] | media-restore <page/id> <key> --file f | panel-asset <page/id> <key> /_blob/<id> [--path]
+  panel-export | panel-apply decisoes.json | placar-import placar.json | cadence-check
+  record-error "msg" [--ref] | balance <créditos> | health
   pause "motivo" | resume | ledger
 """
 from __future__ import annotations
@@ -27,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import budget, images, lint as lintmod, media, prompts
+from . import budget, images, lint as lintmod, media, placar, prompts
 from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, local, new_item, rel, slugify
 
 FAILS = ROOT / "playbook" / "falhas.md"
@@ -58,7 +62,8 @@ def _need_state(it, allowed, what: str, force: bool = False) -> None:
 
 
 # Assets do painel que ficam velhos quando a etapa é refeita (senão a Caixa mostra a imagem da versão anterior).
-STALE_ASSETS = {"storyboard": ["storyboard"], "frames": ["start", "end"], "video": ["sheet", "gag", "cover"]}
+STALE_ASSETS = {"storyboard": ["storyboard"], "frames": ["start", "end"],
+                "video": ["sheet", "gag", "cover", "video", "last"]}
 
 
 def _clear_assets(it, *stages: str) -> None:
@@ -227,6 +232,20 @@ def cmd_image(a):
     if provider == "higgsfield":
         # Fallback: mesmo modelo (GPT Image 2.5) via MCP do Higgsfield; a sessão executa e registra.
         ids = _hf_ref_ids(page)
+        n_req = 1 if stage == "frames" else len(jobs)
+        ok, why = budget.can_spend_higgsfield(
+            n_req * b["cost_estimates"]["higgsfield_credits"].get("gpt_image_2_5", 2))
+        if not ok:
+            raise StoreError(why)
+        trend_first = None
+        if stage == "frames" and it.script.get("format") == "trend":
+            trend_first = (it.motion or {}).get("first_frame_hf_id")
+            if not trend_first:  # o prompt edita o 1º frame da fonte: sem ele como image 1, o rosto vira a "fonte"
+                _print({"ready": False, "upload_first": [{"key": "source_first", "path": it.motion.get("first_frame"),
+                                                           "type": "image"}],
+                        "how": "media_upload + PUT + media_confirm(type='image') e depois "
+                               f"`python -m pipeline record-upload {a.ref} source_first --hf-id <id>`; rode de novo."})
+                return
         reqs = []
         for key, prompt, size, extra in jobs:
             if hf_second and key != "end":
@@ -236,6 +255,8 @@ def cmd_image(a):
             medias = [{"role": "image_references", "value": i} for i in ids]
             if key == "end":  # image 1 = frame A, image 2 = rosto, image 3 = silhueta (playbook C2)
                 medias = [{"role": "image_references", "value": it.frames["start"]["higgsfield_id"]}] + medias
+            elif trend_first:  # image 1 = 1º frame da fonte, depois rosto e silhueta (videos-analisados §2)
+                medias = [{"role": "image_references", "value": trend_first}] + medias
             elif stage == "frames" and it.storyboard.get("higgsfield_id"):
                 medias.append({"role": "image_references", "value": it.storyboard["higgsfield_id"]})
             reqs.append({"key": key, "params": {
@@ -298,8 +319,8 @@ def cmd_record_image(a):
     same_round = it.state == a.stage and it.gates.get(a.stage, {}).get("qa") == "pending"
     if a.stage == "storyboard":
         same_round = False
-    elif not same_round:
-        _need_state(it, ["storyboard"], "record-image frames")
+    elif not same_round:  # trend não tem storyboard: o frame sai direto do roteiro (edição do 1º frame da fonte)
+        _need_state(it, ["roteiro"] if it.script.get("format") == "trend" else ["storyboard"], "record-image frames")
     if a.stage == "storyboard":
         _need_state(it, ["roteiro"], "record-image storyboard")
     v = it.attempts.get(a.stage, 0) + (0 if same_round else 1)
@@ -329,10 +350,22 @@ def cmd_record_image(a):
 
 def cmd_record_upload(a):
     page, it = _item(a.ref)
-    if a.key == "storyboard":
+    if a.key == "source_first":
+        if not (it.motion or {}).get("first_frame"):
+            raise StoreError("trend sem fonte registrada: rode motion-source --file antes")
+        it.motion["first_frame_hf_id"] = a.hf_id
+    elif a.key == "source":
+        raise StoreError("o vídeo-fonte se registra com `motion-source <ref> --hf-id <id>`")
+    elif a.key == "storyboard":
+        if not it.storyboard:
+            raise StoreError("item sem storyboard para associar ao upload")
         it.storyboard["higgsfield_id"] = a.hf_id
+    elif a.key in ("start", "end"):
+        if not it.frames.get(a.key):  # senão nasceria um frame "fantasma" só com id (ex.: end num roteiro sem end)
+            raise StoreError(f"item sem frame '{a.key}' gerado; nada para associar ao upload")
+        it.frames[a.key]["higgsfield_id"] = a.hf_id
     else:
-        it.frames.setdefault(a.key, {})["higgsfield_id"] = a.hf_id
+        raise StoreError("key deve ser storyboard, start, end ou source_first")
     it.save()
     print("registrado")
 
@@ -406,9 +439,17 @@ def cmd_video_request(a):
     b = budget.load_budget()
     rate_key = "hf_mult_motion_control_per_s" if s.get("format") == "trend" else "seedance_2_5_720p_per_s"
     est = float(s.get("duration_s", 10)) * b["cost_estimates"]["higgsfield_credits"][rate_key]
-    ok, why = budget.can_spend("higgsfield", est * float(b.get("higgsfield_credit_usd", 0.05)))
+    if s.get("format") == "trend" and budget.degraded_mode():
+        raise StoreError("acima de 80% do teto do mês: Genjutsu/motion control cortado (ata D5)")
+    ok, why = budget.can_spend_higgsfield(est)
     if not ok:
         raise StoreError(why)
+    cap = b["per_idea"]
+    if it.attempts.get("video", 0) >= cap["max_video_attempts"]:
+        raise StoreError(f"ideia já usou {cap['max_video_attempts']} tentativas de vídeo (ata D5): descarte")
+    spent = budget.item_spend(it.page, it.id)["credits"]
+    if spent + est > float(cap.get("max_credits", 1e9)):
+        raise StoreError(f"ideia já gastou {spent:.0f} créditos; +{est:.0f} passaria do teto de {cap['max_credits']} (ata D5)")
     if s.get("format") == "trend":
         return _video_request_trend(a, page, it, b)
     need_upload, medias = [], []
@@ -491,47 +532,76 @@ def _video_request_trend(a, page, it, b):
 
 
 def cmd_motion_source(a):
-    """Registra o vídeo-fonte de uma trend: arquivo local (extrai o 1º frame) e/ou id no Higgsfield."""
+    """Registra o vídeo-fonte de uma trend: arquivo local (extrai o 1º frame) e/ou id no Higgsfield.
+
+    Fonte nova = frames velhos inválidos (o frame do personagem é edição do 1º frame da fonte) e upload velho
+    inválido (o id apontaria para a fonte anterior). Por isso: arquivo versionado, id limpo e volta para roteiro.
+    """
     page, it = _item(a.ref)
     if it.script.get("format") != "trend":
         raise StoreError("motion-source só vale para roteiro com format 'trend'")
     mo = dict(it.motion or {})
     if a.file:
+        if it.state != "roteiro":
+            _need_state(it, ["roteiro"], "motion-source --file (fonte nova invalida os frames)", a.force)
         src = Path(a.file)
         info = media.probe(src)
-        if info["duration"] > 30:
-            raise StoreError(f"fonte com {info['duration']:.0f}s: corte no trecho da coreografia (até 10-15 s)")
-        wd = _workdir(it)
-        dst = wd / f"source{src.suffix or '.mp4'}"
-        if src.resolve() != dst.resolve():
-            shutil.copy(src, dst)
-        first = media.frame_at(dst, 0.05, wd / "source-first.jpg")
-        cuts = media.detect_cuts(dst)
-        mo.update({"source_path": rel(dst), "first_frame": rel(first), "duration": info["duration"],
-                   "cuts": cuts, "size": [info["width"], info["height"]]})
-        warns = []
+        cuts = media.detect_cuts(src)
+        problems = []
+        if not 3 <= info["duration"] <= 15:
+            problems.append(f"fonte com {info['duration']:.1f}s: corte no trecho da coreografia (3-15 s, ideal 8-10 s)")
         if cuts:
-            warns.append(f"a fonte tem cortes em {cuts}: o motion control quer um plano contínuo (playbook C5)")
+            problems.append(f"a fonte tem cortes em {cuts}: o motion control quer um plano contínuo (playbook C5)")
+        if problems and not a.force:
+            raise StoreError("; ".join(problems) + " (use --force se for intencional)")
+        n = int(mo.get("v", 0)) + 1
+        wd = _workdir(it)
+        dst = wd / f"source-v{n}{src.suffix or '.mp4'}"
+        shutil.copy(src, dst)
+        first = media.frame_at(dst, 0.05, wd / f"source-v{n}-first.jpg")
+        mo = {"v": n, "source_path": rel(dst), "first_frame": rel(first), "duration": info["duration"],
+              "cuts": cuts, "size": [info["width"], info["height"]],
+              "history": (mo.get("history") or []) + ([{k: v for k, v in mo.items() if k != "history"}]
+                                                     if mo.get("source_path") else [])}
+        warns = problems[:] if a.force else []
         if info["duration"] > 12:
             warns.append("fonte longa: o ideal é 8-10 s")
         if info["width"] > info["height"]:
             warns.append("fonte horizontal: prefira 9:16")
         for w in warns:
             print(f"aviso: {w}")
+        if it.state != "roteiro":
+            it.frames = {}
+            it.gates.pop("frames", None)
+            it.gates.pop("video", None)
+            _clear_assets(it, "frames", "video")
+            it.attempts["frames"] = 0  # frame novo sobre fonte nova: as reprovações da fonte velha não contam
+            it.set_state("roteiro", "fonte nova da trend")
+        it.script["duration_s"] = round(float(info["duration"]), 1)
     if a.hf_id:
+        if not mo.get("source_path") and not a.file and not a.force:
+            raise StoreError("registre o arquivo da fonte antes (--file), ou use --force para só o id")
         mo["source_hf_id"] = a.hf_id
     it.motion = mo
-    if mo.get("duration"):
-        it.script["duration_s"] = round(float(mo["duration"]), 1)
     it.save()
     print(f"fonte registrada: {mo.get('source_path', '')} {mo.get('source_hf_id', '')}".strip())
 
 
 def cmd_record_video(a):
     page, it = _item(a.ref)
+    if a.refunded and a.failed is None:
+        return _refund(it, a.job or (it.video.get("history") or [{}])[-1].get("job_id"))
     if a.failed is not None:
         # job do Higgsfield falhou (failed/nsfw/cancelado): sem isso o item ficaria preso em video_poll para sempre
+        last = (it.video.get("history") or [{}])[-1]
+        if it.state != "video" and last.get("failed") is not None and (not a.job or last.get("job_id") == a.job):
+            print(f"falha do job {last.get('job_id')} já registrada (não conta de novo)")
+            if a.refunded:
+                _refund(it, last.get("job_id"))
+            return
         _need_state(it, ["video"], "record-video --failed")
+        if a.job and it.video.get("job_id") and a.job != it.video.get("job_id"):
+            raise StoreError(f"o job atual é {it.video.get('job_id')}, não {a.job}")
         it.video = {"history": it.video.get("history", []) + [{**{k: v for k, v in it.video.items() if k != "history"},
                                                                  "failed": a.failed or "falhou"}]}
         it.gates["video"] = {"qa": "pending", "caio": "pending"}
@@ -541,6 +611,8 @@ def cmd_record_video(a):
         it.set_state("frames", "job de vídeo falhou")
         it.save()
         print("falha registrada; volta para frames (conta como tentativa)")
+        if a.refunded:
+            _refund(it, it.video["history"][-1].get("job_id"))
         return
     if a.job:
         known = [it.video.get("job_id")] + [h.get("job_id") for h in it.video.get("history", [])]
@@ -550,7 +622,8 @@ def cmd_record_video(a):
     if a.job:
         _need_state(it, ["frames"], "record-video --job")
         it.attempts["video"] = it.attempts.get("video", 0) + 1
-        it.video.update({"job_id": a.job, "provider": "higgsfield", "model": "seedance_2_5", "submitted_at": time.time()})
+        model = "hf_mult_motion_control" if it.script.get("format") == "trend" else "seedance_2_5"
+        it.video.update({"job_id": a.job, "provider": "higgsfield", "model": model, "submitted_at": time.time()})
         it.gates["video"] = {"qa": "pending", "caio": "pending"}
         if it.state != "video":
             it.set_state("video", f"vídeo v{it.attempts['video']} enviado")
@@ -563,6 +636,27 @@ def cmd_record_video(a):
         it.video["url"] = a.url
     it.save()
     print("registrado")
+
+
+def _refund(it, job: str | None) -> None:
+    """Estorno: o Higgsfield devolveu os créditos do job falho. Lança o negativo do que foi lançado no envio,
+    para a falha do provedor não comer o teto da ideia (160) nem o diário. Uma vez por job."""
+    if not job:
+        raise StoreError("qual job? use --job <id>")
+    hist = [h.get("job_id") for h in it.video.get("history", []) if h.get("failed") is not None]
+    if job not in hist:
+        raise StoreError(f"o job {job} não está registrado como falho neste item (rode --failed antes)")
+    rows = [r for r in budget.rows() if r.get("job_id") == job and r.get("item") == it.id]
+    if any(r["action"] == "video_refund" for r in rows):
+        print(f"estorno do job {job} já lançado")
+        return
+    cr = sum(float(r.get("credits") or 0) for r in rows if r["action"] == "video_submit")
+    usd = sum(float(r.get("usd") or 0) for r in rows if r["action"] == "video_submit")
+    if not cr and not usd:
+        print(f"nada a estornar para {job}")
+        return
+    budget.record(it.page, it.id, "higgsfield", "video_refund", credits=-cr, usd=-usd, job_id=job, note="estorno")
+    print(f"estorno lançado: -{cr:g} créditos (job {job})")
 
 
 def _download(url: str, dst: Path) -> bool:
@@ -773,7 +867,11 @@ def cmd_panel_export(a):
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
         "actions": len(pl["actions"]), "waiting": [w["item"] + " · " + w["stage"] for w in pl["waiting_caio"]],
-        "ledger": budget.rows()[-15:]}})
+        "ledger": budget.rows()[-15:], "balance": pl.get("balance"),
+        "errors": {"consecutive": budget.health().get("consecutive_errors", 0),
+                   "max": budget.load_budget().get("max_consecutive_errors", 3),
+                   "last": budget.health().get("errors", [])[-5:]},
+        "cadence": placar.cadence_check()}})
     out = OUT / "panel" / "batch.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     for old in out.parent.glob("batch-*.json"):
@@ -786,7 +884,9 @@ def cmd_panel_export(a):
           f"out/panel/batch-NN.json; documentos já existentes precisam do if_version lido antes)")
 
 
-MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last")
+MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last", "source", "source_first")
+MAGIC = {".png": [b"\x89PNG"], ".jpg": [b"\xff\xd8\xff"], ".jpeg": [b"\xff\xd8\xff"],
+         ".mp4": [b"ftyp"], ".mov": [b"ftyp"], ".m4v": [b"ftyp"]}
 
 
 def _media_paths(it) -> dict:
@@ -801,6 +901,10 @@ def _media_paths(it) -> dict:
     for k, f in (("video", "path"), ("sheet", "sheet"), ("gag", "gag_sheet"), ("last", "last")):
         if v.get(f):
             out[k] = v[f]
+    mo = it.motion or {}  # trend: sem a fonte e o 1º frame, a sessão seguinte não gera o frame nem sobe a fonte
+    for k, f in (("source", "source_path"), ("source_first", "first_frame")):
+        if mo.get(f):
+            out[k] = mo[f]
     return {k: rel(p) for k, p in out.items()}
 
 
@@ -811,18 +915,29 @@ def cmd_panel_asset(a):
     o arquivo numa sessão nova (out/ não vai para o git).
     """
     page, it = _item(a.ref)
+    path = _media_paths(it).get(a.key, "")
+    if a.path and rel(a.path) != path:
+        # o arquivo subido é de outra versão (a etapa foi refeita entre o media-status e o upload)
+        raise StoreError(f"{a.ref} {a.key}: o arquivo subido ({rel(a.path)}) não é mais o atual ({path or 'nenhum'}); "
+                         f"rode media-status de novo")
+    # O id do asset (32 hex) vem em --asset-id ou dentro da url devolvida pelo Artifact (ex.: /_blob/<id>).
+    m = re.fullmatch(r"[0-9a-fA-F]{32}", a.asset_id or "") or re.search(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])",
+                                                                          a.url or "")
+    asset = m.group(1 if m.re.groups else 0).lower() if m else ""
+    if a.key in MEDIA_KEYS and not path:
+        raise StoreError(f"{a.ref} não usa mídia '{a.key}' agora")
     it.post.setdefault("assets", {})[a.key] = a.url
-    m = re.search(r"/_blob/([0-9a-f]{32})", a.url or "")
-    if m:
-        path = _media_paths(it).get(a.key, "")
-        it.post.setdefault("media", {})[a.key] = {"asset": m.group(1), "path": path}
+    if asset:
+        it.post.setdefault("media", {})[a.key] = {"asset": asset, "path": path}
+    elif a.key in MEDIA_KEYS:
+        print("aviso: sem id de asset (32 hex) na url nem em --asset-id: a mídia NÃO fica arquivada", file=sys.stderr)
     it.save()
     print("ok")
 
 
 def cmd_media_status(a):
     """O que subir (existe local, sem asset) e o que restaurar (sumiu do disco, tem asset) para os itens ativos."""
-    upload, restore = [], []
+    upload, restore, lost = [], [], []
     for it in list_items():
         if a.ref and f"{it.page}/{it.id}" != a.ref:
             continue
@@ -832,15 +947,28 @@ def cmd_media_status(a):
         for key, path in _media_paths(it).items():
             rec = media.get(key) or {}
             exists = local(path).exists()
+            ref = f"{it.page}/{it.id}"
             if exists and rec.get("path") != path:
-                upload.append({"ref": f"{it.page}/{it.id}", "key": key, "file": str(local(path))})
+                up = {"ref": ref, "key": key, "file": str(local(path)), "path": path}
+                if local(path).stat().st_size > 15 * 1024 * 1024:  # limite de arquivo binário do asset store
+                    up["warn"] = "maior que 15 MB: o asset store recusa; comprima uma cópia só para o arquivo"
+                upload.append(up)
             elif not exists and rec.get("asset") and rec.get("path") == path:
-                restore.append({"ref": f"{it.page}/{it.id}", "key": key, "asset_id": rec["asset"], "to": path})
-    _print({"upload": upload, "restore": restore,
+                restore.append({"ref": ref, "key": key, "asset_id": rec["asset"], "to": path})
+            elif not exists:
+                # sumiu e o arquivo guardado (se houver) é de outra versão: não restaurar o velho no lugar do novo
+                lost.append({"ref": ref, "key": key, "path": path, "archived_version": rec.get("path") or None,
+                             "fix": f"refaça a etapa (retry {ref} {_stage_of(key)} --force) ou restaure à mão"})
+    _print({"upload": upload, "restore": restore, "lost": lost,
             "how_upload": "Artifact(url=<painel>, asset=true, file_paths=[...]) e depois "
-                          "`python -m pipeline panel-asset <ref> <key> /_blob/<id>` para cada arquivo",
+                          "`python -m pipeline panel-asset <ref> <key> /_blob/<id> --path <path>` para cada arquivo",
             "how_restore": "Artifact(action='read', url=<painel>, path=<asset_id>) e depois "
                            "`python -m pipeline media-restore <ref> <key> --file <arquivo salvo>`"})
+
+
+def _stage_of(key: str) -> str:
+    return {"storyboard": "storyboard", "start": "frames", "end": "frames", "source": "frames",
+            "source_first": "frames"}.get(key, "video")
 
 
 def cmd_media_restore(a):
@@ -848,9 +976,21 @@ def cmd_media_restore(a):
     path = _media_paths(it).get(a.key)
     if not path:
         raise StoreError(f"{a.ref} não usa mídia '{a.key}'")
+    rec = (it.post.get("media") or {}).get(a.key) or {}
+    if rec.get("path") != path and not a.force:
+        # o asset guardado é de uma versão anterior (ex.: storyboard v1 com o item já no v2)
+        raise StoreError(f"o arquivo guardado de '{a.key}' é {rec.get('path') or 'nenhum'}, mas o item usa {path}: "
+                         f"restaurar trocaria a versão em silêncio (use --force se for isso mesmo)")
+    src = Path(a.file)
+    if not src.is_file() or src.stat().st_size == 0:
+        raise StoreError(f"{a.file} vazio ou inexistente (o download do asset falhou?)")
+    head = src.read_bytes()[:16]
+    sigs = MAGIC.get(Path(path).suffix.lower())
+    if sigs and not any(head.startswith(sg) or sg in head for sg in sigs):
+        raise StoreError(f"{a.file} não parece um {Path(path).suffix} (cabeçalho {head[:8]!r}): asset errado?")
     dst = local(path)
     dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy(a.file, dst)
+    shutil.copy(src, dst)
     print(f"restaurado: {path}")
 
 
@@ -876,7 +1016,14 @@ def cmd_panel_apply(a):
     except (OSError, json.JSONDecodeError) as e:
         raise StoreError(f"não consegui ler {a.file}: {e}")
     done, stale, invalid = [], [], []
-    for r in _decision_rows(raw):
+
+    def _at(r):
+        d = r.get("data") if isinstance(r, dict) and isinstance(r.get("data"), dict) else r
+        try:
+            return float(d.get("at") or 0) if isinstance(d, dict) else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+    for r in sorted(_decision_rows(raw), key=_at):  # em ordem: pausar e depois retomar termina retomado
         if not isinstance(r, dict):
             print(f"ignorado (não é documento): {r!r}"[:200])
             continue
@@ -885,6 +1032,35 @@ def cmd_panel_apply(a):
         if d.get("applied"):
             continue
         ref, stage, verdict = d.get("ref"), d.get("stage"), d.get("verdict")
+        if stage == "usina" and verdict in ("pause", "resume"):  # kill switch da aba Saúde (ata D2/D8)
+            if verdict == "pause":
+                budget.PAUSE_FILE.write_text(f"pausado pelo Caio no painel: {d.get('notes') or 'sem motivo'}",
+                                             encoding="utf-8")
+            else:
+                if budget.PAUSE_FILE.exists():
+                    budget.PAUSE_FILE.unlink()
+                budget.reset_errors()
+            print(f"usina: {verdict}")
+            if did:
+                done.append(did)
+            continue
+        if stage == "ideia" and verdict == "reject":  # veto de pauta (ata D3): descarta antes de gastar
+            try:
+                page, it = _item(ref)
+            except StoreError as e:
+                print(f"inválido ({e})")
+                if did:
+                    invalid.append(did)
+                continue
+            if it.state in ("ideia", "roteiro", "storyboard"):
+                it.set_state("descartado", f"vetado pelo Caio: {d.get('notes') or 'sem motivo'}")
+                it.save()
+                print(f"{ref}: vetado")
+                done.append(did)
+            else:
+                print(f"{ref}: veto chegou tarde (já em {it.state}); ignorado")
+                stale.append(did)
+            continue
         if stage not in ("storyboard", "frames", "video") or verdict not in ("approve", "reject"):
             print(f"inválido: {json.dumps(d, ensure_ascii=False)[:200]}")
             if did:
@@ -924,6 +1100,41 @@ def cmd_panel_apply(a):
                       "invalid_ids": invalid}))
 
 
+def cmd_record_error(a):
+    h = budget.record_error(a.msg, a.ref or "")
+    lim = budget.load_budget().get("max_consecutive_errors", 3)
+    print(f"erro registrado ({h['consecutive_errors']}/{lim} seguidos)")
+    if budget.paused():
+        print(f"PAUSADO: {budget.paused()}")
+
+
+def cmd_balance(a):
+    if a.credits < 0:
+        raise StoreError("saldo negativo?")
+    budget.record_balance(a.credits)
+    st, est = budget.balance_status()
+    print(f"saldo registrado: {a.credits:g} créditos ({st}; mínimo {budget.load_budget().get('min_higgsfield_credits')})")
+
+
+def cmd_health(a):
+    h = budget.health()
+    st, est = budget.balance_status()
+    _print({"paused": budget.paused(), "consecutive_errors": h["consecutive_errors"],
+            "last_errors": h["errors"][-5:], "balance": {"status": st, "credits_est": est, "read": h["balance"]}})
+
+
+def cmd_placar_import(a):
+    try:
+        raw = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise StoreError(f"não consegui ler {a.file}: {e}")
+    _print(placar.import_rows(raw))
+
+
+def cmd_cadence_check(a):
+    _print(placar.cadence_check())
+
+
 def cmd_pause(a):
     budget.PAUSE_FILE.write_text(a.reason or "pausado pelo Caio", encoding="utf-8")
     print("PAUSADO")
@@ -932,6 +1143,7 @@ def cmd_pause(a):
 def cmd_resume(a):
     if budget.PAUSE_FILE.exists():
         budget.PAUSE_FILE.unlink()
+    budget.reset_errors()  # senão o próximo erro pausaria de novo na hora
     print("retomado")
 
 
@@ -948,6 +1160,12 @@ def _log_failure(it, stage: str, notes: str) -> None:
                          "| data | página | etapa | item | o que falhou |\n|---|---|---|---|---|\n", encoding="utf-8")
     with FAILS.open("a", encoding="utf-8") as f:
         f.write(f"| {time.strftime('%Y-%m-%d')} | {it.page} | {stage} | {it.id} | {notes.replace('|', '/')} |\n")
+
+
+# Comandos cujo sucesso quebra a sequência de erros (ata D5: "3 erros SEGUIDOS").
+PROGRESS = {"save-script", "image", "record-image", "record-upload", "review", "approve", "retry", "discard",
+            "video-request", "record-video", "fetch-video", "package", "posted", "motion-source", "media-restore"}
+# (panel-apply/panel-export rodam todo ciclo, com ou sem erro: não podem zerar a contagem)
 
 
 def main(argv=None):
@@ -994,6 +1212,8 @@ def main(argv=None):
     p = sp.add_parser("record-video"); p.add_argument("ref"); p.add_argument("--job"); p.add_argument("--url")
     p.add_argument("--credits", type=float)
     p.add_argument("--failed", nargs="?", const="", default=None, help="o job falhou (motivo opcional)")
+    p.add_argument("--refunded", action="store_true",
+                   help="o Higgsfield devolveu os créditos do job falho: estorna no livro-caixa (uma vez por job)")
     p.set_defaults(f=cmd_record_video)
     p = sp.add_parser("fetch-video"); p.add_argument("ref"); p.add_argument("--file"); p.set_defaults(f=cmd_fetch_video)
     p = sp.add_parser("package"); p.add_argument("ref"); p.set_defaults(f=cmd_package)
@@ -1001,12 +1221,19 @@ def main(argv=None):
     p = sp.add_parser("fetch-refs"); p.add_argument("page"); p.set_defaults(f=cmd_fetch_refs)
     p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true", help="(sem efeito: tudo é exportado)"); p.set_defaults(f=cmd_panel_export)
     p = sp.add_parser("panel-asset"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("url")
+    p.add_argument("--path", help="caminho que o media-status listou (confere que é a versão atual)")
+    p.add_argument("--asset-id", help="id do asset (32 hex), se a url não trouxer")
     p.set_defaults(f=cmd_panel_asset)
     p = sp.add_parser("motion-source"); p.add_argument("ref"); p.add_argument("--file"); p.add_argument("--hf-id")
-    p.set_defaults(f=cmd_motion_source)
+    p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_motion_source)
     p = sp.add_parser("media-status"); p.add_argument("--ref"); p.set_defaults(f=cmd_media_status)
     p = sp.add_parser("media-restore"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("--file", required=True)
-    p.set_defaults(f=cmd_media_restore)
+    p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_media_restore)
+    p = sp.add_parser("record-error"); p.add_argument("msg"); p.add_argument("--ref"); p.set_defaults(f=cmd_record_error)
+    p = sp.add_parser("balance"); p.add_argument("credits", type=float); p.set_defaults(f=cmd_balance)
+    sp.add_parser("health").set_defaults(f=cmd_health)
+    p = sp.add_parser("placar-import"); p.add_argument("file"); p.set_defaults(f=cmd_placar_import)
+    sp.add_parser("cadence-check").set_defaults(f=cmd_cadence_check)
     p = sp.add_parser("panel-apply"); p.add_argument("file"); p.set_defaults(f=cmd_panel_apply)
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
@@ -1014,6 +1241,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         a.f(a)
+        if a.cmd in PROGRESS:
+            budget.reset_errors()
     except (StoreError, images.ImageError, media.MediaError, json.JSONDecodeError, OSError) as e:
         print(f"ERRO: {e}", file=sys.stderr)
         sys.exit(1)

@@ -57,6 +57,13 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
     for k in TREND_EN:
         if script["en"].get(k) in (None, ""):
             errors.append(f"falta en.{k}")
+    try:
+        if not 0 <= int(script["en"].get("extras_count", 0)) <= 12:
+            errors.append("en.extras_count deve ficar entre 0 e 12")
+    except (TypeError, ValueError):
+        errors.append("en.extras_count deve ser um número")
+    if WIND.search(_text(script["en"])):
+        warns.append("vento/brisa no bloco en: faz o cabelo rígido balançar (regra 17)")
     tr = script["trend"]
     if not tr.get("name") or not tr.get("source_hint"):
         errors.append("trend precisa de name e source_hint (de onde vem o vídeo-fonte)")
@@ -79,12 +86,12 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
 
 
 def lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
-    if isinstance(script, dict) and script.get("format") == "trend":
-        return lint_trend(script, page)
     """Valida o roteiro. Roteiro malformado (tipo errado num campo) vira erro de lint, nunca traceback."""
     if not isinstance(script, dict):
         return ["o roteiro precisa ser um objeto JSON"], []
     try:
+        if script.get("format") == "trend":
+            return lint_trend(script, page)
         return _lint(script, page)
     except (TypeError, ValueError, AttributeError, KeyError) as e:
         return [f"roteiro malformado ({type(e).__name__}: {e}); confira os tipos dos campos"], []

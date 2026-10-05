@@ -115,3 +115,19 @@ Daqui em diante:
 3. Confirmar os tetos (US$ 300/mês, US$ 12/dia).
 4. Aprovar a ficha da Marlene e do Wanderley quando forem geradas.
 5. Ligar a Routine diária (deixada pronta em modo `--mock`).
+
+---
+
+## Notas de implementação (QA rodada 2, 05/10/2026)
+As decisões acima não mudaram. Estas notas só dizem onde cada regra vive no código, para a ata, o `SKILL.md`, a CLI e o painel lerem igual (detalhes em `docs/qa/rodada-2.md`).
+- **D1:** o "`tick.py plan` / `tick.py record`" é `python -m pipeline plan` e os comandos `record-*`, `review` e `approve`.
+- **D2:** a aba Saúde tem o kill switch (pausar e retomar viram decisões aplicadas pelo `panel-apply`), os erros seguidos, o saldo do Higgsfield e o gatilho de cadência.
+- **D3:** sem `launched_at` no `page.yaml`, as 2 semanas de calibração contam a partir do 1º post registrado (`posted`). O veto de pauta é o botão "Vetar" da Fila: descarta o item se ele ainda está em ideia, roteiro ou storyboard.
+- **D5:**
+  - 50% do mês vira aviso no plano. Em 80%, o Genjutsu (trend) fica bloqueado e o Seedance sai só em 720p.
+  - "Mais de 5 prontos" é `> max_unposted_per_page`. A trava para só o gasto novo; busca, revisão e pacote de vídeo já pago continuam.
+  - Saldo < 300 créditos: `balance` grava o saldo lido, e o saldo vale por 24 h.
+  - 3 erros seguidos: `record-error` cria o `PAUSE` sozinho.
+  - Estorno: `record-video --failed --refunded` devolve os créditos ao teto da ideia, mas a tentativa continua contando.
+  - Gatilho de 2 posts por dia: `cadence-check` usa o Placar e prefere as views de 7 dias. Ele só sugere; quem muda o `page.yaml` é o Caio.
+- **D7:** o plano mostra a fatia de trend dos últimos 30 dias e avisa no teto de 30%. Trend sem vídeo-fonte há mais de 7 dias é descartada. A regra "mesma trend em 2 páginas na mesma semana" ainda não está no código.

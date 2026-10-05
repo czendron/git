@@ -120,3 +120,90 @@ def item_spend(page: str, item: str) -> dict:
             cr += float(r.get("credits") or 0)
             usd += float(r.get("usd") or 0)
     return {"credits": round(cr, 2), "usd": round(usd, 4)}
+
+
+# ---------- saúde: erros seguidos e saldo do Higgsfield (ata D5, "paradas automáticas") ----------
+
+HEALTH = ROOT / "data" / "health.json"
+BALANCE_MAX_AGE_S = 24 * 3600   # saldo lido há mais de 24 h não vale: a sessão relê com mcp__Higgsfield__balance
+
+
+def health() -> dict:
+    h = {}
+    if HEALTH.exists():
+        try:
+            h = json.loads(HEALTH.read_text(encoding="utf-8")) or {}
+        except (OSError, json.JSONDecodeError):
+            h = {}
+    h.setdefault("consecutive_errors", 0)
+    h.setdefault("errors", [])
+    h.setdefault("balance", None)
+    return h
+
+
+def save_health(h: dict) -> None:
+    HEALTH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = HEALTH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(h, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(HEALTH)
+
+
+def record_error(msg: str, ref: str = "", now: float | None = None) -> dict:
+    """Conta um erro. No limite (max_consecutive_errors, padrão 3), o próprio código cria o PAUSE (ata D5)."""
+    h = health()
+    h["consecutive_errors"] = int(h.get("consecutive_errors") or 0) + 1
+    h["errors"] = (h.get("errors") or [])[-49:] + [{"at": now or time.time(), "ref": ref, "msg": msg[:300]}]
+    limit = int(load_budget().get("max_consecutive_errors", 3) or 3)
+    h["paused_by_errors"] = False
+    if h["consecutive_errors"] >= limit and not paused():
+        PAUSE_FILE.write_text(f"{h['consecutive_errors']} erros seguidos (último: {msg[:160]})", encoding="utf-8")
+        h["paused_by_errors"] = True
+    save_health(h)
+    return h
+
+
+def reset_errors() -> None:
+    """Um comando de produção que deu certo zera a sequência ("3 erros SEGUIDOS")."""
+    h = health()
+    if h.get("consecutive_errors"):
+        h["consecutive_errors"] = 0
+        save_health(h)
+
+
+def record_balance(credits: float, now: float | None = None) -> dict:
+    h = health()
+    h["balance"] = {"credits": float(credits), "at": now or time.time()}
+    save_health(h)
+    return h
+
+
+def balance_status(now: float | None = None) -> tuple[str, float | None]:
+    """('unknown'|'stale'|'low'|'ok', saldo estimado). Estimado = último saldo lido menos os créditos lançados depois."""
+    now = now or time.time()
+    bal = health().get("balance")
+    if not bal or bal.get("credits") is None:
+        return "unknown", None
+    at = float(bal.get("at") or 0)
+    used = sum(float(r.get("credits") or 0) for r in rows() if r.get("provider") == "higgsfield" and r["at"] > at)
+    est = round(float(bal["credits"]) - used, 2)
+    if now - at > BALANCE_MAX_AGE_S:
+        return "stale", est
+    if est < float(load_budget().get("min_higgsfield_credits", 0) or 0):
+        return "low", est
+    return "ok", est
+
+
+def can_spend_higgsfield(credits: float, now: float | None = None) -> tuple[bool, str]:
+    """Tetos em dólar + saldo mínimo de créditos (ata D5: saldo < 300 créditos, para)."""
+    usd = credits * float(load_budget().get("higgsfield_credit_usd", 0.05))
+    ok, why = can_spend("higgsfield", usd, now)
+    if not ok:
+        return ok, why
+    st, est = balance_status(now)
+    floor = float(load_budget().get("min_higgsfield_credits", 0) or 0)
+    if st in ("unknown", "stale"):
+        return False, ("saldo do Higgsfield desconhecido ou com mais de 24 h: rode mcp__Higgsfield__balance e "
+                       "`python -m pipeline balance <créditos>`")
+    if est - credits < floor:
+        return False, f"saldo do Higgsfield (~{est:.0f} créditos) ficaria abaixo do mínimo de {floor:.0f} (ata D5)"
+    return True, "ok"
