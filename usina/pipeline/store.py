@@ -125,6 +125,7 @@ class Item:
     post: dict = field(default_factory=dict)       # {"caption":..,"audio":..,"scheduled_for":..,"ig_media_id":..}
     history: list = field(default_factory=list)
     decisions: list = field(default_factory=list)  # ids das decisões do painel já aplicadas (idempotência)
+    counterpart: dict = field(default_factory=dict)  # rodada 7: ficha da contraparte humana {"who","path","prompt","v","higgsfield_id"}
     video_opts: dict = field(default_factory=dict)  # triagem C6 em vigor: {"no_grid", "repair", "no_sheet"} (rodada 4)
     notes: str = ""
 

@@ -53,6 +53,9 @@ def blockers(now: float | None = None) -> list[str]:
         out.append("OPENAI_API_KEY ausente no ambiente: nenhuma imagem sai"
                    + (" (fallback Higgsfield liberado)." if sw.get("image_fallback_allowed") else
                       " (libere api.openai.com e a chave nas configurações do ambiente)."))
+    if not budget.higgsfield_spend_enabled(b):
+        out.append("Gasto no Higgsfield travado (budget.yaml, switches.higgsfield_spend_enabled: false; você pediu em "
+                   "05/10): nenhum vídeo, gag ou imagem pelo Higgsfield até você liberar.")
     if not sw.get("video_enabled", False):
         out.append("Vídeo desligado (budget.yaml, switches.video_enabled: false): nada vai ao Higgsfield.")
     for page in load_pages(include_drafts=False):

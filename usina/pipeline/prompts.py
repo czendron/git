@@ -176,6 +176,46 @@ def character_sheet_prompt(page: Page) -> str:
     return head + json.dumps(sheet, ensure_ascii=False, indent=2)
 
 
+# ---------------- C1 ficha da contraparte humana (rodada 7) ----------------
+
+def counterpart_sheet_prompt(script: dict, page: Page, cp: dict) -> str:
+    """Ficha C1 da contraparte humana que aparece no quadro (B4.11: "ator humano ganha ficha própria antes de
+    qualquer vídeo"). Pessoa fictícia, comum, não reconhecível, e de propósito diferente do protagonista: a ficha
+    vira uma imagem a mais nos frames e no vídeo, ligada ao nome dela no ACTIVE REFERENCES."""
+    part, _ = silhouette(page)
+    who = str(cp["who"]).strip()
+    look = str(cp.get("look") or "").strip() or (
+        f"an ordinary Brazilian adult who plausibly is {who}, in everyday clothes that fit that role")
+    sheet = {
+        "type": "character reference sheet, studio photograph, 4 panels in a 2x2 grid",
+        "style": "plain documentary studio photograph, flat even soft light, real skin with visible pores and small "
+                 "asymmetries, no retouch, sharp focus throughout",
+        "background": "flat solid neutral grey #8a8a8a, seamless, no gradient, no shadows on the backdrop",
+        "character": f"{who}: {_lc(look)}. An invented, fictional person with an ordinary, non-recognizable face — not "
+                     f"a real or famous person and not a lookalike of anyone. Clearly a different person from "
+                     f"{name(page)} ({ROLE_SHORT.get(page.slug, 'the main character')}): different face, age, hair and "
+                     f"build, no {part}, nothing of {name(page)}'s outfit. Expression: neutral, lips closed, brows level",
+        "layout": {
+            "top_left": "large close-up portrait, head turned 3/4 to camera-left, eyes to lens, full head with headroom",
+            "top_right": "full body front, standing straight, arms relaxed, face readable",
+            "bottom_left": "full body true side profile facing frame-left",
+            "bottom_right": "full body from behind, standing straight",
+        },
+        "rules": "same person, same outfit, same scale and lighting in all four panels; exactly one person per panel; "
+                 "no text, no labels, no numbers, no logos, no borders thicker than 8 px white",
+    }
+    return json.dumps(sheet, ensure_ascii=False, indent=2)
+
+
+def counterpart_frame_line(cp_who: str, n: int, noun: str) -> str:
+    """Linha dos frames A/B: a ficha da contraparte é a imagem n e só ela define essa pessoa."""
+    w = cp_who[:1].upper() + cp_who[1:]
+    return (f"{w} is defined only by image {n} (a reference sheet on grey): whenever {cp_who} is in the photograph, "
+            f"{cp_who}'s face, hair, build and clothes match image {n} exactly. {w} is a different person from the "
+            f"{noun}; nothing of the {noun} comes from image {n}, and nothing of {cp_who} comes from the {noun}'s "
+            f"images. Do not copy the grey backdrop or the panel layout of image {n}.")
+
+
 # ---------------- orientação por estágio ----------------
 
 def _orient(st: dict, prev: dict | None = None) -> str:
@@ -273,14 +313,23 @@ def _turn_rule(pos: str) -> str:
             f"{pos} face is visible in every frame.")
 
 
-def _ref_lines(nm: str, pos: str, part: str, cast: list | None = None) -> list[str]:
+def _ref_lines(nm: str, pos: str, part: str, cast: list | None = None, cp_image: int | None = None,
+               cp_who: str = "") -> list[str]:
     """Mapa de referências pelo conteúdo + papel + nome (o 2.5 casa o material pelo que vê, não só pela ordem).
-    B4.11: cada imagem é ligada a um nome uma vez aqui; daí em diante o prompt usa só o nome."""
+    B4.11: cada imagem é ligada a um nome uma vez aqui; daí em diante o prompt usa só o nome. Com `cp_image`
+    (rodada 7), a ficha da contraparte humana ganha a sua linha de papel."""
     lines = [f"@Image 1 (the close-up face photo on grey) is {nm}'s face reference: it defines {nm}'s face — "
              f"full-preserve, 100% matches the reference.",
              f"@Image 2 (the silhouette sheet on grey) is {nm}'s silhouette reference: it defines only {pos} {part} "
              f"shape and outfit — full-preserve. Do not take the grey backdrop, the panel layout or the extra views."]
     for who in cast or []:
+        if cp_image and who.lower() == cp_who.strip().lower():
+            lines.append(f"@Image {cp_image} (the 4-panel reference sheet of another person on grey) is "
+                         f"{_possessive(who)} reference: it defines {_possessive(who)} face, hair, build and clothes — "
+                         f"full-preserve. {who[:1].upper() + who[1:]} is a different person from {nm}; nothing of "
+                         f"{who} comes from @Image 1 or @Image 2, and nothing of {nm} comes from @Image {cp_image}. "
+                         f"Do not take its grey backdrop or panel layout.")
+            continue
         lines.append(f"{who[:1].upper() + who[1:]} is a different person from {nm}, with a face, hair and clothes "
                      f"of their own; nothing of {who} comes from @Image 1 or @Image 2.")
     if cast:
@@ -337,7 +386,13 @@ def storyboard_prompt(script: dict, page: Page) -> tuple[str, str]:
 
 # ---------------- C2 frames ----------------
 
-def frame_a_prompt(script: dict, page: Page, with_storyboard: bool) -> str:
+def _alone(sub: str, counterpart: tuple[str, int] | None) -> str:
+    if counterpart:  # rodada 7: a contraparte com ficha pode estar no quadro; o "only person" a apagaria
+        return f"Besides {counterpart[0]}, {sub} is the only person in the photograph."
+    return f"{sub.capitalize()} is the only person in the photograph."
+
+
+def frame_a_prompt(script: dict, page: Page, with_storyboard: bool, counterpart: tuple[str, int] | None = None) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, _ = silhouette(page)
@@ -346,7 +401,7 @@ def frame_a_prompt(script: dict, page: Page, with_storyboard: bool) -> str:
           if with_storyboard else "")
     first = (en.get("stages") or [{}])[0]
     orient = f" Orientation: {_lc(first['facing'])}." if first.get("facing") else ""
-    return "\n".join([
+    return "\n".join(x for x in [
         f"Vertical 9:16 smartphone photograph, {_fmt(c['frame'], page)}.{sb}",
         f"Location: {en['location']}.",
         f"The {noun} from image 1 and image 2 — same face as image 1, same {part} shape and outfit as image 2 — "
@@ -354,14 +409,15 @@ def frame_a_prompt(script: dict, page: Page, with_storyboard: bool) -> str:
         f"The {part} is fully inside the frame with 10% headroom above it. {_fmt(c.get('fill', ''), page)} "
         f"{en.get('hands', '')}".replace("  ", " ").strip(),
         (f"Background: {crowd(en['extras_count'])}, ordinary people busy with their own tasks — {en['extras_tasks']} — "
-         f"none of them looking at {obj}." if int(en.get("extras_count") or 0) else f"{sub.capitalize()} is the only person in the photograph."),
+         f"none of them looking at {obj}." if int(en.get("extras_count") or 0) else _alone(sub, counterpart)),
         f"Props: {en.get('props') or 'none besides the location'}.",
+        counterpart_frame_line(counterpart[0], counterpart[1], noun) if counterpart else "",
         f"{en['lighting']} Deep depth of field, everything sharp, smartphone HDR look, real skin texture.",
         "Exactly one main character. No text, no captions, no speech balloons, no watermarks.",
-    ])
+    ] if x)
 
 
-def frame_b_prompt(script: dict, page: Page) -> str:
+def frame_b_prompt(script: dict, page: Page, counterpart: tuple[str, int] | None = None) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, _ = silhouette(page)
@@ -374,10 +430,11 @@ def frame_b_prompt(script: dict, page: Page) -> str:
         _sent(en.get("end_props", "")),
         _orient(last),
         "Same light direction, exposure and sharpness as image 1.",
+        counterpart_frame_line(counterpart[0], counterpart[1], noun) if counterpart else "",
         DEADPAN_FRAME,
         (f"Exactly one main character, {crowd(en['extras_count'])}, all still busy with their own tasks, "
          f"none looking at {obj}. No text, no balloons." if int(en.get("extras_count") or 0)
-         else f"{sub.capitalize()} is the only person in the photograph. No text, no balloons."),
+         else f"{_alone(sub, counterpart)} No text, no balloons."),
     ]
     return "\n".join(line for line in lines if line and line.strip())
 
@@ -394,7 +451,7 @@ def _cut_line(script: dict) -> str:
 
 
 def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, has_storyboard: bool,
-                 repair: str = "") -> str:
+                 repair: str = "", counterpart: tuple[str, int] | None = None) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, sil = silhouette(page)
@@ -405,7 +462,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         refs.append(" ".join(filter(None, [
             "The start frame defines the opening composition, positions, pose and camera." if has_start else "",
             "The end frame defines the final composition and the gag's end state." if has_end else ""])))
-    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]))
+    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]), *(_cp_args(counterpart)))
     if has_storyboard:
         stg = en["stages"]
         mapping = ", ".join(f"panel {i + 1} is {s['t']}" for i, s in enumerate(stg))
@@ -518,7 +575,11 @@ def motion_frame_prompt(script: dict, page: Page) -> str:
     ])
 
 
-def gag_prompt(script: dict, page: Page) -> str:
+def _cp_args(counterpart: tuple[str, int] | None) -> tuple:
+    return (counterpart[1], counterpart[0]) if counterpart else (None, "")
+
+
+def gag_prompt(script: dict, page: Page, counterpart: tuple[str, int] | None = None) -> str:
     """Gag pós-motion control (playbook C5): Seedance 2.5, start_image = último frame do clipe de MC, só os stages
     3 e 4 do C4 (aqui, os 2 estágios de gag_followup.en) e o estado final em end_change."""
     en = script["en"]
@@ -539,7 +600,7 @@ def gag_prompt(script: dict, page: Page) -> str:
         "ACTIVE REFERENCES",
         "The start frame defines the opening composition, pose, location, lighting, passersby and camera: continue "
         "from it exactly, with no jump.",
-        *_ref_lines(nm, pos, part, _human_cast(gen["stages"])),
+        *_ref_lines(nm, pos, part, _human_cast(gen["stages"]), *(_cp_args(counterpart))),
         "The image references never change the start-frame composition.",
         "",
         "CAMERA",

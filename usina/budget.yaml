@@ -32,6 +32,8 @@ cost_estimates:
     gpt_image_2_5: 2
 # Interruptores do Caio (05/10): "não gera vídeos no Higgsfield ainda" e "use a API do ChatGPT pra imagens".
 switches:
+  higgsfield_spend_enabled: false   # Caio (05/10): "não gaste mais créditos do Higgsfield". Trava TODA geração paga no
+                                    # Higgsfield (vídeo, imagem de fallback, ficha, video_analysis_create). Só o Caio muda.
   video_enabled: false        # true libera o envio de vídeos ao Higgsfield
   image_provider: openai      # openai (API do ChatGPT) | higgsfield (fallback com o mesmo modelo GPT Image)
   image_fallback_allowed: false

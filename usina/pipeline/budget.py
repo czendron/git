@@ -21,6 +21,17 @@ def load_budget() -> dict:
     return yaml.safe_load(BUDGET.read_text(encoding="utf-8"))
 
 
+HF_LOCK_MSG = ("gasto no Higgsfield travado em budget.yaml (switches.higgsfield_spend_enabled: false; o Caio, em 05/10: "
+               "\"não gaste mais créditos do Higgsfield\"). Nenhuma geração paga no Higgsfield (vídeo, imagem, "
+               "video_analysis_create); só o Caio muda o interruptor. Leituras seguem: balance, jobs_wait, show_*.")
+
+
+def higgsfield_spend_enabled(b: dict | None = None) -> bool:
+    """Interruptor do Caio (05/10): sem a chave no budget.yaml, vale travado (falha fechada)."""
+    sw = ((b if b is not None else load_budget()).get("switches") or {})
+    return bool(sw.get("higgsfield_spend_enabled", False))
+
+
 def paused() -> str | None:
     """Kill switch (ata D8): existe o arquivo PAUSE na raiz da usina? Devolve o motivo."""
     if PAUSE_FILE.exists():
@@ -239,7 +250,10 @@ def over_day_cap(provider: str, usd: float, now: float | None = None) -> bool:
 
 
 def can_spend_higgsfield(credits: float, now: float | None = None, day_overflow: float = 0.0) -> tuple[bool, str]:
-    """Tetos em dólar + saldo mínimo de créditos (ata D5: saldo < 300 créditos, para)."""
+    """Tetos em dólar + saldo mínimo de créditos (ata D5: saldo < 300 créditos, para). Antes de tudo, o interruptor
+    `switches.higgsfield_spend_enabled` (rodada 7)."""
+    if not higgsfield_spend_enabled():
+        return False, HF_LOCK_MSG
     usd = credits * float(load_budget().get("higgsfield_credit_usd", 0.05))
     ok, why = can_spend("higgsfield", usd, now, day_overflow)
     if not ok:

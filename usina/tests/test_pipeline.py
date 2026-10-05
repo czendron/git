@@ -18,7 +18,8 @@ def usina(tmp_path):
         if (HERE / d).exists():
             shutil.copytree(HERE / d, root / d, ignore=shutil.ignore_patterns("*.png", "__pycache__"))
     shutil.copy(HERE / "budget.yaml", root / "budget.yaml")
-    bt = (root / "budget.yaml").read_text().replace("video_enabled: false", "video_enabled: true")
+    bt = (root / "budget.yaml").read_text().replace("video_enabled: false", "video_enabled: true") \
+        .replace("higgsfield_spend_enabled: false", "higgsfield_spend_enabled: true")  # rodada 7: os testes de fluxo liberam
     (root / "budget.yaml").write_text(bt)
     (root / "data" / "queue").mkdir(parents=True)
     import time

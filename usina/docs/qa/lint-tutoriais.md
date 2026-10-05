@@ -39,4 +39,4 @@ Os 5 passam sem erro e sem os avisos novos.
 ## Limites
 
 - A extração de substantivos é heurística: pega o núcleo depois de artigo ou possessivo. Por isso é aviso, não erro.
-- A contraparte humana ainda não tem ficha própria no `video-request`: o prompt nomeia e separa, mas as medias continuam rosto e silhueta do protagonista. Ligar a ficha dela (B4.11, "ficha própria antes de qualquer vídeo") mexe em `__main__.py` e fica para depois.
+- A contraparte humana ainda não tem ficha própria no `video-request`: o prompt nomeia e separa, mas as medias continuam rosto e silhueta do protagonista. Ligar a ficha dela (B4.11, "ficha própria antes de qualquer vídeo") mexe em `__main__.py` e fica para depois. **Resolvido na rodada 7** (`docs/qa/rodada-7.md`): `image <ref> counterpart` e a ficha nos frames e no `video-request`.

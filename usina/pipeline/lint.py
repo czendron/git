@@ -236,6 +236,42 @@ def is_human(cp) -> bool:
     return isinstance(cp, dict) and bool(cp.get("who")) and _cp_noun(cp.get("who")) not in ANIMALS
 
 
+# Rodada 7 (lacuna do lint-tutoriais): contraparte humana COM rosto no quadro ganha ficha própria antes dos frames.
+# Bicho, objeto e a contraparte fora do quadro (B4.10) não ganham. `counterpart.kind` ("human"|"animal"|"object")
+# decide quando o substantivo engana.
+OBJECTS = {"bag", "sandbag", "pole", "post", "mannequin", "dummy", "statue", "robot", "door", "machine", "clothesline",
+           "turnstile", "umbrella", "balloon", "ball", "car", "bus", "truck", "fan", "sprinkler", "hose", "tree",
+           "saco", "poste", "varal", "manequim", "boneco", "estátua", "estatua", "porta", "catraca", "máquina",
+           "maquina", "guarda-sol", "bola", "ventilador", "mangueira", "árvore", "arvore", "carro", "ônibus", "onibus"}
+
+
+def needs_sheet(cp) -> bool:
+    """Contraparte humana que aparece no quadro (não B4.10, não bicho, não objeto): precisa de ficha própria."""
+    if not isinstance(cp, dict) or not str(cp.get("who") or "").strip() or is_offscreen(cp):
+        return False
+    kind = str(cp.get("kind") or "").strip().lower()
+    if kind:
+        return kind in ("human", "humano", "pessoa", "person")
+    return is_human(cp) and _cp_noun(cp.get("who")) not in OBJECTS
+
+
+def sheet_counterparts(script: dict) -> list[dict]:
+    """Contrapartes que precisam de ficha (rodada 7), na ordem do roteiro, uma por `who`, juntando `look` e
+    `kind` de todos os estágios (clipe principal e gag da trend)."""
+    stages = list(((script or {}).get("en") or {}).get("stages") or [])
+    stages += list((((script or {}).get("gag_followup") or {}).get("en") or {}).get("stages") or [])
+    out: dict[str, dict] = {}
+    for st in stages:
+        cp = st.get("counterpart") if isinstance(st, dict) else None
+        if not needs_sheet(cp):
+            continue
+        who = str(cp["who"]).strip()
+        cur = out.setdefault(who.lower(), {"who": who})
+        if cp.get("look") and not cur.get("look"):
+            cur["look"] = str(cp["look"]).strip()
+    return list(out.values())
+
+
 def _who_error(who: str, protag: set[str]) -> str:
     """B4.11: 'the man' sem descritor, ou o mesmo substantivo do protagonista, vira 'the man / the other man'."""
     noun = _cp_noun(who)

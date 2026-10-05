@@ -1,6 +1,6 @@
 # Revisor de frames A e B (playbook E, portões G1–G3, G5–G7, G9, G10)
 
-Abra com Read o frame A (start), o frame B (end), o rosto.png, a silhueta.png e o painel 1 e o último do storyboard aprovado.
+Abra com Read o frame A (start), o frame B (end), o rosto.png, a silhueta.png e o painel 1 e o último do storyboard aprovado. Com contraparte humana no quadro, abra também a ficha dela (`out/<página>/<id>/counterpart-vN.png`, vem no `file` da ação).
 
 ## Portões (um "não" reprova)
 - **G1:** exatamente 1 protagonista e N figurantes (±1), N = `en.extras_count`.
@@ -14,6 +14,7 @@ Abra com Read o frame A (start), o frame B (end), o rosto.png, a silhueta.png e 
 - **Coerência A↔B:** B tem a mesma câmera, o mesmo FOV, o mesmo lugar e a mesma luz de A; só muda o que `en.end_change` diz.
 - **Orientação:** peito de frente para a lente (no máximo 30°), rosto visível, olhar na lente.
 - **9:16:** os dois em retrato com a mesma proporção.
+- **G11 (só com ficha da contraparte, rodada 7):** a contraparte que aparece bate com a ficha dela (rosto, cabelo, corpo e roupa) e **não é sósia dele**: nem o rosto do rosto.png, nem a silhueta ou o figurino da silhueta.png (topete, laquê, bigode). Contraparte com cara do protagonista, ou o protagonista com algo da ficha dela, reprova. Ficha que parece gente famosa ou real também reprova: refaça a ficha (`retry <ref> frames`, depois `image <ref> counterpart --force`).
 
 ## Notas 0–5
 S1, S2, S3, S6, S7 e S8 (o frame B sozinho conta a piada?).

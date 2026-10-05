@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 
-from . import budget, launch
+from . import budget, launch, lint as lintmod
 from .store import Item, Page, list_items, load_pages
 
 ACTIVE = ["ideia", "roteiro", "storyboard", "frames", "video", "revisao", "pronto"]
@@ -20,7 +20,8 @@ TREND_VARIANTS = 4      # playbook C5: "faça 4 variações e cure" o frame do p
 # Ações que geram gasto novo: param quando a página passa do estoque (ata D5). Poll/fetch/revisão/pacote seguem,
 # senão um vídeo já pago ficaria sem buscar.
 SPENDING = {"new_ideas", "video_submit", "write_script"}
-MAX_ACTIONS = 12  # SKILL passo 2: no máximo 12 ações por ciclo (rodada 5: o plano corta, antes só o texto pedia)
+MAX_ACTIONS = 12
+HF_LOCKED = "gasto no Higgsfield travado (budget.yaml switches.higgsfield_spend_enabled: false; só o Caio libera)"  # SKILL passo 2: no máximo 12 ações por ciclo (rodada 5: o plano corta, antes só o texto pedia)
 
 
 def action_priority(a: dict) -> int:
@@ -119,6 +120,22 @@ def _est_video_credits(item: Item, b: dict) -> float:
     return d * per
 
 
+def counterpart_todo(item: Item) -> dict | None:
+    """Rodada 7: a contraparte humana no quadro que ainda não tem ficha (ou a ficha é de outra pessoa)."""
+    cps = lintmod.sheet_counterparts(item.script or {})
+    if not cps:
+        return None
+    rec = item.counterpart or {}
+    ok = str(rec.get("who", "")).strip().lower() == cps[0]["who"].lower() and (rec.get("path") or rec.get("higgsfield_id"))
+    return None if ok else cps[0]
+
+
+def _counterpart_action(item: Item, b: dict, pid: str, cp: dict) -> dict:
+    return {"do": "run", "item": pid, "cmd": f"python -m pipeline image {pid} counterpart",
+            "cost_usd": b["cost_estimates"]["openai_image"]["high"], "provider": "openai",
+            "why": f"contraparte humana no quadro ({cp['who']}): ficha própria antes dos frames (B4.11; rodada 7)"}
+
+
 def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
     st = item.state
     pid = f"{item.page}/{item.id}"
@@ -143,6 +160,8 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                                 f"motion library do Higgsfield ou trend recortada. `{cmd} motion-source {pid} --file fonte.mp4`"})
         elif att.get("frames", 0) >= max_img:
             acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'frame de trend reprovado 3x'"})
+        elif counterpart_todo(item):  # gag com contraparte humana no quadro: a ficha sai antes dos frames
+            acts.append(_counterpart_action(item, b, pid, counterpart_todo(item)))
         else:
             # playbook C5: 4 variações do frame e o revisor cura (corrigir pose no frame custa centavos)
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames --variants {TREND_VARIANTS}",
@@ -167,6 +186,8 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
             acts.append({"do": "await_caio", "item": pid, "stage": "storyboard"})
         elif g["caio"] == "rejected":
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} storyboard"})
+        elif counterpart_todo(item):
+            acts.append(_counterpart_action(item, b, pid, counterpart_todo(item)))
         else:
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames",
                          "cost_usd": 2 * b["cost_estimates"]["openai_image"]["high"], "provider": "openai"})
@@ -174,7 +195,12 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
         g = _gate(item, "frames")
         if g["qa"] == "pending" and item.script.get("en", {}).get("end_change") and "end" not in item.frames:
             # fallback Higgsfield em dois passos: falta o frame B (edição do A)
-            acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames --provider higgsfield"})
+            if not budget.higgsfield_spend_enabled(b):
+                acts.append({"do": "blocked", "item": pid,
+                             "why": f"frame B pelo Higgsfield: {HF_LOCKED}. Para seguir pela OpenAI: "
+                                    f"`{cmd} retry {pid} frames` e `{cmd} image {pid} frames`"})
+            else:
+                acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames --provider higgsfield"})
         elif g["qa"] == "pending" and item.variants and not item.frames.get("start"):
             acts.append({"do": "review_image", "item": pid, "stage": "frames", "pick": True,
                          "file": [v.get("path") or v.get("url") for v in item.variants],
@@ -184,10 +210,13 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                                 f"`{cmd} review {pid} frames pass --notes '...'`. Nenhuma serve: "
                                 f"`{cmd} review {pid} frames fail --notes '...'`."})
         elif g["qa"] == "pending":
+            cp_file = (item.counterpart or {}).get("path") if lintmod.sheet_counterparts(item.script or {}) else None
             acts.append({"do": "review_image", "item": pid, "stage": "frames",
-                         "file": [f.get("path") for f in item.frames.values()],
+                         "file": [f.get("path") for f in item.frames.values()] + ([cp_file] if cp_file else []),
                          "rubric": "prompts/review_frames.md",
-                         "how": f"`{cmd} review {pid} frames pass|fail --notes '...'`"})
+                         "how": (f"Com contraparte: abra também a ficha dela ({cp_file}); ela tem de bater com a ficha "
+                                 f"e não pode ser sósia dele (G11). " if cp_file else "")
+                                + f"`{cmd} review {pid} frames pass|fail --notes '...'`"})
         elif g["qa"] == "fail":
             if att.get("frames", 0) >= max_img:
                 acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'frames reprovados 3x'"})
@@ -202,6 +231,9 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
             else:
                 acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} frames"})
         else:
+            if not budget.higgsfield_spend_enabled(b):
+                acts.append({"do": "blocked", "item": pid, "why": f"vídeo: {HF_LOCKED}"})
+                return acts
             if not b.get("switches", {}).get("video_enabled", False):
                 acts.append({"do": "blocked", "item": pid, "why": "vídeo desligado em budget.yaml (switches.video_enabled)"})
                 return acts
@@ -303,6 +335,8 @@ def _gag_actions(item: Item, b: dict, now: float) -> list[dict]:
     if not gag.get("job_id"):
         if item.attempts.get("gag", 0) >= GAG_MAX_ATTEMPTS:
             return [{"do": "run", "item": pid, "cmd": f"{cmd} skip-gag {pid} --why 'limite de tentativas do gag'"}]
+        if not budget.higgsfield_spend_enabled(b):
+            return [{"do": "blocked", "item": pid, "why": f"gag: {HF_LOCKED}"}]
         credits = float(s["gag_followup"].get("duration_s", 5)) * \
             b["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
         over = budget.gag_overflow(item.page, item.id)  # MC pago: o gag pode usar a folga de 20% do teto diário
@@ -366,6 +400,9 @@ def plan(now: float | None = None) -> dict:
     if h.get("consecutive_errors"):
         out["notes"].append(f"{h['consecutive_errors']} erro(s) seguido(s) registrado(s) "
                             f"(pausa sozinho em {b.get('max_consecutive_errors', 3)}).")
+    if not budget.higgsfield_spend_enabled(b):  # rodada 7: o Caio travou o gasto no Higgsfield em 05/10
+        out["blockers"] = [f"{HF_LOCKED[:1].upper()}{HF_LOCKED[1:]}: nenhum vídeo, gag ou imagem pelo Higgsfield."]
+        out["notes"].append(f"BLOQUEIO: {out['blockers'][0]} Leituras (balance, jobs_wait) seguem.")
     bst, est = budget.balance_status(now)
     out["balance"] = {"status": bst, "credits_est": est, "min": b.get("min_higgsfield_credits")}
     if bst == "low":

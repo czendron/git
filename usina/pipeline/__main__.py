@@ -5,7 +5,8 @@ Comandos principais:
   new <page> "título" --idea "..."          cria item (estado ideia)
   save-script <page/id> arquivo.json         valida (lint) e salva o roteiro
   lint arquivo.json [--page slug]
-  image <page/id> storyboard|frames [--provider openai|higgsfield] [--mock]
+  image <page/id> storyboard|counterpart|frames [--provider openai|higgsfield] [--mock]
+                                             counterpart: ficha da contraparte humana no quadro (rodada 7)
   record-image <page/id> <stage> <key> --hf-job <id> [--url ...]   (quando a imagem veio do Higgsfield)
   record-upload <page/id> <key> --hf-id <media_id>                  (imagem local subida pro Higgsfield)
   review <page/id> storyboard|frames|video pass|fail --notes "..."
@@ -69,7 +70,7 @@ def _need_state(it, allowed, what: str, force: bool = False) -> None:
 
 
 # Assets do painel que ficam velhos quando a etapa é refeita (senão a Caixa mostra a imagem da versão anterior).
-STALE_ASSETS = {"storyboard": ["storyboard"], "frames": ["start", "end"],
+STALE_ASSETS = {"storyboard": ["storyboard"], "frames": ["start", "end"], "counterpart": ["counterpart"],
                 "video": ["sheet", "gag", "cover", "video", "last", "gag_clip", "gag_clip_sheet"]}
 
 
@@ -91,7 +92,42 @@ def _gen_gate(page) -> None:
         raise StoreError(f"{page.slug}: não gera ({gate['gen_summary']}). Veja `launch-check {page.slug}` (ata D6)")
 
 
+def _hf_spend_gate() -> None:
+    """Rodada 7: com `switches.higgsfield_spend_enabled: false`, nenhum comando imprime pedido pago ao Higgsfield."""
+    if not budget.higgsfield_spend_enabled():
+        raise StoreError(budget.HF_LOCK_MSG)
+
+
+def _cp_needed(it) -> dict | None:
+    """Rodada 7: a contraparte humana com rosto no quadro que pede ficha própria (B4.11), ou None (sem contraparte,
+    fora do quadro B4.10, bicho ou objeto). Uma ficha por item: a 1ª contraparte do roteiro."""
+    cps = lintmod.sheet_counterparts(it.script or {})
+    return cps[0] if cps else None
+
+
+def _cp_sheet(it) -> dict | None:
+    """A ficha gerada, se for da contraparte que o roteiro de hoje pede (roteiro reescrito com outra pessoa = None)."""
+    cp = _cp_needed(it)
+    rec = it.counterpart or {}
+    if not cp or str(rec.get("who", "")).strip().lower() != cp["who"].lower():
+        return None
+    return rec if (rec.get("path") or rec.get("higgsfield_id")) else None
+
+
+def _require_cp_sheet(it, ref: str) -> dict | None:
+    cp = _cp_needed(it)
+    if not cp:
+        return None
+    rec = _cp_sheet(it)
+    if not rec:
+        raise StoreError(f"o roteiro tem contraparte humana no quadro ({cp['who']}): gere a ficha dela antes dos frames "
+                         f"com `python -m pipeline image {ref} counterpart` (rodada 7; playbook B4.11)")
+    return rec
+
+
 def _check_image_provider(provider: str) -> None:
+    if provider == "higgsfield":
+        _hf_spend_gate()
     sw = _switches()
     if provider == "higgsfield" and sw.get("image_provider", "openai") != "higgsfield" \
             and not sw.get("image_fallback_allowed", False):
@@ -352,6 +388,9 @@ def cmd_save_script(a):
             it.video = {"history": it.video.get("history", []) + [{k: v for k, v in it.video.items() if k != "history"}]}
         _clear_assets(it, "storyboard", "frames", "video")
     it.script = script
+    if it.counterpart and not _cp_sheet(it):  # rodada 7: roteiro novo com outra contraparte (ou sem): ficha velha sai
+        it.counterpart = {}
+        _clear_assets(it, "counterpart")
     it.post["caption"] = prompts.caption(script)
     it.set_state("roteiro", "lint ok")
     it.save()
@@ -380,6 +419,8 @@ def cmd_image(a):
     if not it.script:
         raise StoreError("item sem roteiro")
     _gen_gate(page)
+    if stage == "counterpart":
+        return _image_counterpart(a, page, it)
     nvar = int(getattr(a, "variants", 1) or 1)
     if nvar > 1 and not (stage == "frames" and it.script.get("format") == "trend"):
         raise StoreError("--variants só vale para o frame da trend (playbook C5)")
@@ -417,10 +458,30 @@ def cmd_image(a):
                              f"rode com --sem-storyboard (o revisor confere a composição) ou refaça o storyboard "
                              f"com `retry {a.ref} storyboard --force`.")
         sb_in_prompt = bool(it.storyboard.get("higgsfield_id")) if provider == "higgsfield" else with_sb
-        jobs.append(("start", prompts.frame_a_prompt(it.script, page, sb_in_prompt),
-                     "1024x1536", [sb] if with_sb else []))
+        cp_rec = _require_cp_sheet(it, a.ref)  # rodada 7: a ficha da contraparte entra como imagem a mais
+        if cp_rec and provider == "openai":
+            cp_file = local(cp_rec.get("path"))
+            if not cp_file or not cp_file.exists():
+                raise StoreError(f"a ficha da contraparte não está nesta máquina ({cp_rec.get('path')}): restaure "
+                                 f"(`media-status`, chave counterpart) ou refaça com `image {a.ref} counterpart --force`")
+            cp_extra = [cp_file]
+        elif cp_rec:
+            if not cp_rec.get("higgsfield_id"):
+                _print({"ready": False, "upload_first": [{"key": "counterpart", "path": cp_rec.get("path"),
+                                                           "type": "image"}],
+                        "how": "media_upload + PUT + media_confirm(type='image') da ficha da contraparte e depois "
+                               f"`python -m pipeline record-upload {a.ref} counterpart --hf-id <id>`; rode de novo."})
+                return
+            cp_extra = []
+        else:
+            cp_extra = []
+        cp_a = (cp_rec["who"], 3 + int(sb_in_prompt)) if cp_rec else None   # rosto, silhueta, [storyboard], ficha
+        cp_b = (cp_rec["who"], 4) if cp_rec else None                        # frame A, rosto, silhueta, ficha
+        jobs.append(("start", prompts.frame_a_prompt(it.script, page, sb_in_prompt, cp_a),
+                     "1024x1536", ([sb] if with_sb else []) + cp_extra))
         if it.script.get("en", {}).get("end_change"):
-            jobs.append(("end", prompts.frame_b_prompt(it.script, page), "1024x1536", ["__FRAME_A__"]))
+            jobs.append(("end", prompts.frame_b_prompt(it.script, page, cp_b), "1024x1536",
+                         ["__FRAME_A__"] + cp_extra))
     else:
         raise StoreError("stage deve ser storyboard ou frames")
 
@@ -454,6 +515,8 @@ def cmd_image(a):
                 medias = [{"role": "image_references", "value": trend_first}] + medias
             elif stage == "frames" and it.storyboard.get("higgsfield_id"):
                 medias.append({"role": "image_references", "value": it.storyboard["higgsfield_id"]})
+            if stage == "frames" and not trend_first and _cp_sheet(it):  # rodada 7: a ficha por último
+                medias.append({"role": "image_references", "value": _cp_sheet(it)["higgsfield_id"]})
             params = {"model": "gpt_image_2_5", "aspect_ratio": "16:9" if size == "1536x1024" else "9:16",
                       "quality": "high", "medias": medias, "prompt": prompt}
             if nvar > 1:  # trend: N opções do frame, o revisor escolhe com `pick`
@@ -485,8 +548,8 @@ def cmd_image(a):
         (wd / f"{name}-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
         if extra == ["__SOURCE_FIRST__"]:  # image 1 = 1º frame da fonte, depois rosto e silhueta
             img_refs = [local(it.motion["first_frame"])] + refs
-        elif extra == ["__FRAME_A__"]:
-            img_refs = [local(target["start"]["path"])] + refs   # Frame B = edição do Frame A (playbook C2)
+        elif extra[:1] == ["__FRAME_A__"]:
+            img_refs = [local(target["start"]["path"])] + refs + extra[1:]  # Frame B = edição do Frame A (C2)
         else:
             img_refs = refs + extra
         if nvar > 1:
@@ -517,6 +580,46 @@ def cmd_image(a):
         it.gates["frames"] = {"qa": "pending", "caio": "pending"}
         it.set_state("frames", f"frames v{n}")
     it.save()
+
+
+def _image_counterpart(a, page, it):
+    """Rodada 7: ficha C1 da contraparte humana que aparece no quadro, pela OpenAI (images.generate, sem a ref do
+    protagonista: pessoa fictícia, não reconhecível, diferente dele). Vem antes dos frames e entra como imagem a
+    mais nos frames A/B e no video-request."""
+    cp = _cp_needed(it)
+    if not cp:
+        raise StoreError("o roteiro não tem contraparte humana com rosto no quadro: fora do quadro (B4.10), bicho e "
+                         "objeto não ganham ficha")
+    provider = a.provider or _switches().get("image_provider", "openai")
+    if provider != "openai":
+        raise StoreError("a ficha da contraparte sai só pela OpenAI (images.generate); rode sem --provider higgsfield")
+    _need_state(it, ["roteiro", "storyboard"], "image counterpart (antes dos frames)", a.force)
+    rec = _cp_sheet(it)
+    if rec and rec.get("path") and local(rec["path"]).exists() and not a.force:
+        print(f"ficha da contraparte já existe: {rec['path']} (refazer: --force)")
+        return
+    unit = budget.load_budget()["cost_estimates"]["openai_image"].get(a.quality, 0.17)
+    mock = bool(a.mock) or os.getenv("USINA_MOCK") == "1"
+    ok, why = budget.can_spend("openai", unit)
+    if not ok:
+        raise StoreError(why)
+    n = it.attempts.get("counterpart", 0) + 1
+    prompt = prompts.counterpart_sheet_prompt(it.script, page, cp)
+    wd = _workdir(it)
+    out = wd / f"counterpart-v{n}.png"
+    (wd / f"counterpart-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
+    images.generate(prompt, out, [], aspect="1024x1536", quality=a.quality, mock=mock)
+    budget.record(it.page, it.id, "openai", "image_counterpart", usd=0 if mock else unit,
+                  note=f"{cp['who']}{' (mock)' if mock else ''}")
+    it.counterpart = {"who": cp["who"], "path": rel(out), "prompt": prompt, "v": n}
+    it.attempts["counterpart"] = n
+    _clear_assets(it, "counterpart")
+    it.history.append({"at": time.time(), "from": it.state, "to": it.state, "why": f"ficha da contraparte v{n}"})
+    it.save()
+    print(f"ok: {out.relative_to(ROOT)}")
+    others = [c["who"] for c in lintmod.sheet_counterparts(it.script)[1:]]
+    if others:
+        print(f"aviso: só {cp['who']} ganha ficha; {', '.join(others)} segue(m) sem (uma ficha por item)", file=sys.stderr)
 
 
 def cmd_record_image(a):
@@ -585,12 +688,16 @@ def cmd_record_upload(a):
         if not it.storyboard:
             raise StoreError("item sem storyboard para associar ao upload")
         it.storyboard["higgsfield_id"] = a.hf_id
+    elif a.key == "counterpart":
+        if not _cp_sheet(it):
+            raise StoreError("item sem ficha da contraparte (rode `image <ref> counterpart`)")
+        it.counterpart["higgsfield_id"] = a.hf_id
     elif a.key in ("start", "end"):
         if not it.frames.get(a.key):  # senão nasceria um frame "fantasma" só com id (ex.: end num roteiro sem end)
             raise StoreError(f"item sem frame '{a.key}' gerado; nada para associar ao upload")
         it.frames[a.key]["higgsfield_id"] = a.hf_id
     else:
-        raise StoreError("key deve ser storyboard, start, end, source_first ou last")
+        raise StoreError("key deve ser storyboard, start, end, counterpart, source_first ou last")
     it.save()
     print("registrado")
 
@@ -722,6 +829,7 @@ def cmd_discard(a):
 
 
 def cmd_video_request(a):
+    _hf_spend_gate()  # rodada 7, antes de tudo: todos os modos (próprio, trend/Genjutsu, --gag, --repair)
     page, it = _item(a.ref)
     _other_tick()
     _gen_gate(page)
@@ -769,6 +877,13 @@ def cmd_video_request(a):
             has_sb = True
         else:
             need_upload.append({"key": "storyboard", "path": it.storyboard.get("path")})
+    cp_rec = _require_cp_sheet(it, a.ref)  # rodada 7: a ficha da contraparte, depois da grade
+    cp_ref = None
+    if cp_rec and cp_rec.get("higgsfield_id"):
+        medias.append({"role": "image_references", "value": cp_rec["higgsfield_id"]})
+        cp_ref = (cp_rec["who"], 3 + int(has_sb))
+    elif cp_rec:
+        need_upload.append({"key": "counterpart", "path": cp_rec.get("path")})
     if need_upload:
         _print({"ready": False, "upload_first": need_upload,
                 "how": ("Para cada arquivo: mcp__Higgsfield__media_upload(filename=<nome.png>) -> "
@@ -781,7 +896,7 @@ def cmd_video_request(a):
     has_start = any(m["role"] == "start_image" for m in medias)
     has_end = any(m["role"] == "end_image" for m in medias)
     prompt = prompts.video_prompt(s, page, has_start=has_start, has_end=has_end, has_storyboard=has_sb,
-                                  repair=opts.get("repair", ""))
+                                  repair=opts.get("repair", ""), counterpart=cp_ref)
     (_workdir(it) / f"video-v{it.attempts.get('video', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     res = "720p" if budget.degraded_mode() else str(page.data.get("video_resolution", "720p"))
     _print({
@@ -882,8 +997,18 @@ def _video_request_gag(a, page, it):
                 "how": "media_upload + PUT + media_confirm(type='image') do último frame do motion control e depois "
                        f"`python -m pipeline record-upload {a.ref} last --hf-id <id>`; rode `video-request --gag` de novo."})
         return
+    # rodada 7: contraparte humana no quadro do gag = a ficha dela entra como @Image 3
+    gag_cps = {c["who"].lower() for c in lintmod.sheet_counterparts({"gag_followup": s["gag_followup"]})}
+    cp_rec = _require_cp_sheet(it, a.ref) if gag_cps else None
+    if cp_rec and cp_rec["who"].lower() not in gag_cps:
+        cp_rec = None
+    if cp_rec and not cp_rec.get("higgsfield_id"):
+        _print({"ready": False, "upload_first": [{"key": "counterpart", "path": cp_rec.get("path"), "type": "image"}],
+                "how": "media_upload + PUT + media_confirm(type='image') da ficha da contraparte e depois "
+                       f"`python -m pipeline record-upload {a.ref} counterpart --hf-id <id>`; rode `video-request --gag` de novo."})
+        return
     g = s["gag_followup"]
-    prompt = prompts.gag_prompt(s, page)
+    prompt = prompts.gag_prompt(s, page, (cp_rec["who"], 3) if cp_rec else None)
     (_workdir(it) / f"gag-v{it.attempts.get('gag', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     _print({
         "ready": True,
@@ -892,7 +1017,8 @@ def _video_request_gag(a, page, it):
             "model": "seedance_2_5", "mode": "omni_reference", "aspect_ratio": "9:16",
             "duration": int(round(float(g.get("duration_s", 5)))), "resolution": "720p", "generate_audio": False,
             "medias": [{"role": "start_image", "value": it.video["last_hf_id"]}]
-                      + [{"role": "image_references", "value": i} for i in ref_ids],
+                      + [{"role": "image_references", "value": i} for i in ref_ids]
+                      + ([{"role": "image_references", "value": cp_rec["higgsfield_id"]}] if cp_rec else []),
             "prompt": prompt}}],
         "est_credits": est,
         "note": "Se a resposta recomendar um preset, reenvie com declined_preset_id.",
@@ -1433,7 +1559,7 @@ def cmd_panel_export(a):
           f"out/panel/batch-NN.json; documentos já existentes precisam do if_version lido antes)")
 
 
-MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last", "source", "source_first", "gag_clip",
+MEDIA_KEYS = ("storyboard", "counterpart", "start", "end", "video", "sheet", "gag", "last", "source", "source_first", "gag_clip",
               "gag_clip_sheet", "package", "var1", "var2", "var3", "var4")
 MAGIC = {".png": [b"\x89PNG"], ".jpg": [b"\xff\xd8\xff"], ".jpeg": [b"\xff\xd8\xff"],
          ".mp4": [b"ftyp"], ".mov": [b"ftyp"], ".m4v": [b"ftyp"]}
@@ -1444,6 +1570,9 @@ def _media_paths(it) -> dict:
     out = {}
     if it.storyboard.get("path"):
         out["storyboard"] = it.storyboard["path"]
+    cp = _cp_sheet(it)  # rodada 7: a ficha da contraparte humana
+    if cp and cp.get("path"):
+        out["counterpart"] = cp["path"]
     for k in ("start", "end"):
         if (it.frames.get(k) or {}).get("path"):
             out[k] = it.frames[k]["path"]
@@ -1540,6 +1669,9 @@ def _lost_fix(ref: str, key: str) -> str:
         return f"as opções do frame sumiram antes do pick: `python -m pipeline retry {ref} frames` e gere de novo"
     if key == "package":
         return f"monte o pacote de novo: `python -m pipeline package {ref}`"
+    if key == "counterpart":
+        return (f"a ficha da contraparte sumiu: antes dos frames, `python -m pipeline image {ref} counterpart --force`; "
+                f"com os frames já feitos, `retry {ref} frames` e gere a ficha e os frames de novo (eles a usam)")
     if key == "gag_clip":
         return f"`python -m pipeline retry {ref} gag` e peça o gag de novo"
     if key == "gag_clip_sheet":
@@ -1877,7 +2009,8 @@ def main(argv=None):
     p = sp.add_parser("save-script"); p.add_argument("ref"); p.add_argument("file")
     p.add_argument("--force", action="store_true", help="reescrever o roteiro de um item já em produção")
     p.set_defaults(f=cmd_save_script)
-    p = sp.add_parser("image"); p.add_argument("ref"); p.add_argument("stage", choices=["storyboard", "frames"])
+    p = sp.add_parser("image"); p.add_argument("ref")
+    p.add_argument("stage", choices=["storyboard", "counterpart", "frames"])
     p.add_argument("--provider", choices=["openai", "higgsfield"], default=os.getenv("USINA_IMAGE_PROVIDER"),
                    help="padrão: switches.image_provider do budget.yaml")
     p.add_argument("--quality", default="high", choices=["low", "medium", "high", "xhigh"])
