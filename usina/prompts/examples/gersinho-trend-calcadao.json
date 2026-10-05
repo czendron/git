@@ -57,15 +57,23 @@
         {
           "t": "0-2.5s",
           "text": "He finishes the last move with his right index finger pointing up, lowers the hand and rests it on his belly, chin raised, staring into the lens.",
-          "end_state": "standing still, hand on belly, chin raised, eyes on the lens"
+          "end_state": "standing still, hand on belly, chin raised, eyes on the lens",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "2.5-5s",
-          "text": "A grey seagull glides in from frame-right and lands on top of his rigid pompadour, folding its wings; he does not move or react and keeps staring into the lens.",
+          "text": "A grey seagull glides in from frame-right and lands on top of his rigid pompadour, folding its wings; he keeps the same pose and keeps staring into the lens.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "counterpart": {
+            "who": "the grey seagull",
+            "position": "standing on the top of his pompadour, centered",
+            "facing": "in profile facing frame-left, 90° to the lens"
+          },
           "end_state": "the seagull stands still on top of the pompadour; he stares deadpan into the lens"
         }
       ],
-      "end_change": "a grey seagull standing still on top of his rigid pompadour while he stares deadpan into the lens"
+      "end_change": "a grey seagull standing still on top of his rigid pompadour while he stares deadpan into the lens",
+      "gag_sentence": "After the dance he stands still and a grey seagull lands on top of his rigid pompadour."
     }
   }
 }

@@ -13,7 +13,7 @@
     "page": "gersinho",
     "title": "Elevador nao fecha",
     "format": "proprio",
-    "premise": "Num elevador comercial lotado, as portas tentam fechar, batem na ponta do topete e reabrem; ele segue o passo brega, sério, enquanto as portas abrem e fecham de novo.",
+    "premise": "Num elevador comercial, as portas tentam fechar, batem na ponta do topete que passa da linha da porta e reabrem; ele segue sério, parado, olhando a lente.",
     "gag_without_sound": "a porta do elevador bate no topete e reabre sozinha, e ele nem pisca",
     "location": {
       "place": "elevador de prédio comercial antigo no centro",
@@ -24,7 +24,7 @@
     "camera": {
       "mode": "static_passerby",
       "fov_deg": 63,
-      "height": "altura do peito, do hall, de frente para a porta",
+      "height": "altura do peito, do hall, a 3 m, de frente para a porta",
       "movement": "tripé, travada"
     },
     "beats": [
@@ -54,25 +54,25 @@
       {
         "n": 1,
         "t": "0-1s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "porta aberta, ele no centro do elevador em pose de assinatura"
       },
       {
         "n": 2,
         "t": "1-6.5s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "pico do passo brega, quadril para a esquerda do quadro"
       },
       {
         "n": 3,
         "t": "6.5-8.5s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "as duas folhas de inox se encontrando na ponta do topete, que avança 15 cm além da linha da porta"
       },
       {
         "n": 4,
         "t": "8.5-10s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "portas totalmente abertas de novo, ele parado, sério, dedo pra cima"
       }
     ],
@@ -109,35 +109,39 @@
       "clareza_sem_som": 5
     },
     "en": {
-      "gag_sentence": "In a crowded office elevator he does his signature brega step at the front until the closing steel doors bump the tip of his rigid pompadour and slide open again.",
+      "gag_sentence": "In an office elevator he does his signature brega step at the front until the closing steel doors bump the tip of his rigid pompadour and slide open again.",
       "location": "an old office-building elevator in downtown São Paulo seen from the lobby through its open doors, brushed steel walls, a small floor-number display above the door, fluorescent morning light",
       "location_map": "Center: the open elevator cabin, 1.5 m wide, with him at the front just behind the door line. Frame-left and frame-right: the two brushed-steel door leaves retracted into the door frame. Above: the floor-number display. Foreground: the lobby floor tiles.",
-      "position": "centered at the front of the cabin, 20 cm behind the door line, chest square to the lens; the tip of the pompadour extends 15 cm forward past the door line",
+      "position": "centered at the front of the cabin, chest square to the lens, his face 10 cm behind the door line; the front of the pompadour leans forward and its tip crosses the door line by 10 cm",
       "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together",
       "extras_count": 4,
       "extras_tasks": "two office workers behind him read their phones, one looks up at the floor display, one holds a coffee cup and looks at the wall",
       "props": "exactly one elevator door made of two brushed-steel leaves, fully open, retracted at frame-left and frame-right",
-      "hands": "Exactly two hands in frame for him: left hand flat on his belly, right index finger raised.",
+      "hands": "He has exactly two hands: left hand flat on his belly, right index finger raised.",
       "stages": [
         {
           "t": "0-1s",
           "text": "He holds the signature pose from the start frame; breathing lifts the chest, one slow blink.",
-          "end_state": "same pose, eyes into the lens."
+          "end_state": "same pose, eyes into the lens.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "1-6.5s",
           "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat.",
-          "end_state": "feet together, finger raised, chest square to the lens."
+          "end_state": "feet together, finger raised, chest square to the lens.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "6.5-8.5s",
           "text": "The two steel door leaves slide in from frame-left and frame-right toward the center at walking pace; they touch the tip of the pompadour that sticks out past the door line, stop, and slide back open to the frame edges; the pompadour keeps its exact outline.",
-          "end_state": "doors fully open again, pompadour unchanged."
+          "end_state": "doors fully open again, pompadour unchanged.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "8.5-10s",
           "text": "Everything settles and holds; he stares into the lens, finger raised. The final frame matches the end frame.",
-          "end_state": "frozen result, readable as a cover."
+          "end_state": "doors fully open at the frame edges, he stands still, finger raised, deadpan.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
         }
       ],
       "end_change": "the two steel door leaves are fully open again at the frame edges; he stands still at the front of the cabin, finger raised, deadpan; the passengers keep their tasks",
@@ -146,7 +150,7 @@
       "props_lock": "Exactly one elevator door with two brushed-steel leaves: open at the start, touching the pompadour tip at 7.5 s, open again at the end.",
       "lighting": "Fluorescent overhead light inside the cabin, cool 4000K, even and flat, soft reflections on the brushed steel.",
       "panels": [
-        "centered at the front of the open elevator cabin, signature pose, chest square to the lens, pompadour tip past the door line",
+        "centered at the front of the open elevator cabin, signature pose, chest square to the lens, pompadour tip 10 cm past the door line",
         "hips swayed to frame-left at the peak of the brega step, finger raised, passengers on their phones",
         "the two steel door leaves meeting the tip of the pompadour at the door line, stopped",
         "doors fully open again, he stands still and deadpan, finger raised"

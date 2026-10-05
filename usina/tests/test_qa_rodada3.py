@@ -68,7 +68,7 @@ def test_save_script_warns_repeated_place(usina, tmp_path):
     assert "aviso: cenário repete" in out
     s = json.loads((usina / EXAMPLE).read_text())
     s["location"]["place"] = "feira livre de domingo, banca de pastel"
-    s["en"]["location"] = "a crowded Sunday street market, pastel stall with a deep fryer, plastic awnings"
+    s["en"]["location"] = "a Sunday street market, pastel stall with a deep fryer, plastic awnings"
     f = tmp_path / "feira.json"
     f.write_text(json.dumps(s))
     c = run(usina, "new", "gersinho", "Feira", "--idea", "feira").stdout.strip()

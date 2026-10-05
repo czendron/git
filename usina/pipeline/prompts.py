@@ -79,11 +79,11 @@ ROLE = {
     "wanderley": "a stocky Brazilian uncle in a faded trucker cap, a white tank top, blue tactel shorts and socks with flip-flops",
 }
 
-# Identidade mínima no prompt de vídeo (regra 8): papel + 2 marcas. O figurino completo vem da silhueta (@Image 2).
+# Identidade mínima no prompt de vídeo (regra 8): papel + a marca da silhueta. O figurino vem da silhueta (@Image 2).
 ROLE_SHORT = {
-    "gersinho": "a lanky brega singer in a tropical-print silk shirt and white bell-bottoms",
-    "marlene": "a Brazilian auntie in a pastel-pink shoulder-pad suit and cat-eye glasses",
-    "wanderley": "a stocky Brazilian uncle in a trucker cap and a white tank top",
+    "gersinho": "a lanky brega singer",
+    "marlene": "a Brazilian auntie in cat-eye glasses",
+    "wanderley": "a stocky Brazilian uncle",
 }
 # Primeira frase da silhueta (a marca), para o SCENE CONTEXT e o PHYSICS sem repetir a descrição inteira.
 def _mark(sil: str) -> str:
@@ -168,25 +168,31 @@ def character_sheet_prompt(page: Page) -> str:
 
 # ---------------- orientação por estágio ----------------
 
-def _orient(st: dict) -> str:
-    """Orientação do personagem no estágio + posição e orientação do outro ator (quem encara quem)."""
+def _orient(st: dict, prev: dict | None = None) -> str:
+    """Orientação do personagem no estágio + posição e orientação do outro ator (quem encara quem).
+
+    Com `prev`, a orientação só é repetida quando muda (ou quando há outro ator): o "Unless a stage names a turn"
+    segura o resto, e o prompt não incha (BIBO: estrutura vence comprimento)."""
     out = []
-    if st.get("facing"):
-        out.append(f"Orientation: {_lc(st['facing'])}.")
     cp = st.get("counterpart")
-    if isinstance(cp, dict) and cp.get("who"):
+    has_cp = isinstance(cp, dict) and cp.get("who")
+    if st.get("facing") and (prev is None or has_cp or st["facing"] != prev.get("facing")):
+        out.append(f"Orientation: {_lc(st['facing'])}.")
+    if has_cp:
         out.append(_sent(f"{cp['who']}: {_lc(cp.get('position', ''))}, {_lc(cp.get('facing', ''))}"))
     return " ".join(out)
 
 
 def _stage_lines(stages: list, end_change: str = "", keep_final_match: bool = True) -> list[str]:
-    """[Stage n — t] texto + orientação + estado final. O último estado final é o end_change (o frame B), não um
-    rótulo abstrato ("frozen result, readable as a cover" não é visível)."""
+    """[Stage n — t] texto + orientação + estado final. Sem frame final como âncora (end_change sem end_image),
+    o último estado final é o end_change por extenso; com o end_image, basta o end_state curto do roteiro."""
     lines = []
     for i, st in enumerate(stages, 1):
         text = st["text"] if keep_final_match else st["text"].replace(" The final frame matches the end frame.", "")
-        end = _lc(end_change) if (i == len(stages) and end_change) else _lc(st["end_state"])
-        lines.append(" ".join(filter(None, [f"[Stage {i} — {st['t']}] {_sent(text)}", _orient(st),
+        last = i == len(stages)
+        end = _lc(end_change) if (last and end_change and not keep_final_match) else _lc(st["end_state"])
+        lines.append(" ".join(filter(None, [f"[Stage {i} — {st['t']}] {_sent(text)}",
+                                             _orient(st, stages[i - 2] if i > 1 else {}),
                                              f"End state: {end}."])))
     return lines
 
@@ -230,7 +236,7 @@ def storyboard_prompt(script: dict, page: Page) -> tuple[str, str]:
                      f"own task ({en['extras_tasks']}), none looking at {obj}" if int(en.get('extras_count') or 0)
                      else f"{en['location']}; {sub} is the only person in every panel"),
         "panels": [dict({"position": p, "time": t, "state": s},
-                        **({"orientation": _orient(st)} if st and _orient(st) else {}))
+                        **({"orientation": _orient(st).replace("Orientation: ", "")} if st and _orient(st) else {}))
                    for p, t, s, st in zip(pos_list, times, panels, stages or [None] * n)],
         "rules": f"same outfit, same {part} shape and size in every panel; props: "
                  f"{_lc(en.get('props_lock') or en.get('props') or 'none')}; no text, no numbers, no speech balloons, "
@@ -298,9 +304,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
     if has_start or has_end:
         refs.append(" ".join(filter(None, [
             "The start frame defines the opening composition, positions, pose and camera." if has_start else "",
-            "The end frame defines the final composition and the gag's end state." if has_end else "",
-            "The video begins at the start frame and reaches the end frame through one continuous action."
-            if has_start and has_end else ""])))
+            "The end frame defines the final composition and the gag's end state." if has_end else ""])))
     refs += _ref_lines(nm, pos, part)
     if has_storyboard:
         stg = en["stages"]
@@ -317,7 +321,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
                    f"exactly as specified.",
                    f"Change only: {repair.strip().rstrip('.')}.",
                    f"Protect: the {part} outline, the deadpan mouth, the passersby ignoring {obj}.", ""]
-    who = f"{nm}, {ROLE_SHORT.get(page.slug, 'the character')}, with {_mark(sil)}"
+    who = f"{nm}, {ROLE_SHORT.get(page.slug, 'the character')} with {_mark(sil)}"
     blocks += [
         "SCENE CONTEXT",
         (f"EXACTLY 1 main character — {who} — plus {crowd(extras)} in the background. " if extras else
@@ -424,7 +428,7 @@ def gag_prompt(script: dict, page: Page) -> str:
     nm = name(page)
     extras = int(en.get("extras_count") or 0)
     logline = gen.get("gag_sentence") or f"It ends with {_lc(gen['end_change'])}."
-    who = f"{nm}, {ROLE_SHORT.get(page.slug, 'the character')}, with {_mark(sil)}"
+    who = f"{nm}, {ROLE_SHORT.get(page.slug, 'the character')} with {_mark(sil)}"
     blocks = [
         "SCENE CONTEXT",
         f"This clip continues a dance video: the start frame is its last frame. EXACTLY 1 main character — {who}"
@@ -438,11 +442,12 @@ def gag_prompt(script: dict, page: Page) -> str:
         "The image references never change the start-frame composition.",
         "",
         "CAMERA",
-        _fmt(cam(script)["video"], page) + " Same position and framing as the start frame. One continuous shot; no "
-        "cut; no drift.",
+        # trend: a câmera é a do vídeo-fonte (o FOV dele, não o da tabela); trava sem zoom para o gag não reenquadrar
+        "Same camera position, lens and framing as the start frame, locked off, no zoom. One continuous shot; no cut; "
+        "no drift.",
         "",
         "ACTION",
-        *_stage_lines(gen["stages"], gen.get("end_change", "")),
+        *_stage_lines(gen["stages"], gen.get("end_change", ""), keep_final_match=False),
         _turn_rule(pos),
         "",
         "PERFORMANCE",

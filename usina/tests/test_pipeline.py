@@ -188,5 +188,6 @@ def test_trend_motion_flow(usina, tmp_path):
     vr = json.loads(run(usina, "video-request", ref).stdout)
     p = vr["requests"][0]["params"]
     assert p["model"] == "hf_mult_motion_control"
-    assert [m["role"] for m in p["medias"]] == ["image_references", "video_references"]
+    # ficha em toda geração (videos-analisados §5): frame do personagem + rosto + silhueta + vídeo-fonte
+    assert [m["role"] for m in p["medias"]] == ["image_references"] * 3 + ["video_references"]
     assert "Real-time speed" in p["prompt"]

@@ -42,6 +42,7 @@ INTERACT = re.compile(r"\b(punch\w*|hit|hits|hitting|strik\w*|slap\w*|kick\w*|pu
 # Verbos vagos: o modelo escolhe sozinho o que fazer (regra 20; o "desafia o boxe" virou soco).
 VAGUE = re.compile(r"\b(dances|dancing|does a dance|fights?|fighting|spars?|sparring|reacts?|reacting|interacts?|"
                    r"interacting|confronts?|plays? with|messes with|moves around|grooves?|vibes?)\b", re.I)
+ABSTRACT_END = re.compile(r"readable as a cover|frozen result|as before|same as above|the gag lands|it works", re.I)
 CROWD = re.compile(r"\b(crowded|crowd|packed|full of people|throngs?|lotad[oa])\b", re.I)
 NUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
        "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
@@ -85,6 +86,9 @@ def lint_stages(stages, premise: str = "", where: str = "en.stages") -> tuple[li
             elif not DEG.search(str(cp.get("facing"))):
                 errors.append(f"{where}[{i}].counterpart.facing: diga o ângulo em graus (ex.: 'in profile facing "
                               f"frame-left toward him, 90° to the lens')")
+        if ABSTRACT_END.search(str(st.get("end_state", ""))):
+            warns.append(f"{where}[{i}].end_state abstrato ('{ABSTRACT_END.search(str(st.get('end_state'))).group(0)}'): "
+                         f"descreva o que se vê no quadro (regra 5)")
         m = VAGUE.search(str(st.get("text", "")))
         if m:
             warns.append(f"{where}[{i}]: verbo vago '{m.group(0)}': escreva o movimento do corpo (pé, direção, mão)")

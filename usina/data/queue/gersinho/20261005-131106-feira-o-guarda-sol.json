@@ -13,8 +13,8 @@
     "page": "gersinho",
     "title": "Guarda-chuva no topete",
     "format": "proprio",
-    "premise": "No ponto de ônibus na chuva, ele dança brega sob a cobertura e abre um guarda-chuva preto, que fica pousado no alto do topete, 25 cm acima da cabeça; a chuva cai no rosto dele, que segue sério.",
-    "gag_without_sound": "o guarda-chuva abre em cima do topete e não protege nada; a chuva cai na cara dele",
+    "premise": "No ponto de ônibus na chuva, ele dança brega e abre um guarda-chuva preto automático; a copa pousa inclinada no alto do topete e a água da chuva escorre da borda num fio sobre o ombro dele, que segue sério.",
+    "gag_without_sound": "o topete é tão alto que o guarda-chuva fica torto em cima dele e a água cai no ombro",
     "location": {
       "place": "ponto de ônibus de avenida com cobertura curta",
       "city_vibe": "São Paulo, zona norte",
@@ -24,7 +24,7 @@
     "camera": {
       "mode": "static_passerby",
       "fov_deg": 63,
-      "height": "altura do peito, a 4 m, do outro lado da calçada",
+      "height": "altura do peito, a 3 m, do outro lado da calçada",
       "movement": "tripé, travada"
     },
     "beats": [
@@ -36,48 +36,48 @@
       },
       {
         "t": "6.5-10s",
-        "action": "abre o guarda-chuva acima da cabeça; a copa abre e fica apoiada no topo do topete, e a chuva cai no rosto e nos ombros dele",
+        "action": "aperta o botão do guarda-chuva automático acima da cabeça; a copa abre, pousa inclinada no topo do topete e a água escorre da borda no ombro esquerdo dele",
         "facing": "de frente para a lente",
         "extras": "ninguém reage"
       }
     ],
     "character_actions_count": 2,
     "duration_s": 10,
-    "end_state": "guarda-chuva aberto pousado no alto do topete, chuva molhando o rosto, olhar sério na lente",
+    "end_state": "guarda-chuva aberto, torto no alto do topete, fio de água caindo no ombro esquerdo, rosto sério",
     "props": [
       {
         "name": "guarda-chuva preto",
-        "orientation": "fechado na mão direita apontando para o chão; aberto, a haste vertical e a copa apoiada no topo do topete"
+        "orientation": "fechado na mão direita apontando para o chão; aberto, a haste na mão direita e a copa apoiada no topo do topete, inclinada 20° para a esquerda do quadro"
       }
     ],
     "storyboard_panels": [
       {
         "n": 1,
         "t": "0-1s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "na beira da cobertura, pose de assinatura, guarda-chuva fechado na mão"
       },
       {
         "n": 2,
         "t": "1-6.5s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "pico do passo brega, chuva atrás"
       },
       {
         "n": 3,
         "t": "6.5-8.5s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "guarda-chuva abrindo acima da cabeça, a copa encostando no topo do topete"
       },
       {
         "n": 4,
         "t": "8.5-10s",
-        "shot": "MS fixa 63°",
-        "description": "copa aberta pousada no topo do topete, chuva caindo no rosto sério"
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "copa aberta inclinada no topo do topete, fio de água no ombro esquerdo, rosto sério"
       }
     ],
     "start_frame": "Gersinho na beira da cobertura do ponto, de frente, guarda-chuva preto fechado na mão direita, chuva forte atrás",
-    "end_frame": "guarda-chuva aberto apoiado no topo do topete, gotas no rosto, sério",
+    "end_frame": "guarda-chuva aberto inclinado no topo do topete, fio de água no ombro esquerdo, rosto sério",
     "music": {
       "genre": "brega",
       "bpm": 95,
@@ -109,47 +109,51 @@
       "clareza_sem_som": 5
     },
     "en": {
-      "gag_sentence": "At a rainy São Paulo bus stop he does his signature brega step and then opens a black umbrella whose canopy comes to rest on top of his rigid pompadour, 25 cm above his head, so the rain falls on his face.",
+      "gag_sentence": "At a rainy São Paulo bus stop he does his signature brega step, then opens a black automatic umbrella whose canopy lands tilted on top of his rigid pompadour, so the rainwater pours off its low edge onto his shoulder.",
       "location": "the edge of a short bus-stop shelter on a São Paulo avenue in heavy rain, wet asphalt reflecting car lights, late afternoon",
       "location_map": "Center: he stands at the front edge of the shelter roof, half under it. Frame-left: the shelter bench with waiting people. Frame-right: the wet avenue with passing cars. Background: rain falling in visible streaks.",
       "position": "at the front edge of the shelter, centered, chest square to the lens, the full pompadour and the falling rain behind him visible",
-      "signature_pose": "left hand flat on his belly, right hand holding a closed black umbrella pointing at the ground, feet together",
+      "signature_pose": "left hand flat on his belly, right hand holding a closed black automatic umbrella by its J-handle, tip pointing at the ground, feet together",
       "extras_count": 4,
       "extras_tasks": "two people on the bench read their phones, one stands looking down the avenue for the bus, one holds a plastic bag over her head and watches the cars",
-      "props": "exactly one black umbrella, closed, held in his right hand, tip pointing at the ground",
-      "hands": "Exactly two hands in frame for him: left hand flat on his belly, right hand on the umbrella handle.",
+      "props": "exactly one black automatic umbrella, closed, held by its J-handle in his right hand, tip pointing at the ground",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand on the umbrella handle.",
       "stages": [
         {
           "t": "0-1s",
           "text": "He holds the signature pose from the start frame; breathing lifts the chest, one slow blink.",
-          "end_state": "same pose, eyes into the lens."
+          "end_state": "same pose, eyes into the lens.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "1-6.5s",
           "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first; his hips sway once to frame-left and once to frame-right on the beat; the closed umbrella in his right hand swings 10 cm with the hips.",
-          "end_state": "feet together, umbrella closed, chest square to the lens."
+          "end_state": "feet together, umbrella closed, chest square to the lens.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "6.5-8.5s",
-          "text": "He raises the closed umbrella straight up above his head and pushes the runner; the black canopy opens and comes to rest on the top of the pompadour, the shaft vertical, the canopy 25 cm above his head; rain falls past the canopy edge onto his face and shoulders.",
-          "end_state": "umbrella open, resting on the top of the pompadour, rain on his face."
+          "text": "He raises the closed umbrella straight up above his head and presses the auto-open button on the handle with his right thumb; the black canopy springs open and comes to rest on the top of the pompadour, which props it up 45 cm above his head and tilts it 20° toward frame-left; rainwater runs off the low edge of the canopy in a thin steady stream onto his left shoulder.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "umbrella open and tilted on the top of the pompadour, a stream of water pouring onto his left shoulder."
         },
         {
           "t": "8.5-10s",
-          "text": "Everything settles and holds; drops run down his cheeks; he stares into the lens. The final frame matches the end frame.",
-          "end_state": "frozen result, readable as a cover."
+          "text": "Everything settles and holds; the stream keeps pouring onto his left shoulder; he stares into the lens. The final frame matches the end frame.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+          "end_state": "umbrella tilted on the pompadour, water pouring onto his soaked left shoulder, deadpan."
         }
       ],
-      "end_change": "he holds the open black umbrella by its vertical shaft with his right hand; the canopy rests on the top of the pompadour, 25 cm above his head; rain falls onto his face and shoulders, which are wet; deadpan",
+      "end_change": "he holds the open black umbrella by its shaft with his right hand; the canopy rests on the top of the pompadour, 45 cm above his head, tilted 20° toward frame-left; a thin stream of rainwater pours from its low edge onto his soaked left shoulder; deadpan",
       "vacated": "",
-      "end_props": "exactly one open black umbrella, shaft vertical, canopy resting on the top of the pompadour",
-      "props_lock": "Exactly one black umbrella for the whole clip: closed in his right hand at the start, open on top of the pompadour at the end.",
+      "end_props": "exactly one open black umbrella, shaft in his right hand, canopy resting on the top of the pompadour, tilted 20° toward frame-left",
+      "props_lock": "Exactly one black umbrella for the whole clip: closed in his right hand at the start, open and tilted on top of the pompadour at the end.",
       "lighting": "Overcast rainy late afternoon, cool 6500K daylight, wet reflective surfaces, headlights glinting on the asphalt.",
       "panels": [
         "at the front edge of the shelter, signature pose, closed black umbrella in his right hand, rain behind him",
         "hips swayed to frame-left at the peak of the brega step, umbrella closed, rain streaks behind",
-        "the black umbrella opening above his head, the canopy touching the top of the pompadour",
-        "the open umbrella resting on the top of the pompadour, rain falling on his deadpan face"
+        "the black umbrella springing open above his head, the canopy touching the top of the pompadour",
+        "the open umbrella resting tilted on the top of the pompadour, a thin stream of water pouring from its low edge onto his left shoulder, deadpan face"
       ]
     }
   },

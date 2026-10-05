@@ -13,8 +13,8 @@
     "page": "gersinho",
     "title": "Busao topete preso",
     "format": "proprio",
-    "premise": "Gersinho dança brega no degrau do ônibus lotado; a porta sanfonada fecha e o topete fica preso pra fora, e ele continua dançando sério enquanto o ônibus sai.",
-    "gag_without_sound": "a porta fecha no topete gigante e ele segue dançando sem reação, com o topete do lado de fora",
+    "premise": "Gersinho dança brega no degrau da porta do ônibus; a porta sanfonada fecha e prende a ponta do topete pra fora, e ele fica parado, sério, olhando a lente pelo vidro.",
+    "gag_without_sound": "a porta fecha e a ponta do topete gigante fica presa pra fora, e ele nem pisca",
     "location": {
       "place": "ponto de ônibus de bairro com ônibus urbano parado",
       "city_vibe": "São Paulo, zona leste",
@@ -24,7 +24,7 @@
     "camera": {
       "mode": "static_passerby",
       "fov_deg": 63,
-      "height": "altura do peito, a 4 m, do outro lado da calçada",
+      "height": "altura do peito, a 3 m, do outro lado da calçada",
       "movement": "tripé, travada"
     },
     "beats": [
@@ -36,48 +36,48 @@
       },
       {
         "t": "6.5-10s",
-        "action": "a porta sanfonada fecha e prende o topete por cima; ele fica parado, sério, encarando a lente pelo vidro",
+        "action": "as duas folhas de vidro fecham das laterais para o centro e prendem a ponta do topete na emenda; ele fica parado, sério, encarando a lente pelo vidro",
         "facing": "de frente para a lente",
         "extras": "ninguém reage"
       }
     ],
     "character_actions_count": 2,
     "duration_s": 10,
-    "end_state": "ônibus andando, porta fechada, topete preso pra fora em cima da porta, rosto sério visto pelo vidro com o dedo pra cima",
+    "end_state": "porta fechada, ponta do topete presa pra fora na emenda das folhas, rosto sério visto pelo vidro, dedo pra cima",
     "props": [
       {
         "name": "porta dianteira sanfonada do ônibus",
-        "orientation": "à direita do personagem do ponto de vista da câmera; abre para dentro e fecha em duas folhas de vidro"
+        "orientation": "folhas de vidro dobradas nas duas laterais da porta; fecham das laterais para o centro"
       }
     ],
     "storyboard_panels": [
       {
         "n": 1,
         "t": "0-1s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "pose de assinatura no degrau, porta aberta"
       },
       {
         "n": 2,
         "t": "1-6.5s",
-        "shot": "MS fixa 63°",
+        "shot": "plano inteiro fixo 63°, 3 m",
         "description": "pico do passo brega, quadril para a esquerda do quadro"
       },
       {
         "n": 3,
         "t": "6.5-8.5s",
-        "shot": "MS fixa 63°",
-        "description": "folhas de vidro fechando, ponta do topete tocando a borda de cima da porta"
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "folhas de vidro fechando das laterais para o centro, a ponta do topete passando da linha da porta"
       },
       {
         "n": 4,
         "t": "8.5-10s",
-        "shot": "MS fixa 63°",
-        "description": "porta fechada, topete preso pra fora acima da porta, rosto sério pelo vidro"
+        "shot": "plano inteiro fixo 63°, 3 m",
+        "description": "porta fechada, ponta do topete presa pra fora na emenda, rosto sério pelo vidro"
       }
     ],
     "start_frame": "Gersinho no degrau de baixo da porta dianteira aberta de um ônibus urbano lotado, de frente para a câmera, dedo pra cima, mão na barriga, topete inteiro visível",
-    "end_frame": "porta fechada, topete preso para fora acima da porta, rosto sério visto pelo vidro, ônibus em movimento",
+    "end_frame": "porta fechada, ponta do topete presa pra fora na emenda das folhas de vidro, rosto sério visto pelo vidro",
     "music": {
       "genre": "brega",
       "bpm": 95,
@@ -110,47 +110,51 @@
       "clareza_sem_som": 5
     },
     "en": {
-      "gag_sentence": "At a São Paulo bus stop he does his signature brega step on the bus doorway step until the folding glass door closes and clamps his rigid pompadour, which stays sticking out above the door.",
-      "location": "the open front doorway of a crowded white-and-green city bus stopped at a bus stop in a working-class São Paulo neighborhood, worn concrete sidewalk, a bus-stop shelter and a graffiti wall, overcast late afternoon",
-      "location_map": "Frame-left: the bus body with windows and standing passengers. Center: the open front doorway with three steps, its two glass door leaves folded open against the right side of the doorway. Frame-right: the bus-stop shelter and a graffiti wall. Foreground: worn concrete sidewalk.",
-      "position": "on the lowest step of the open front doorway, centered, chest square to the lens, the full pompadour above the top of the door frame",
+      "gag_sentence": "At a São Paulo bus stop he does his signature brega step on the lowest step of a bus doorway until the two folding glass door leaves close and pinch the front tip of his rigid pompadour, which stays sticking out through the seam between them.",
+      "location": "the open front doorway of a white-and-green city bus stopped at a bus stop in a working-class São Paulo neighborhood, worn concrete sidewalk, a bus-stop shelter and a graffiti wall, overcast late afternoon",
+      "location_map": "Frame-left: the bus body, its windows showing four passengers. Center: the open front doorway with three steps; its two glass door leaves folded open, one against the left side and one against the right side of the doorway. Frame-right: the bus-stop shelter and a graffiti wall. Foreground: worn concrete sidewalk.",
+      "position": "on the lowest step of the open front doorway, centered, chest square to the lens, his face 5 cm behind the door line; the front of the pompadour leans 10 cm forward past the door line, its top just below the top of the door frame",
       "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together on the step",
       "extras_count": 5,
-      "extras_tasks": "three passengers inside read their phones, one passenger looks out of the window, one pedestrian walks along the sidewalk looking ahead",
-      "props": "exactly one bus front door made of two glass leaves, folded open against the right side of the doorway",
-      "hands": "Exactly two hands in frame, both his: left hand flat on his belly, right hand with the index finger raised.",
+      "extras_tasks": "three seated passengers inside read their phones, one passenger by the window looks out at the street, one pedestrian walks along the sidewalk from frame-right to frame-left looking ahead",
+      "props": "exactly one bus front door made of two glass leaves, folded open against the left and right sides of the doorway",
+      "hands": "He has exactly two hands: left hand flat on his belly, right hand with the index finger raised.",
       "stages": [
         {
           "t": "0-1s",
           "text": "He holds the signature pose from the start frame on the lowest step; breathing lifts the chest, one slow blink.",
-          "end_state": "same pose, eyes into the lens."
+          "end_state": "same pose, eyes into the lens.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "1-6.5s",
           "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat; his left hand stays flat on his belly.",
-          "end_state": "feet together, finger raised, chest square to the lens."
+          "end_state": "feet together, finger raised, chest square to the lens.",
+          "facing": "chest within 30° of the lens while the hips sway, face 0° to the lens, eyes on the lens"
         },
         {
           "t": "6.5-8.5s",
-          "text": "The two glass door leaves swing closed from the right side of the doorway in front of his body; the top edge of the closing door meets the base of the pompadour; the pompadour passes over the door edge and stays outside, clamped between the door top and the door frame, its outline unchanged.",
-          "end_state": "door closed, pompadour sticking out above the door, his face behind the glass."
+          "text": "The two glass door leaves swing closed from the left and right sides of the doorway toward the center, in front of his body; their vertical edges meet in the center and pinch the front tip of the pompadour that sticks out past the door line; the tip stays outside the closed door, its outline unchanged; he keeps the pose.",
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens through the glass",
+          "end_state": "door closed, the pompadour tip pinched in the seam and sticking out toward the lens, his face behind the glass."
         },
         {
           "t": "8.5-10s",
           "text": "Everything settles and holds; he stares into the lens through the glass, finger raised. The final frame matches the end frame.",
-          "end_state": "frozen result, readable as a cover."
+          "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens through the glass",
+          "end_state": "door closed, pompadour tip pinched outside the seam, deadpan face behind the glass."
         }
       ],
-      "end_change": "the two glass door leaves are closed in front of him; the rigid black pompadour sticks out above the top of the closed door, clamped between the door top and the frame, outline unchanged; his deadpan face is seen through the glass with the right index finger raised",
+      "end_change": "the two glass door leaves are closed in front of him, meeting in the center of the doorway; the front tip of the rigid black pompadour sticks out 10 cm toward the lens through the seam between the leaves, pinched, outline unchanged; his deadpan face is seen through the glass with the right index finger raised",
       "vacated": "",
       "end_props": "the door is fully closed, both glass leaves meeting in the center of the doorway",
-      "props_lock": "Exactly one bus door with two glass leaves: open in the first frame, closed in the last frame.",
+      "props_lock": "Exactly one bus door with two glass leaves: open at both sides in the first frame, closed in the center in the last frame, pinching the pompadour tip.",
       "lighting": "Overcast late-afternoon daylight from the open sky, soft even light, gentle shadows under the bus, 5600K.",
       "panels": [
         "on the lowest step of the open doorway, signature pose: left hand on belly, right index finger raised, chest square to the lens",
         "hips swayed to frame-left at the peak of the brega step, finger raised, face toward the lens",
-        "the two glass door leaves closing in front of his body, the top edge of the door meeting the base of the pompadour",
-        "door closed, the rigid pompadour sticking out above the door, clamped; deadpan face behind the glass, finger raised"
+        "the two glass door leaves closing from the left and right sides toward the center in front of his body, the front tip of the pompadour past the door line",
+        "door closed, the front tip of the rigid pompadour pinched in the seam and sticking out toward the lens; deadpan face behind the glass, finger raised"
       ]
     }
   },
