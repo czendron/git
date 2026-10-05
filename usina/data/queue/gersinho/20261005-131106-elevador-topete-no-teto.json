@@ -1,0 +1,174 @@
+{
+  "page": "gersinho",
+  "id": "20261005-131106-elevador-topete-no-teto",
+  "state": "roteiro",
+  "created_at": 1791205866.3784826,
+  "updated_at": 1791205928.4007952,
+  "idea": {
+    "title": "Elevador topete no teto",
+    "text": "elevador de prédio comercial: o topete encosta no teto e ele inclina a cabeça 30 graus sem mudar a cara",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Elevador nao fecha",
+    "format": "proprio",
+    "premise": "Num elevador comercial lotado, as portas tentam fechar, batem na ponta do topete e reabrem; ele segue o passo brega, sério, enquanto as portas abrem e fecham de novo.",
+    "gag_without_sound": "a porta do elevador bate no topete e reabre sozinha, e ele nem pisca",
+    "location": {
+      "place": "elevador de prédio comercial antigo no centro",
+      "city_vibe": "São Paulo, centro",
+      "time_of_day": "manhã, luz fluorescente",
+      "kelvin": 4000
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, do hall, de frente para a porta",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "dentro do elevador, na frente, faz o passo brega com o dedo pra cima e a mão na barriga",
+        "facing": "de frente para a lente",
+        "extras": "4 pessoas atrás dele olham o celular ou o painel de andares"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "as duas folhas da porta deslizam, batem na ponta do topete que passa da linha da porta e reabrem; ele fica parado, sério",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "portas abertas de novo, ele parado no centro com o dedo pra cima, sério",
+    "props": [
+      {
+        "name": "porta de elevador de inox em duas folhas",
+        "orientation": "folhas deslizam da esquerda e da direita do quadro para o centro"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "MS fixa 63°",
+        "description": "porta aberta, ele no centro do elevador em pose de assinatura"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "MS fixa 63°",
+        "description": "pico do passo brega, quadril para a esquerda do quadro"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "MS fixa 63°",
+        "description": "as duas folhas de inox se encontrando na ponta do topete, que avança 15 cm além da linha da porta"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "MS fixa 63°",
+        "description": "portas totalmente abertas de novo, ele parado, sério, dedo pra cima"
+      }
+    ],
+    "start_frame": "Gersinho no centro de um elevador comercial lotado, porta aberta, de frente para a câmera no hall, pose de assinatura",
+    "end_frame": "mesmo quadro, portas abertas de novo, ele parado, sério",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega romântico em alta",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "nem o elevador aguenta"
+    },
+    "caption": "Elevador de serviço não está preparado para o Gerson.",
+    "hashtags": [
+      "#brega",
+      "#elevador",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "originality_note": "primeira piada com mecanismo (sensor de porta); repete-se em loop",
+    "brand_safety": [
+      "sem marca de prédio",
+      "sem criança"
+    ],
+    "risks": "as portas cortarem o topete ao meio ou o topete entortar; o modelo inventar corte. Conferir o painel 3 e G3.",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 4,
+      "miniatura": 4,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "In a crowded office elevator he does his signature brega step at the front until the closing steel doors bump the tip of his rigid pompadour and slide open again.",
+      "location": "an old office-building elevator in downtown São Paulo seen from the lobby through its open doors, brushed steel walls, a small floor-number display above the door, fluorescent morning light",
+      "location_map": "Center: the open elevator cabin, 1.5 m wide, with him at the front just behind the door line. Frame-left and frame-right: the two brushed-steel door leaves retracted into the door frame. Above: the floor-number display. Foreground: the lobby floor tiles.",
+      "position": "centered at the front of the cabin, 20 cm behind the door line, chest square to the lens; the tip of the pompadour extends 15 cm forward past the door line",
+      "signature_pose": "left hand flat on his belly, right index finger raised beside his head, feet together",
+      "extras_count": 4,
+      "extras_tasks": "two office workers behind him read their phones, one looks up at the floor display, one holds a coffee cup and looks at the wall",
+      "props": "exactly one elevator door made of two brushed-steel leaves, fully open, retracted at frame-left and frame-right",
+      "hands": "Exactly two hands in frame for him: left hand flat on his belly, right index finger raised.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame; breathing lifts the chest, one slow blink.",
+          "end_state": "same pose, eyes into the lens."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first; his hips sway once to frame-left and once to frame-right on the beat; his raised right index finger moves up and down twice on the beat.",
+          "end_state": "feet together, finger raised, chest square to the lens."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "The two steel door leaves slide in from frame-left and frame-right toward the center at walking pace; they touch the tip of the pompadour that sticks out past the door line, stop, and slide back open to the frame edges; the pompadour keeps its exact outline.",
+          "end_state": "doors fully open again, pompadour unchanged."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything settles and holds; he stares into the lens, finger raised. The final frame matches the end frame.",
+          "end_state": "frozen result, readable as a cover."
+        }
+      ],
+      "end_change": "the two steel door leaves are fully open again at the frame edges; he stands still at the front of the cabin, finger raised, deadpan; the passengers keep their tasks",
+      "vacated": "",
+      "end_props": "both door leaves retracted at frame-left and frame-right, fully open",
+      "props_lock": "Exactly one elevator door with two brushed-steel leaves: open at the start, touching the pompadour tip at 7.5 s, open again at the end.",
+      "lighting": "Fluorescent overhead light inside the cabin, cool 4000K, even and flat, soft reflections on the brushed steel.",
+      "panels": [
+        "centered at the front of the open elevator cabin, signature pose, chest square to the lens, pompadour tip past the door line",
+        "hips swayed to frame-left at the peak of the brega step, finger raised, passengers on their phones",
+        "the two steel door leaves meeting the tip of the pompadour at the door line, stopped",
+        "doors fully open again, he stands still and deadpan, finger raised"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Elevador de serviço não está preparado para o Gerson.\n\n#brega #elevador #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791205928.400794,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "notes": ""
+}

@@ -1,0 +1,174 @@
+{
+  "page": "gersinho",
+  "id": "20261005-131106-feira-o-guarda-sol",
+  "state": "roteiro",
+  "created_at": 1791205866.4580753,
+  "updated_at": 1791205928.4864738,
+  "idea": {
+    "title": "Feira o guarda-sol",
+    "text": "feira livre: ele dança embaixo do guarda-sol da barraca de pastel; o topete atravessa o guarda-sol",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Guarda-chuva no topete",
+    "format": "proprio",
+    "premise": "No ponto de ônibus na chuva, ele dança brega sob a cobertura e abre um guarda-chuva preto, que fica pousado no alto do topete, 25 cm acima da cabeça; a chuva cai no rosto dele, que segue sério.",
+    "gag_without_sound": "o guarda-chuva abre em cima do topete e não protege nada; a chuva cai na cara dele",
+    "location": {
+      "place": "ponto de ônibus de avenida com cobertura curta",
+      "city_vibe": "São Paulo, zona norte",
+      "time_of_day": "fim de tarde de chuva",
+      "kelvin": 6500
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, a 4 m, do outro lado da calçada",
+      "movement": "tripé, travada"
+    },
+    "beats": [
+      {
+        "t": "0-6.5s",
+        "action": "na beira da cobertura, faz o passo brega segurando um guarda-chuva preto fechado na mão direita",
+        "facing": "de frente para a lente",
+        "extras": "pessoas esperando o ônibus olham a rua ou o celular"
+      },
+      {
+        "t": "6.5-10s",
+        "action": "abre o guarda-chuva acima da cabeça; a copa abre e fica apoiada no topo do topete, e a chuva cai no rosto e nos ombros dele",
+        "facing": "de frente para a lente",
+        "extras": "ninguém reage"
+      }
+    ],
+    "character_actions_count": 2,
+    "duration_s": 10,
+    "end_state": "guarda-chuva aberto pousado no alto do topete, chuva molhando o rosto, olhar sério na lente",
+    "props": [
+      {
+        "name": "guarda-chuva preto",
+        "orientation": "fechado na mão direita apontando para o chão; aberto, a haste vertical e a copa apoiada no topo do topete"
+      }
+    ],
+    "storyboard_panels": [
+      {
+        "n": 1,
+        "t": "0-1s",
+        "shot": "MS fixa 63°",
+        "description": "na beira da cobertura, pose de assinatura, guarda-chuva fechado na mão"
+      },
+      {
+        "n": 2,
+        "t": "1-6.5s",
+        "shot": "MS fixa 63°",
+        "description": "pico do passo brega, chuva atrás"
+      },
+      {
+        "n": 3,
+        "t": "6.5-8.5s",
+        "shot": "MS fixa 63°",
+        "description": "guarda-chuva abrindo acima da cabeça, a copa encostando no topo do topete"
+      },
+      {
+        "n": 4,
+        "t": "8.5-10s",
+        "shot": "MS fixa 63°",
+        "description": "copa aberta pousada no topo do topete, chuva caindo no rosto sério"
+      }
+    ],
+    "start_frame": "Gersinho na beira da cobertura do ponto, de frente, guarda-chuva preto fechado na mão direita, chuva forte atrás",
+    "end_frame": "guarda-chuva aberto apoiado no topo do topete, gotas no rosto, sério",
+    "music": {
+      "genre": "brega",
+      "bpm": 95,
+      "trend_sound_hint": "brega de chuva/sofrência",
+      "fallback": "instrumental brega royalty-free 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "o topete fica seco"
+    },
+    "caption": "Prioridades.",
+    "hashtags": [
+      "#brega",
+      "#chuva",
+      "#topete",
+      "#gersonbrilhantina"
+    ],
+    "crossover": null,
+    "originality_note": "primeira piada de clima; mostra que o topete vale mais que ele",
+    "brand_safety": [
+      "sem marca no guarda-chuva",
+      "sem criança"
+    ],
+    "risks": "o guarda-chuva ser aberto acima do topete flutuando; chuva virar slow motion; mãos extras. Conferir G5 e G10.",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 4,
+      "miniatura": 5,
+      "clareza_sem_som": 5
+    },
+    "en": {
+      "gag_sentence": "At a rainy São Paulo bus stop he does his signature brega step and then opens a black umbrella whose canopy comes to rest on top of his rigid pompadour, 25 cm above his head, so the rain falls on his face.",
+      "location": "the edge of a short bus-stop shelter on a São Paulo avenue in heavy rain, wet asphalt reflecting car lights, late afternoon",
+      "location_map": "Center: he stands at the front edge of the shelter roof, half under it. Frame-left: the shelter bench with waiting people. Frame-right: the wet avenue with passing cars. Background: rain falling in visible streaks.",
+      "position": "at the front edge of the shelter, centered, chest square to the lens, the full pompadour and the falling rain behind him visible",
+      "signature_pose": "left hand flat on his belly, right hand holding a closed black umbrella pointing at the ground, feet together",
+      "extras_count": 4,
+      "extras_tasks": "two people on the bench read their phones, one stands looking down the avenue for the bus, one holds a plastic bag over her head and watches the cars",
+      "props": "exactly one black umbrella, closed, held in his right hand, tip pointing at the ground",
+      "hands": "Exactly two hands in frame for him: left hand flat on his belly, right hand on the umbrella handle.",
+      "stages": [
+        {
+          "t": "0-1s",
+          "text": "He holds the signature pose from the start frame; breathing lifts the chest, one slow blink.",
+          "end_state": "same pose, eyes into the lens."
+        },
+        {
+          "t": "1-6.5s",
+          "text": "Real-time, at 95 BPM: he shifts his weight onto his left foot, heel first; his hips sway once to frame-left and once to frame-right on the beat; the closed umbrella in his right hand swings 10 cm with the hips.",
+          "end_state": "feet together, umbrella closed, chest square to the lens."
+        },
+        {
+          "t": "6.5-8.5s",
+          "text": "He raises the closed umbrella straight up above his head and pushes the runner; the black canopy opens and comes to rest on the top of the pompadour, the shaft vertical, the canopy 25 cm above his head; rain falls past the canopy edge onto his face and shoulders.",
+          "end_state": "umbrella open, resting on the top of the pompadour, rain on his face."
+        },
+        {
+          "t": "8.5-10s",
+          "text": "Everything settles and holds; drops run down his cheeks; he stares into the lens. The final frame matches the end frame.",
+          "end_state": "frozen result, readable as a cover."
+        }
+      ],
+      "end_change": "he holds the open black umbrella by its vertical shaft with his right hand; the canopy rests on the top of the pompadour, 25 cm above his head; rain falls onto his face and shoulders, which are wet; deadpan",
+      "vacated": "",
+      "end_props": "exactly one open black umbrella, shaft vertical, canopy resting on the top of the pompadour",
+      "props_lock": "Exactly one black umbrella for the whole clip: closed in his right hand at the start, open on top of the pompadour at the end.",
+      "lighting": "Overcast rainy late afternoon, cool 6500K daylight, wet reflective surfaces, headlights glinting on the asphalt.",
+      "panels": [
+        "at the front edge of the shelter, signature pose, closed black umbrella in his right hand, rain behind him",
+        "hips swayed to frame-left at the peak of the brega step, umbrella closed, rain streaks behind",
+        "the black umbrella opening above his head, the canopy touching the top of the pompadour",
+        "the open umbrella resting on the top of the pompadour, rain falling on his deadpan face"
+      ]
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Prioridades.\n\n#brega #chuva #topete #gersonbrilhantina"
+  },
+  "history": [
+    {
+      "at": 1791205928.4864726,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "notes": ""
+}
