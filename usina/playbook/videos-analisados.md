@@ -52,7 +52,11 @@ A análise cobriu só a abertura (30 s). O curta foi feito com o Seedance 2.5 e 
 - **Roteamento por custo:** ele faz o vídeo no **Kling 3.0 Omni** e só depois no Seedance, porque "Seedance is just pretty expensive". Bate com a nossa rota F (Kling 3.0 como opção barata para plano simples).
 
 ## 7. "Insane Seedance Prompts & Tricks" · https://www.youtube.com/watch?v=MOkjfFIIb6E
-**Análise falhou.** O job `712609bd-c4d0-4b4a-96af-d844fd7c387d` voltou com `failed` ("Something went wrong. Try another video."). Uma nova tentativa (`34020da0-57f0-495c-bb9d-86ed551a2d72`) ainda estava na fila quando este arquivo foi escrito. **Repetir** e preencher esta seção quando o job concluir.
+**Análise falhou duas vezes.** Os jobs `712609bd-c4d0-4b4a-96af-d844fd7c387d` e `34020da0-57f0-495c-bb9d-86ed551a2d72` voltaram com `failed` ("Something went wrong. Try another video."). O vídeo não passa no analisador; não insista nele.
+
+**Substituto do mesmo tema:** "Seedance 2.0 Officially Public! Full Prompting Tutorial (Claude + Higgsfield)" · https://www.youtube.com/watch?v=-k6BAe27dDU (job `d68fad81-3184-4f4c-b743-62d2da21fad2`). A análise só cobriu a abertura (1:30), que é a lista do que vem depois. Nada de técnica aproveitável nessa amostra:
+- Ele promete quatro usos: animação de produto, personagem consistente "from the first prompt" (sem regerar), uma skill gratuita do Claude que escreve prompts de Seedance 2.0 ("save us a ton of credits") e o acesso pelo Higgsfield.
+- O que se vê na tela é útil só como contraexemplo: o personagem dele **vira de costas para a câmera** quando a ação o manda olhar para o portal atrás dele (cena 3). É o mesmo mecanismo da falha do boxe: o alvo da ação fica atrás do personagem, e o modelo gira o corpo inteiro para encará-lo. Para nós, a contraparte fica **ao lado ou à frente**, nunca atrás (seedance-master B4).
 
 ## 8. "Kling 3.0 Motion Control Deep Dive" (OpenArt, comparação com Kling 2.6 e DreamActor M2) · https://www.youtube.com/watch?v=DvXDQfoy7t4
 - **3.0 vs 2.6:** o ganho é pequeno. O 3.0 sai um pouco mais nítido, foca melhor os olhos, copia melhor a boca da fonte e mantém o rosto quando ele sai do quadro ou é coberto pelas mãos. Mas **exagera a nitidez em barba e rugas** ("unnatural and processed"). Ele não acha que a diferença justifica o preço. Para nós: o 2.6 é um A/B barato válido, e o revisor deve reprovar o "pele processada" (S7).
@@ -65,6 +69,32 @@ A análise cobriu só a abertura (30 s). O curta foi feito com o Seedance 2.5 e 
 - **Uso que não é dança: maneirismos de série.** Para um entrevistador recorrente que "points with his pen", a única forma de ter consistência é uma pessoa real gravar o movimento. "I can't trust the model to come up with that on its own when I can do it with my face exactly." Para nós: **o Caio pode gravar a dança de assinatura de cada personagem** (corpo inteiro, câmera parada, deadpan) e reusar a mesma fonte em todos os vídeos dele. A assinatura fica idêntica entre episódios, coisa que o prompt de texto (regra 20) não garante.
 - **Duas fontes, dois personagens:** a entrevista usou dois vídeos-fonte gravados separados, um por personagem, montados depois.
 - DreamActor M2 (ByteDance): até 20 s, tem o "partial" embutido e move câmera e fundo melhor, mas o rosto sai mais mole e borra no movimento rápido. Não está no nosso stack. Fica só como referência.
+
+## 9. "Higgsfield Genjutsu Is INSANE! Motion Transfer & Object Swap Tutorial" · https://www.youtube.com/watch?v=j1tFM5hnxfw
+Job `50240258-21b0-4573-9477-590dd4aee824`. É o tutorial da lista de reserva. Ele usa uma cena de confronto com **três pessoas** (o protagonista com dois galões, dois seguranças de terno), que é exatamente o tipo de cena em que a nossa orientação falhou.
+- **O Genjutsu não reconstrói a cena, ele a reveste.** O que ele diz que fica da fonte: "camera movement, visual effects, masks, cuts, pacing, film grain, lens characteristics, and even mixed frame rates". O protagonista trocado aparece "perfectly integrated into the lighting", **de frente para os seguranças**, com o mesmo gesto do original.
+- **Consequência para a falha do boxe:** numa cena de interação, quem encara quem, a distância e o tempo da reação vêm do vídeo-fonte, não do prompt. Se a orientação insiste em falhar no Seedance, a saída é gravar (ou recortar) a interação com pessoas reais na posição certa e trocar só o personagem (seedance-master B4, item 9).
+- **Prompt para escolher quem trocar** (digitado na tela): "remove the first man from the scene and replace him with the man from the reference image". Em cena com mais de uma pessoa, o prompt **nomeia qual** sai, por posição ou ordem. Para nós, use a posição de tela ("the man on frame-left").
+- **Entrada mínima:** o vídeo-fonte e **uma** foto de rosto (um headshot). Ele mostra que funciona; a ficha completa (rosto e silhueta) segue sendo o nosso padrão, porque a silhueta rígida não está num headshot.
+- **Configuração mostrada:** resolução 720p ou 1080p (ele escolhe 1080p), botão "Generate (1) 15s", com a geração marcada como gratuita no plano dele. Para nós continua 720p (ata D5) e o estimate antes.
+- **Cortes da fonte passam para o resultado.** A fonte dele tem planos e contraplanos, e o resultado mantém todos. Para trend, a fonte tem de ser um plano só (C5), senão o Genjutsu entrega os cortes junto.
+- Ele recomenda buscar no YouTube "cinematic fight scenes" como fonte e cita vídeos de briga com mais de 4 milhões de views. Para nós, fonte de terceiros com rosto famoso não serve (direito de imagem); a fonte é gravada pelo Caio ou vem da motion library.
+
+## 10. "Seedance 2.0 INSANE Workflow" · https://www.youtube.com/watch?v=_W81Oxu76Ug
+Job `10fa488c-bc9f-492a-9289-bfb3422c3499`. **Não é tutorial:** é um curta de 1:40 feito no fluxo (Seedance 2, Grok, Kling 3, segundo a busca), sem narração técnica. O que se aproveita é o que se vê:
+- **Troca de figurino e de lugar a cada corte, com a ação contínua.** O mesmo homem levanta, anda para a câmera e segura o mesmo teclado em 4 planos seguidos, cada um num lugar e com uma roupa. O corte esconde a troca porque **o movimento atravessa o corte** (ele está andando para a lente em todos). Confirma a regra de emenda do B2: o último frame de A vira o `start_image` de B, com a ação cruzando o corte no meio.
+- **O prop é a âncora de continuidade.** O teclado aparece em quase todos os planos e na mesma mão. Para nós, o prop do gag (ou o topete) faz esse papel: é o que o olho segue de um clipe para o outro.
+- **O rosto deadpan funciona como ponto de virada.** Ele anda "with a neutral expression" pelos planos absurdos e só reage no fim. É o nosso formato: o mundo muda, o rosto não.
+
+## Jobs ainda na fila quando esta seção foi escrita (05/10, ~15:15 UTC)
+Lançados às 14:28 UTC e ainda em `queued` depois de 45 min (a fila do analisador estava lenta; os que concluíram levaram ~30 min). Conferir com `video_analysis_status` e preencher seções novas:
+- `1b7c0b59-e363-4b1a-ba8f-a71396fd7080` · "How to FIX Multi-Character & Prop Consistency: Seedance 2.0" · https://www.youtube.com/watch?v=Q7-RcYgMl0Y (multi-personagem; **o mais importante**)
+- `6e20a865-c750-4585-9acf-4e37c8b9d704` · "How To Make Viral AI Dancing Character Videos" · https://www.youtube.com/watch?v=JU3_dGtEzqM
+- `f4b9d1bd-93fe-41c4-a995-3d2754e627c1` · "Seedance 2.5 Made a $1,000,000 Sitcom" · https://www.youtube.com/watch?v=k1KqyXKakn4 (timing de comédia)
+- `213b1ab3-51da-4636-961c-2778f47bbd51` · "Seedance 2.5 Advice with Tim Simmons" (Theoretically Media; substitui o masterclass b5F81eip5BM, que só cobriu 30 s) · https://www.youtube.com/watch?v=deQNOjnDcwY
+- `898197b8-68d0-4534-8ab6-86f7775e8eae` · "How To Use The End Frame Feature In Kling AI [2026 Guide]" · https://www.youtube.com/watch?v=NRCLCFUP3C4 (primeiro/último frame)
+
+**Contexto de busca (não é análise de vídeo):** o "Jean Phil" (Jean Philanthrope) é um personagem de IA francês que viralizou em setembro de 2026: terno xadrez marrom, cabelo loiro em chanel, bigode de guidão, **fazendo shadowboxing sério na rua**, com uma música de rap francês. Os guias que explicam o formato dizem o mesmo que o nosso playbook: um visual reconhecível na miniatura (cabelo, bigode, uma roupa), **um bit repetível** feito deadpan em lugares onde ninguém faria, rosto e roupa idênticos e só o lugar mudando. Ele luta **sozinho, contra o ar**: não há contraparte para errar a orientação. É um argumento forte para a regra 1 do B4 (contraparte que não é gente).
 
 ---
 
@@ -86,4 +116,10 @@ A análise cobriu só a abertura (30 s). O curta foi feito com o Seedance 2.5 e 
 8. **Prompt do MC escreve o fundo:** a fonte não traz movimento de figurante nem de câmera, e o Kling 3.0 deixa o fundo parado. O movimento de cada figurante vai escrito. Kling `Exact` (até 30 s, padrão) e `Partial` (até 10 s, só se o personagem precisa estar noutra posição).
 9. **Fonte própria de assinatura:** o Caio grava a dança de assinatura de cada personagem uma vez (corpo inteiro, câmera parada, 9:16, deadpan) e ela vira a fonte fixa de MC dele. É a assinatura idêntica entre episódios (§8).
 10. **Kling MC 2.6 como A/B barato:** o 3.0 ganha pouco e exagera a nitidez em pele e barba. O revisor reprova "pele processada" em S7.
-11. **Pendente:** refazer a análise do §7 (job `34020da0-57f0-495c-bb9d-86ed551a2d72`).
+11. ~~Pendente: refazer o §7.~~ O vídeo falhou duas vezes no analisador; foi substituído (ver §7). Não tentar de novo.
+12. **Cena com contraparte (a falha do boxe):** seedance-master ganhou o B4 e o ACTION ganhou `facing` por estágio e `counterpart {who, position, facing}`. A contraparte fica ao lado ou à frente do personagem, nunca atrás dele (§7: o alvo atrás faz o modelo virar o corpo inteiro). Diagnóstico novo no D e portão G13 no QA.
+13. **Contraparte que não é gente primeiro.** O Jean Phil luta contra o ar; o saco de pancada, o poste e o varal não viram de costas. Um segundo ator só entra quando o gag precisa dele.
+14. **Interação difícil vem de vídeo real (§9).** Quando o Seedance erra quem encara quem duas vezes, grave a interação com pessoas reais na posição certa e troque só o personagem no Genjutsu, nomeando quem sai pela posição de tela. Fica como A/B, não testado.
+15. **Fonte de Genjutsu sem cortes para trend (§9):** o Genjutsu copia os cortes da fonte. Fonte de trend = um plano só (já era o C5; agora com o motivo).
+16. **Emenda com a ação atravessando o corte e o prop como âncora (§10):** confirma o B2. O prop do gag ou o topete é o que o olho segue entre clipes.
+17. **Pendente:** os 5 jobs da fila (lista acima), em especial o de multi-personagem (`1b7c0b59…`).
