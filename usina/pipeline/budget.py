@@ -110,3 +110,13 @@ def yield_last(n: int = 10) -> float | None:
     if len(vids) < n:
         return None
     return sum(1 for r in vids if r["ok"]) / len(vids)
+
+
+def item_spend(page: str, item: str) -> dict:
+    """Créditos e dólares já gastos numa ideia (ata D5: 160 créditos por ideia), lidos do livro-caixa."""
+    cr = usd = 0.0
+    for r in rows():
+        if r.get("page") == page and r.get("item") == item:
+            cr += float(r.get("credits") or 0)
+            usd += float(r.get("usd") or 0)
+    return {"credits": round(cr, 2), "usd": round(usd, 4)}

@@ -117,26 +117,27 @@ def video_hash(video: Path, tmpdir: Path) -> str:
 
 
 def normalize_reels(src: Path, dst: Path) -> Path:
-    """Deixa o MP4 no padrão do Reels (H.264, 1080x1920, 30 fps, AAC, faststart).
+    """Deixa o MP4 no padrão do Reels (H.264, até 1080x1920, 9:16, 30 fps, faststart).
 
-    Se o arquivo já está compatível, só remuxa (preserva melhor os metadados de origem/C2PA).
+    Se o arquivo já está compatível, copia byte a byte: remux com ffmpeg descarta as caixas de proveniência
+    (C2PA/JUMBF), e a ata D8 proíbe remover C2PA. Sem trilha de áudio é aceito pelo Reels (a música entra no app).
     """
     info = probe(src)
     dst.parent.mkdir(parents=True, exist_ok=True)
     ok_codec = info["vcodec"] == "h264" and info["width"] <= 1080 and info["height"] <= 1920
     if ok_codec and abs(info["width"] / info["height"] - 9 / 16) < 0.01:
-        _run(["ffmpeg", "-y", "-v", "error", "-i", str(src), "-map", "0", "-c", "copy", "-map_metadata", "0",
-              "-movflags", "+faststart", str(dst)])
+        if Path(src).resolve() != Path(dst).resolve():
+            shutil.copyfile(src, dst)
         return dst
     w, h = REELS["width"], REELS["height"]
     vf = f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},fps={REELS['fps']}"
-    cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src), "-vf", vf, "-c:v", "libx264", "-profile:v", "high",
-           "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "slow", "-map_metadata", "0", "-movflags", "+faststart"]
+    cmd = ["ffmpeg", "-y", "-v", "error", "-i", str(src)]
     if info["acodec"]:
-        cmd += ["-c:a", "aac", "-b:a", "128k", "-ar", "48000"]
-    else:  # Reels aceita sem áudio, mas um silêncio evita problema em alguns players
-        cmd = cmd[:5] + ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"] + cmd[5:] + ["-shortest", "-c:a", "aac", "-b:a", "128k"]
-    cmd.append(str(dst))
+        cmd += ["-map", "0:v:0", "-map", "0:a:0"]
+    else:  # um silêncio evita problema em alguns players; entra como 2ª entrada, mapeada explicitamente
+        cmd += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-map", "0:v:0", "-map", "1:a:0", "-shortest"]
+    cmd += ["-vf", vf, "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "slow",
+            "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-map_metadata", "0", "-movflags", "+faststart", str(dst)]
     _run(cmd)
     return dst
 

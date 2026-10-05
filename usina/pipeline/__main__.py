@@ -27,14 +27,14 @@ import time
 from pathlib import Path
 
 from . import budget, images, lint as lintmod, media, prompts
-from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, new_item
+from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, local, new_item, rel, slugify
 
 FAILS = ROOT / "playbook" / "falhas.md"
 
 
 def _item(ref: str):
-    if "/" not in ref:
-        raise StoreError("use <page>/<id>")
+    if not isinstance(ref, str) or "/" not in ref:
+        raise StoreError(f"referência inválida {ref!r}: use <page>/<id>")
     page, iid = ref.split("/", 1)
     return get_page(page), load_item(page, iid)
 
@@ -47,6 +47,36 @@ def _workdir(item) -> Path:
 
 def _print(obj) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2))
+
+
+def _need_state(it, allowed, what: str, force: bool = False) -> None:
+    """Trava de estado: impede que um comando repetido (ou fora de ordem) regrida o item ou gaste de novo."""
+    if it.state not in allowed and not force:
+        raise StoreError(f"{it.page}/{it.id} está em '{it.state}'; '{what}' só vale em {', '.join(allowed)} "
+                         f"(use --force se for intencional)")
+
+
+# Assets do painel que ficam velhos quando a etapa é refeita (senão a Caixa mostra a imagem da versão anterior).
+STALE_ASSETS = {"storyboard": ["storyboard"], "frames": ["start", "end"], "video": ["sheet", "gag", "cover"]}
+
+
+def _clear_assets(it, *stages: str) -> None:
+    assets = it.post.get("assets") or {}
+    for st in stages:
+        for k in STALE_ASSETS.get(st, []):
+            assets.pop(k, None)
+
+
+def _switches() -> dict:
+    return budget.load_budget().get("switches", {}) or {}
+
+
+def _check_image_provider(provider: str) -> None:
+    sw = _switches()
+    if provider == "higgsfield" and sw.get("image_provider", "openai") != "higgsfield" \
+            and not sw.get("image_fallback_allowed", False):
+        raise StoreError("fallback de imagem pelo Higgsfield desligado em budget.yaml "
+                         "(switches.image_fallback_allowed: false). Peça ao Caio para liberar.")
 
 
 # ---------- comandos ----------
@@ -76,13 +106,21 @@ def cmd_memory(a):
     items = [i for i in list_items(a.page) if i.script][-20:]
     for i in items:
         s = i.script
-        print(f"- [{i.state}] {s.get('title')} | {s.get('location', {}).get('place')} | {s.get('premise')}")
+        loc = s.get("location")
+        place = loc.get("place") if isinstance(loc, dict) else loc
+        print(f"- [{i.state}] {s.get('title')} | {place} | {s.get('premise')}")
     if not items:
         print("(sem histórico)")
 
 
 def cmd_new(a):
-    get_page(a.page)
+    page = get_page(a.page)
+    if not page.active and not a.force:
+        raise StoreError(f"página '{a.page}' está em '{page.data.get('status')}': não gera nada (ata D6). Use --force para testar.")
+    slug = slugify(a.title)
+    dup = [i for i in list_items(a.page) if i.state != "descartado" and slugify(i.idea.get("title", "")) == slug]
+    if dup and not a.force:
+        raise StoreError(f"já existe ideia com esse título: {a.page}/{dup[0].id} (use --force para criar outra)")
     it = new_item(a.page, a.title, {"title": a.title, "text": a.idea or a.title, "source": a.source})
     it.save()
     print(f"{it.page}/{it.id}")
@@ -110,6 +148,14 @@ def cmd_save_script(a):
         for e in errors:
             print(f"ERRO: {e}")
         sys.exit(1)
+    _need_state(it, ["ideia", "roteiro"], "save-script", a.force)
+    if it.state not in ("ideia", "roteiro"):  # reescrita (triagem C6): tudo que veio do roteiro antigo perde a validade
+        for st in ("storyboard", "frames", "video"):
+            it.gates.pop(st, None)
+        it.storyboard, it.frames = {}, {}
+        if any(k != "history" for k in it.video):
+            it.video = {"history": it.video.get("history", []) + [{k: v for k, v in it.video.items() if k != "history"}]}
+        _clear_assets(it, "storyboard", "frames", "video")
     it.script = script
     it.post["caption"] = prompts.caption(script)
     it.set_state("roteiro", "lint ok")
@@ -138,41 +184,64 @@ def cmd_image(a):
     stage = a.stage
     if not it.script:
         raise StoreError("item sem roteiro")
+    provider = a.provider or _switches().get("image_provider", "openai")
+    _check_image_provider(provider)
     b = budget.load_budget()
     quality = a.quality
     unit = b["cost_estimates"]["openai_image"].get(quality, 0.17)
     wd = _workdir(it)
-    n = it.attempts.get(stage, 0) + 1
+    # Fallback Higgsfield, 2º passo: o frame B é edição do frame A, então só sai depois que o A foi registrado.
+    hf_second = (provider == "higgsfield" and stage == "frames" and it.state == "frames"
+                 and it.gates.get("frames", {}).get("qa") == "pending"
+                 and it.frames.get("start", {}).get("higgsfield_id") and not it.frames.get("end"))
+    if not hf_second:
+        _need_state(it, ["roteiro"] if stage == "storyboard" else ["storyboard"], f"image {stage}", a.force)
+    n = it.attempts.get(stage, 0) + (0 if hf_second else 1)
     jobs = []
     if stage == "storyboard":
         prompt, size = prompts.storyboard_prompt(it.script, page)
         jobs.append(("storyboard", prompt, size, []))
     elif stage == "frames":
-        sb = it.storyboard.get("path")
-        with_sb = bool(sb and Path(sb).exists())
-        jobs.append(("start", prompts.frame_a_prompt(it.script, page, with_sb), "1024x1536", [Path(sb)] if with_sb else []))
+        sb = local(it.storyboard.get("path"))
+        with_sb = bool(sb and sb.exists())
+        if it.storyboard.get("path") and not with_sb and not a.sem_storyboard and provider == "openai":
+            raise StoreError(f"o storyboard aprovado não está nesta máquina ({it.storyboard.get('path')}). "
+                             f"O frame A precisa do painel 1 (playbook C2). Restaure o arquivo (out/ não vai para o git), "
+                             f"rode com --sem-storyboard (o revisor confere a composição) ou refaça o storyboard "
+                             f"com `retry {a.ref} storyboard --force`.")
+        sb_in_prompt = bool(it.storyboard.get("higgsfield_id")) if provider == "higgsfield" else with_sb
+        jobs.append(("start", prompts.frame_a_prompt(it.script, page, sb_in_prompt),
+                     "1024x1536", [sb] if with_sb else []))
         if it.script.get("en", {}).get("end_change"):
             jobs.append(("end", prompts.frame_b_prompt(it.script, page), "1024x1536", ["__FRAME_A__"]))
     else:
         raise StoreError("stage deve ser storyboard ou frames")
 
-    if a.provider == "higgsfield":
+    if provider == "higgsfield":
         # Fallback: mesmo modelo (GPT Image 2.5) via MCP do Higgsfield; a sessão executa e registra.
         ids = _hf_ref_ids(page)
         reqs = []
-        for idx, (key, prompt, size, extra) in enumerate(jobs):
+        for key, prompt, size, extra in jobs:
+            if hf_second and key != "end":
+                continue
+            if not hf_second and key == "end":
+                continue  # o frame B sai no 2º passo, com o id do frame A
             medias = [{"role": "image_references", "value": i} for i in ids]
-            if key == "end":
-                medias = [{"role": "image_references", "value": "<job_id do frame start>"}] + medias
+            if key == "end":  # image 1 = frame A, image 2 = rosto, image 3 = silhueta (playbook C2)
+                medias = [{"role": "image_references", "value": it.frames["start"]["higgsfield_id"]}] + medias
             elif stage == "frames" and it.storyboard.get("higgsfield_id"):
                 medias.append({"role": "image_references", "value": it.storyboard["higgsfield_id"]})
-            reqs.append({"index": idx, "key": key, "params": {
+            reqs.append({"key": key, "params": {
                 "model": "gpt_image_2_5", "aspect_ratio": "16:9" if size == "1536x1024" else "9:16",
                 "quality": "high", "medias": medias, "prompt": prompt}})
-        _print({"mcp_tool": "mcp__Higgsfield__generate_image_batch",
-                "requests": [{"index": r["index"], "params": r["params"]} for r in reqs],
-                "then": [f"python -m pipeline record-image {a.ref} {stage} {r['key']} --hf-job <job_id> --url <result_url>"
-                         for r in reqs]})
+        out = {"mcp_tool": "mcp__Higgsfield__generate_image_batch",
+               "requests": [{"index": i, "params": r["params"]} for i, r in enumerate(reqs)],
+               "then": [f"python -m pipeline record-image {a.ref} {stage} {r['key']} --hf-job <job_id> --url <result_url>"
+                        for r in reqs]}
+        if stage == "frames" and not hf_second and len(jobs) > 1:
+            out["depois"] = (f"Frame B é edição do frame A: depois do record-image do start, rode de novo "
+                             f"`python -m pipeline image {a.ref} frames --provider higgsfield` para o pedido do end.")
+        _print(out)
         return
 
     ok, why = budget.can_spend("openai", unit * len(jobs))
@@ -186,15 +255,16 @@ def cmd_image(a):
         out = wd / f"{name}-v{n}.png"
         (wd / f"{name}-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
         if extra == ["__FRAME_A__"]:
-            img_refs = [Path(target["start"]["path"])] + refs   # Frame B = edição do Frame A (playbook C2)
+            img_refs = [local(target["start"]["path"])] + refs   # Frame B = edição do Frame A (playbook C2)
         else:
             img_refs = refs + extra
         images.generate(prompt, out, img_refs, aspect=size, quality=quality, mock=mock)
         budget.record(it.page, it.id, "openai", f"image_{stage}", usd=0 if mock else unit,
                       note=f"{key}{' (mock)' if mock else ''}")
-        target[key] = {"path": str(out), "prompt": prompt, "v": n}
+        target[key] = {"path": rel(out), "prompt": prompt, "v": n}
         print(f"ok: {out.relative_to(ROOT)}")
     it.attempts[stage] = n
+    _clear_assets(it, stage)
     if stage == "storyboard":
         it.storyboard = target["storyboard"]
         it.gates["storyboard"] = {"qa": "pending", "caio": "pending"}
@@ -208,23 +278,42 @@ def cmd_image(a):
 
 def cmd_record_image(a):
     page, it = _item(a.ref)
-    entry = {"higgsfield_job": a.hf_job, "higgsfield_id": a.hf_job, "url": a.url or "", "v": it.attempts.get(a.stage, 0) + 1}
+    if a.stage not in ("storyboard", "frames") or (a.stage == "frames" and a.key not in ("start", "end")) \
+            or (a.stage == "storyboard" and a.key != "storyboard"):
+        raise StoreError("use: record-image <ref> storyboard storyboard | frames start|end")
+    seen = [it.storyboard] + list(it.frames.values())
+    if any(e.get("higgsfield_job") == a.hf_job for e in seen):
+        print(f"já registrado: {a.hf_job}")
+        return
+    # Mesma rodada? (frames: start e end chegam em dois record-image; a tentativa só conta uma vez)
+    same_round = it.state == a.stage and it.gates.get(a.stage, {}).get("qa") == "pending"
+    if a.stage == "storyboard":
+        same_round = False
+    elif not same_round:
+        _need_state(it, ["storyboard"], "record-image frames")
+    if a.stage == "storyboard":
+        _need_state(it, ["roteiro"], "record-image storyboard")
+    v = it.attempts.get(a.stage, 0) + (0 if same_round else 1)
+    entry = {"higgsfield_job": a.hf_job, "higgsfield_id": a.hf_job, "url": a.url or "", "v": v}
     if a.url:
-        dst = _workdir(it) / f"{a.stage}-{a.key}-v{entry['v']}.png"
+        name = "storyboard" if a.stage == "storyboard" else f"frames-{a.key}"
+        dst = _workdir(it) / f"{name}-v{v}.png"
         if _download(a.url, dst):
-            entry["path"] = str(dst)
+            entry["path"] = rel(dst)
+    it.attempts[a.stage] = v
     if a.stage == "storyboard":
         it.storyboard = entry
         it.gates["storyboard"] = {"qa": "pending", "caio": "pending"}
-        it.attempts["storyboard"] = entry["v"]
+        _clear_assets(it, "storyboard")
         it.set_state("storyboard", "storyboard via Higgsfield")
     else:
-        it.frames[a.key] = entry
-        it.gates["frames"] = {"qa": "pending", "caio": "pending"}
-        it.attempts["frames"] = entry["v"]
-        if it.state != "frames":
+        if not same_round:
+            it.frames = {}
+            _clear_assets(it, "frames")
+            it.gates["frames"] = {"qa": "pending", "caio": "pending"}
             it.set_state("frames", "frames via Higgsfield")
-    budget.record(it.page, it.id, "higgsfield", f"image_{a.stage}", credits=2, job_id=a.hf_job)
+        it.frames[a.key] = entry
+    budget.record(it.page, it.id, "higgsfield", f"image_{a.stage}", credits=2, job_id=a.hf_job, note=a.key)
     it.save()
     print("registrado")
 
@@ -241,15 +330,20 @@ def cmd_record_upload(a):
 
 def cmd_review(a):
     page, it = _item(a.ref)
+    _need_state(it, [a.stage], f"review {a.stage}")
+    if a.stage == "video" and not it.video.get("path"):
+        raise StoreError("vídeo ainda não baixado: rode fetch-video antes de revisar")
     g = it.gates.setdefault(a.stage, {"qa": "pending", "caio": "pending"})
+    first = g.get("qa") == "pending"   # re-rodar o mesmo review não conta duas vezes no aproveitamento nem no livro de falhas
     g["qa"] = a.verdict
     g["qa_notes"] = a.notes
     g["qa_at"] = time.time()
     if a.stage == "video":
-        budget.record(it.page, it.id, "review", "video_review", ok=a.verdict == "pass", note=a.notes[:200])
+        if first:
+            budget.record(it.page, it.id, "review", "video_review", ok=a.verdict == "pass", note=a.notes[:200])
         if a.verdict == "pass":
             it.set_state("revisao", "QA de vídeo ok")
-    if a.verdict == "fail" and a.notes:
+    if a.verdict == "fail" and a.notes and first:
         _log_failure(it, a.stage, a.notes)
     it.save()
     print(f"{a.stage}: {a.verdict}")
@@ -269,7 +363,10 @@ def cmd_approve(a):
 def cmd_retry(a):
     page, it = _item(a.ref)
     prev = {"storyboard": "roteiro", "frames": "storyboard", "video": "frames"}[a.stage]
+    _need_state(it, {"storyboard": ["storyboard"], "frames": ["frames"], "video": ["video", "revisao"]}[a.stage],
+                f"retry {a.stage}", a.force)
     it.gates[a.stage] = {"qa": "pending", "caio": "pending"}
+    _clear_assets(it, a.stage)
     if a.stage == "video":
         it.video = {"history": it.video.get("history", []) + [{k: v for k, v in it.video.items() if k != "history"}]}
     it.set_state(prev, f"refazer {a.stage}")
@@ -279,6 +376,11 @@ def cmd_retry(a):
 
 def cmd_discard(a):
     page, it = _item(a.ref)
+    if it.state == "descartado":
+        print("já descartado")
+        return
+    if it.state == "postado":
+        raise StoreError("item já postado: não se descarta (a automação nunca apaga posts, ata D8)")
     it.set_state("descartado", a.why)
     it.save()
     print("descartado")
@@ -286,7 +388,15 @@ def cmd_discard(a):
 
 def cmd_video_request(a):
     page, it = _item(a.ref)
+    _need_state(it, ["frames"], "video-request")
+    if not _switches().get("video_enabled", False):
+        raise StoreError("vídeo desligado em budget.yaml (switches.video_enabled)")
     s = it.script
+    b = budget.load_budget()
+    est = float(s.get("duration_s", 10)) * b["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
+    ok, why = budget.can_spend("higgsfield", est * float(b.get("higgsfield_credit_usd", 0.05)))
+    if not ok:
+        raise StoreError(why)
     need_upload, medias = [], []
     for key, role in (("start", "start_image"), ("end", "end_image")):
         f = it.frames.get(key)
@@ -336,7 +446,26 @@ def cmd_video_request(a):
 
 def cmd_record_video(a):
     page, it = _item(a.ref)
+    if a.failed is not None:
+        # job do Higgsfield falhou (failed/nsfw/cancelado): sem isso o item ficaria preso em video_poll para sempre
+        _need_state(it, ["video"], "record-video --failed")
+        it.video = {"history": it.video.get("history", []) + [{**{k: v for k, v in it.video.items() if k != "history"},
+                                                                 "failed": a.failed or "falhou"}]}
+        it.gates["video"] = {"qa": "pending", "caio": "pending"}
+        budget.record(it.page, it.id, "higgsfield", "video_failed", ok=False, note=(a.failed or "")[:200],
+                      job_id=(it.video["history"][-1].get("job_id") or ""))
+        _log_failure(it, "video", f"job falhou: {a.failed or 'sem motivo'}")
+        it.set_state("frames", "job de vídeo falhou")
+        it.save()
+        print("falha registrada; volta para frames (conta como tentativa)")
+        return
     if a.job:
+        known = [it.video.get("job_id")] + [h.get("job_id") for h in it.video.get("history", [])]
+        if a.job in known:
+            print(f"job {a.job} já registrado (não conta de novo)")
+            a.job = None
+    if a.job:
+        _need_state(it, ["frames"], "record-video --job")
         it.attempts["video"] = it.attempts.get("video", 0) + 1
         it.video.update({"job_id": a.job, "provider": "higgsfield", "model": "seedance_2_5", "submitted_at": time.time()})
         it.gates["video"] = {"qa": "pending", "caio": "pending"}
@@ -346,6 +475,8 @@ def cmd_record_video(a):
             float(it.script.get("duration_s", 10)) * budget.load_budget()["cost_estimates"]["higgsfield_credits"]["seedance_2_5_720p_per_s"]
         budget.record(it.page, it.id, "higgsfield", "video_submit", credits=credits, job_id=a.job)
     if a.url:
+        if not it.video.get("job_id"):
+            raise StoreError("registre o job antes (--job)")
         it.video["url"] = a.url
     it.save()
     print("registrado")
@@ -363,6 +494,7 @@ def _download(url: str, dst: Path) -> bool:
 
 def cmd_fetch_video(a):
     page, it = _item(a.ref)
+    _need_state(it, ["video"], "fetch-video")
     wd = _workdir(it)
     v = it.attempts.get("video", 1)
     dst = wd / f"video-v{v}.mp4"
@@ -380,8 +512,10 @@ def cmd_fetch_video(a):
             gag = media.sheet_window(dst, wd / f"video-v{v}-gag.jpg", sp[0], min(sp[1] + 0.5, info["duration"]), fps=6)
     last = media.last_frame(dst, wd / f"video-v{v}-last.jpg")
     cuts = media.detect_cuts(dst)
-    it.video.update({"path": str(dst), "sheet": str(sheet), "gag_sheet": str(gag) if gag else "",
-                     "last": str(last), "info": info, "cuts": cuts})
+    it.video.update({"path": rel(dst), "sheet": rel(sheet), "gag_sheet": rel(gag) if gag else "",
+                     "last": rel(last), "info": info, "cuts": cuts})
+    if not info.get("acodec"):
+        print("sem trilha de áudio (esperado: generate_audio false; a música entra no app)")
     it.save()
     print(f"ok: {dst.relative_to(ROOT)}  {info}")
     print(f"cortes detectados: {cuts or 'nenhum'}")
@@ -390,28 +524,38 @@ def cmd_fetch_video(a):
 
 def cmd_package(a):
     page, it = _item(a.ref)
-    src = Path(it.video.get("path", ""))
-    if not src.exists():
+    _need_state(it, ["revisao", "pronto"], "package")
+    if it.gates.get("video", {}).get("caio") != "approved":
+        raise StoreError("o Caio ainda não aprovou o vídeo (portão obrigatório, ata D3)")
+    src = local(it.video.get("path"))
+    if not src or not src.exists():
         raise StoreError("vídeo local não encontrado; rode fetch-video")
-    day = time.strftime("%Y%m%d")
     pk = OUT / "packages" / it.page / it.id
     pk.mkdir(parents=True, exist_ok=True)
     mp4 = media.normalize_reels(src, pk / f"{it.page}-{it.id}.mp4")
-    cover = Path(it.video.get("last") or media.last_frame(mp4, pk / "_last.jpg"))
+    cover = local(it.video.get("last"))
+    if not cover or not cover.exists():
+        cover = media.last_frame(mp4, pk / "_last.jpg")
     shutil.copy(cover, pk / "capa.jpg")
     h = media.video_hash(mp4, pk)
     for f in pk.glob("_h*.jpg"):
         f.unlink()
     dup = _find_duplicate(h, it)
     (pk / "legenda.txt").write_text(it.post.get("caption") or prompts.caption(it.script), encoding="utf-8")
-    music = it.script.get("music", {})
+    music = it.script.get("music") or {}
+    handle = page.character.get("handle") or page.slug
+    bpm = music.get("bpm") or page.character.get("bpm") or "?"
+    hints = music.get("trend_sound_hints") or [music.get("trend_sound_hint")]
+    hints = [h for h in hints if h][:3] or ["procure no app um som em alta do estilo acima"]
     (pk / "CHECKLIST.md").write_text("\n".join([
-        f"# Postar: {it.script.get('title')} ({page.character.get('handle')})",
+        f"# Postar: {it.script.get('title')} ({handle})",
         "",
-        f"- [ ] Conta certa: {page.character.get('handle')} (nunca postar este arquivo em outra página)",
-        f"- [ ] Som em alta: estilo {music.get('genre')} ~{music.get('bpm')} BPM. Dica: {music.get('trend_sound_hint', '')}",
-        f"      Sem som em alta? Use: {music.get('fallback', '')}",
-        "- [ ] Ativar 'AI info' (rótulo de IA) no post",
+        f"- [ ] Conta certa: {handle} (nunca postar este arquivo em outra página)",
+        f"- [ ] Som em alta: estilo {music.get('genre') or page.character.get('dance_style', '')} ~{bpm} BPM. Sugestões:",
+        *[f"      {i}. {h}" for i, h in enumerate(hints, 1)],
+        f"      Sem som em alta? Use: {music.get('fallback') or 'instrumental royalty-free no mesmo BPM'}",
+        "- [ ] Ativar 'AI info' (rótulo de IA) no post e conferir 'AI-generated profile' na conta",
+        "- [ ] Postar o MP4 deste pacote como está (não reexportar: preserva os metadados de IA/C2PA)",
         f"- [ ] Capa: capa.jpg; texto: \"{it.script.get('cover', {}).get('text_max4', '')}\"",
         "- [ ] Legenda: copiar de legenda.txt",
         f"- [ ] Horário sugerido (BRT): {', '.join(page.data.get('cadence', {}).get('post_times_brt', []))}",
@@ -419,8 +563,9 @@ def cmd_package(a):
         "",
         f"Duplicado? {'SIM, NÃO POSTE: ' + dup if dup else 'não'}",
     ]), encoding="utf-8")
-    it.post.update({"package": str(pk), "hash": h, "duplicate_of": dup})
-    it.set_state("pronto", "pacote montado")
+    it.post.update({"package": rel(pk), "hash": h, "duplicate_of": dup})
+    if it.state != "pronto":
+        it.set_state("pronto", "pacote montado")
     it.save()
     print(f"pacote: {pk.relative_to(ROOT)}{'  ATENÇÃO duplicado de ' + dup if dup else ''}")
 
@@ -435,6 +580,9 @@ def _find_duplicate(h: str, me) -> str:
 
 def cmd_posted(a):
     page, it = _item(a.ref)
+    _need_state(it, ["pronto"], "posted")
+    if it.post.get("duplicate_of"):
+        print(f"ATENÇÃO: o pacote estava marcado como duplicado de {it.post['duplicate_of']} (ata D8)", file=sys.stderr)
     it.post.update({"posted_at": time.time(), "link": a.link or ""})
     it.set_state("postado", "postado pelo Caio")
     it.save()
@@ -461,7 +609,9 @@ def cmd_sheet(a):
     n = len(list(wd.glob("ficha-v*.png"))) + 1
     out = wd / f"ficha-v{n}.png"
     (wd / f"ficha-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
-    if a.provider == "higgsfield":
+    provider = a.provider or _switches().get("image_provider", "openai")
+    _check_image_provider(provider)
+    if provider == "higgsfield":
         ids = _hf_ref_ids(page)[:1]
         _print({"mcp_tool": "mcp__Higgsfield__generate_image", "params": {
             "model": "gpt_image_2_5", "aspect_ratio": "2:3", "quality": "high",
@@ -513,15 +663,21 @@ def _panel_doc(it, page) -> dict:
 
 
 def cmd_panel_export(a):
-    """Gera os documentos do painel (coleções fila, paginas, saude) para a sessão gravar com ArtifactData batch."""
+    """Gera os documentos do painel (coleções fila, paginas, saude) para a sessão gravar com ArtifactData batch.
+
+    Itens descartados também vão (com o estado novo): se ficassem de fora, o painel guardaria o estado antigo e a
+    Caixa mostraria para sempre um card de aprovação de um item que já morreu.
+    """
     from .tick import plan as mkplan
     writes = []
     pages = {p.slug: p for p in load_pages()}
     for it in list_items():
-        if it.state in ("descartado",) and not a.all:
+        page = pages.get(it.page)
+        if page is None:
+            print(f"aviso: item {it.page}/{it.id} sem pages/{it.page}/page.yaml; ignorado", file=sys.stderr)
             continue
         writes.append({"op": "set", "collection": "fila", "doc_id": f"{it.page}--{it.id}",
-                       "data": _panel_doc(it, pages[it.page])})
+                       "data": _panel_doc(it, page)})
     for slug, p in pages.items():
         ch = p.character
         writes.append({"op": "set", "collection": "paginas", "doc_id": slug, "data": {
@@ -529,7 +685,7 @@ def cmd_panel_export(a):
             "silhouette": ch.get("silhouette_letter"), "bpm": ch.get("bpm"), "dance": ch.get("dance_style"),
             "world": ch.get("world"), "gag": ch.get("recurring_gag"), "relationship": ch.get("relationship"),
             "signature": ch.get("signature_move"), "cadence": p.data.get("cadence", {}),
-            "refsReady": len(p.available_refs()) >= 2, "launchedAt": p.data.get("launched_at", "")}})
+            "refsReady": len(p.available_refs()) >= 2, "launchedAt": str(p.data.get("launched_at", "") or "")}})
     pl = mkplan()
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
@@ -537,9 +693,14 @@ def cmd_panel_export(a):
         "ledger": budget.rows()[-15:]}})
     out = OUT / "panel" / "batch.json"
     out.parent.mkdir(parents=True, exist_ok=True)
+    for old in out.parent.glob("batch-*.json"):
+        old.unlink()
     out.write_text(json.dumps(writes, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"{len(writes)} documentos em {out.relative_to(ROOT)} (ArtifactData batch, até 50 por chamada; "
-          f"documentos já existentes precisam do if_version lido antes)")
+    chunks = [writes[i:i + 50] for i in range(0, len(writes), 50)]
+    for n, ch in enumerate(chunks, 1):  # ArtifactData batch aceita até 50 escritas por chamada
+        (out.parent / f"batch-{n:02d}.json").write_text(json.dumps(ch, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{len(writes)} documentos em {out.relative_to(ROOT)} ({len(chunks)} lote(s) de até 50: "
+          f"out/panel/batch-NN.json; documentos já existentes precisam do if_version lido antes)")
 
 
 def cmd_panel_asset(a):
@@ -550,32 +711,74 @@ def cmd_panel_asset(a):
     print("ok")
 
 
+def _decision_rows(raw) -> list:
+    """Aceita a saída do ArtifactData list em vários formatos: lista, {documents|docs|items|rows|results: [...]}."""
+    if isinstance(raw, dict):
+        for k in ("documents", "docs", "items", "rows", "results", "data"):
+            if isinstance(raw.get(k), list):
+                return raw[k]
+        return [dict(v, id=k) if isinstance(v, dict) else v for k, v in raw.items()]  # {doc_id: {...}}
+    return raw if isinstance(raw, list) else []
+
+
 def cmd_panel_apply(a):
-    """Aplica as decisões do Caio vindas do painel (coleção decisoes, exportada para JSON)."""
-    rows = json.loads(Path(a.file).read_text(encoding="utf-8"))
-    done = []
-    for r in rows:
-        d = r.get("data", r)
+    """Aplica as decisões do Caio vindas do painel (coleção decisoes, exportada para JSON).
+
+    Idempotente: o id de cada decisão aplicada fica no item, então rodar de novo (ou esquecer de marcar
+    applied no painel) não aplica duas vezes. Decisão mais antiga que a revisão atual da etapa (o item já
+    foi refeito) é obsoleta: não mexe no portão novo.
+    """
+    try:
+        raw = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise StoreError(f"não consegui ler {a.file}: {e}")
+    done, stale, invalid = [], [], []
+    for r in _decision_rows(raw):
+        if not isinstance(r, dict):
+            print(f"ignorado (não é documento): {r!r}"[:200])
+            continue
+        d = r.get("data") if isinstance(r.get("data"), dict) else r
+        did = r.get("doc_id") or r.get("id") or r.get("_id") or d.get("id")
         if d.get("applied"):
             continue
         ref, stage, verdict = d.get("ref"), d.get("stage"), d.get("verdict")
         if stage not in ("storyboard", "frames", "video") or verdict not in ("approve", "reject"):
-            print(f"ignorado: {d}")
+            print(f"inválido: {json.dumps(d, ensure_ascii=False)[:200]}")
+            if did:
+                invalid.append(did)
             continue
         try:
             page, it = _item(ref)
         except StoreError as e:
-            print(f"ignorado ({e})")
+            print(f"inválido ({e})")
+            if did:
+                invalid.append(did)
+            continue
+        if did and did in it.decisions:
+            print(f"{ref} {stage}: decisão {did} já aplicada")
+            done.append(did)
             continue
         g = it.gates.setdefault(stage, {"qa": "pending", "caio": "pending"})
+        try:
+            at = float(d.get("at") or 0) / 1000.0  # o painel grava em ms
+        except (TypeError, ValueError):
+            at = 0.0
+        if at and g.get("qa_at") and at < float(g["qa_at"]):
+            print(f"{ref} {stage}: decisão obsoleta (a etapa foi refeita depois); ignorada")
+            stale.append(did)
+            continue
         g["caio"] = "approved" if verdict == "approve" else "rejected"
-        g["caio_notes"] = d.get("notes", "")
+        g["caio_notes"] = str(d.get("notes") or "")
         if verdict == "reject" and d.get("notes"):
             _log_failure(it, stage, f"(Caio) {d['notes']}")
+        if did:
+            it.decisions.append(did)
         it.save()
-        done.append(r.get("id") or d.get("id"))
+        done.append(did)
         print(f"{ref} {stage}: {g['caio']}")
-    print(json.dumps({"applied_ids": done}))
+    # applied_ids = tudo que pode ser marcado applied no painel (aplicadas, obsoletas e inválidas)
+    print(json.dumps({"applied_ids": [i for i in done + stale + invalid if i], "obsolete_ids": [i for i in stale if i],
+                      "invalid_ids": invalid}))
 
 
 def cmd_pause(a):
@@ -612,12 +815,18 @@ def main(argv=None):
     sp.add_parser("plan").set_defaults(f=cmd_plan)
     p = sp.add_parser("memory"); p.add_argument("page"); p.set_defaults(f=cmd_memory)
     p = sp.add_parser("new"); p.add_argument("page"); p.add_argument("title"); p.add_argument("--idea", default="")
-    p.add_argument("--source", default="pauta"); p.set_defaults(f=cmd_new)
+    p.add_argument("--source", default="pauta"); p.add_argument("--force", action="store_true")
+    p.set_defaults(f=cmd_new)
     p = sp.add_parser("lint"); p.add_argument("file"); p.add_argument("--page"); p.set_defaults(f=cmd_lint)
-    p = sp.add_parser("save-script"); p.add_argument("ref"); p.add_argument("file"); p.set_defaults(f=cmd_save_script)
+    p = sp.add_parser("save-script"); p.add_argument("ref"); p.add_argument("file")
+    p.add_argument("--force", action="store_true", help="reescrever o roteiro de um item já em produção")
+    p.set_defaults(f=cmd_save_script)
     p = sp.add_parser("image"); p.add_argument("ref"); p.add_argument("stage", choices=["storyboard", "frames"])
-    p.add_argument("--provider", choices=["openai", "higgsfield"], default=os.getenv("USINA_IMAGE_PROVIDER", "openai"))
-    p.add_argument("--quality", default="high"); p.add_argument("--mock", action="store_true", default=None)
+    p.add_argument("--provider", choices=["openai", "higgsfield"], default=os.getenv("USINA_IMAGE_PROVIDER"),
+                   help="padrão: switches.image_provider do budget.yaml")
+    p.add_argument("--quality", default="high", choices=["low", "medium", "high", "xhigh"])
+    p.add_argument("--mock", action="store_true", default=None)
+    p.add_argument("--force", action="store_true"); p.add_argument("--sem-storyboard", action="store_true")
     p.set_defaults(f=cmd_image)
     p = sp.add_parser("record-image"); p.add_argument("ref"); p.add_argument("stage"); p.add_argument("key")
     p.add_argument("--hf-job", required=True); p.add_argument("--url"); p.set_defaults(f=cmd_record_image)
@@ -628,7 +837,7 @@ def main(argv=None):
     p = sp.add_parser("approve"); p.add_argument("ref"); p.add_argument("stage", choices=["storyboard", "frames", "video"])
     p.add_argument("--reject", action="store_true"); p.add_argument("--notes", default=""); p.set_defaults(f=cmd_approve)
     p = sp.add_parser("retry"); p.add_argument("ref"); p.add_argument("stage", choices=["storyboard", "frames", "video"])
-    p.set_defaults(f=cmd_retry)
+    p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_retry)
     p = sp.add_parser("discard"); p.add_argument("ref"); p.add_argument("--why", default=""); p.set_defaults(f=cmd_discard)
     p = sp.add_parser("video-request"); p.add_argument("ref")
     p.add_argument("--no-grid", action="store_true", help="sem a grade de storyboard (se o take inventou cortes)")
@@ -636,16 +845,18 @@ def main(argv=None):
     p.add_argument("--repair", default="", help="REPAIR SCOPE (playbook C6a): o que mudar, uma variável")
     p.set_defaults(f=cmd_video_request)
     p = sp.add_parser("sheet"); p.add_argument("page"); p.add_argument("--mock", action="store_true", default=None)
-    p.add_argument("--provider", choices=["openai", "higgsfield"], default=os.getenv("USINA_IMAGE_PROVIDER", "openai"))
+    p.add_argument("--provider", choices=["openai", "higgsfield"], default=os.getenv("USINA_IMAGE_PROVIDER"))
     p.set_defaults(f=cmd_sheet)
     p = sp.add_parser("split-sheet"); p.add_argument("page"); p.add_argument("file"); p.set_defaults(f=cmd_split_sheet)
     p = sp.add_parser("record-video"); p.add_argument("ref"); p.add_argument("--job"); p.add_argument("--url")
-    p.add_argument("--credits", type=float); p.set_defaults(f=cmd_record_video)
+    p.add_argument("--credits", type=float)
+    p.add_argument("--failed", nargs="?", const="", default=None, help="o job falhou (motivo opcional)")
+    p.set_defaults(f=cmd_record_video)
     p = sp.add_parser("fetch-video"); p.add_argument("ref"); p.add_argument("--file"); p.set_defaults(f=cmd_fetch_video)
     p = sp.add_parser("package"); p.add_argument("ref"); p.set_defaults(f=cmd_package)
     p = sp.add_parser("posted"); p.add_argument("ref"); p.add_argument("--link"); p.set_defaults(f=cmd_posted)
     p = sp.add_parser("fetch-refs"); p.add_argument("page"); p.set_defaults(f=cmd_fetch_refs)
-    p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true"); p.set_defaults(f=cmd_panel_export)
+    p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true", help="(sem efeito: tudo é exportado)"); p.set_defaults(f=cmd_panel_export)
     p = sp.add_parser("panel-asset"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("url")
     p.set_defaults(f=cmd_panel_asset)
     p = sp.add_parser("panel-apply"); p.add_argument("file"); p.set_defaults(f=cmd_panel_apply)
@@ -655,7 +866,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     try:
         a.f(a)
-    except (StoreError, images.ImageError, media.MediaError) as e:
+    except (StoreError, images.ImageError, media.MediaError, json.JSONDecodeError, OSError) as e:
         print(f"ERRO: {e}", file=sys.stderr)
         sys.exit(1)
 

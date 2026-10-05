@@ -27,7 +27,7 @@ Referências locais: `P pages`. Se aparecer FALTA, rode `P fetch-refs <página>`
 ## 1. Trazer as decisões do Caio do painel
 Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 1. `ArtifactData list` da coleção `decisoes` (todas) → salve em `out/panel/decisoes.json`.
-2. `P panel-apply out/panel/decisoes.json` → devolve `applied_ids`.
+2. `P panel-apply out/panel/decisoes.json` → devolve `applied_ids` (aplicadas, obsoletas e inválidas; rodar de novo não reaplica).
 3. Para cada id aplicado: `ArtifactData update` em `decisoes/<id>` com `{"applied": true}` (use o `version` lido).
 
 ## 2. Plano
@@ -37,10 +37,10 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 |---|---|
 | `new_ideas` | Escolha ideias: coleção `ideas` do painel (radar), `docs/roteiros-crossover.md` ou ideias suas no formato da casa, nunca repetidas (`P memory <página>`). Crie com `P new <página> "título" --idea "..."`. |
 | `write_script` | Leia `prompts/script.md` (as 8 leis), `pages/<página>/page.yaml`, `prompts/examples/gersinho-busao.json` (modelo), `playbook/falhas.md` e `P memory`. Escreva o JSON em `out/scripts/<id>.json` e rode `P save-script <ref> <arquivo>`. **Se o lint reprovar, corrija e salve de novo** (até 3 vezes; depois, `P discard`). |
-| `run` | Rode o `cmd` como está. Se `image` falhar por rede ou chave da OpenAI, refaça com `--provider higgsfield` e execute a chamada MCP que ele imprimir; depois rode o `record-image` indicado. |
+| `run` | Rode o `cmd` como está. Se `image` falhar por rede ou chave da OpenAI e `switches.image_fallback_allowed` estiver `true`, refaça com `--provider higgsfield`, execute a chamada MCP que ele imprimir e rode o `record-image` indicado (frames saem em 2 passos: o B é edição do A; o plano pede o 2º). Com o fallback desligado, o comando recusa: anote o bloqueio. |
 | `review_image` | Abra a(s) imagem(ns) com **Read** junto com `pages/<p>/refs/rosto.png` e `silhueta.png`, aplique a rubrica (`prompts/review_storyboard.md` ou `review_frames.md`) com rigor e registre com `P review ... pass|fail --notes "<gate/nota> <evidência> [categoria]"`. Na dúvida, **reprove**: imagem custa centavos e vídeo custa dólares. |
 | `video_submit` | `P video-request <ref>`. Se `ready: false`: suba cada arquivo (`mcp__Higgsfield__media_upload` → `curl -X PUT --data-binary @arquivo '<upload_url>'` → `mcp__Higgsfield__media_confirm`) e rode `P record-upload <ref> <key> --hf-id <id>`; depois peça o video-request de novo. Com `ready: true`: chame `mcp__Higgsfield__generate_video_batch` com os `requests` exatos (se vier recomendação de preset, reenvie com `declined_preset_id`). Por fim, `P record-video <ref> --job <job_id> --credits <estimativa>`. |
-| `video_poll` | `mcp__Higgsfield__jobs_wait` (timeout 15). Com o job completo: `P record-video <ref> --url <result_url>`. Senão, siga em frente; o próximo ciclo checa. |
+| `video_poll` | `mcp__Higgsfield__jobs_wait` (timeout 15). Com o job completo: `P record-video <ref> --url <result_url>`. Job `failed`/`nsfw`/`cancelled`: `P record-video <ref> --failed "motivo"` (volta para frames e conta como tentativa). Senão, siga em frente; o próximo ciclo checa. |
 | `review_video` | Abra com Read a folha (`*-sheet.jpg`), a folha do gag (`*-gag.jpg`) e o último frame, aplique `prompts/review_video.md` (12 portões e 9 notas) e veja os `cuts` no item. Registre com `P review ... video pass|fail --notes ...`. Na reprovação, decida a próxima tentativa pela triagem C6, mudando **uma** variável: `--no-grid`, `--repair "..."` ou reescrever o roteiro. |
 | `discard` / `blocked` | Rode o comando de descarte ou anote o bloqueio no relatório. |
 
@@ -48,7 +48,7 @@ Painel: https://claude.ai/artifact/2yF5cU2n9MDbWtQHFj5p4c
 
 ## 3. Painel
 1. Para cada imagem nova revisada (storyboard, frames, folha do vídeo, capa): suba com a ferramenta **Artifact** (`url` do painel, `asset: true`, `file_paths: [...]`) e grave cada URL devolvida com `P panel-asset <ref> <key> <url>`. Keys: `storyboard`, `start`, `end`, `sheet`, `gag`, `cover`.
-2. `P panel-export` → `out/panel/batch.json`. Grave com `ArtifactData batch` em lotes de até 50. Documento já existente pede `if_version`: leia antes com `list` e passe a versão.
+2. `P panel-export` → `out/panel/batch.json` e os lotes `out/panel/batch-NN.json` (até 50 cada). Grave cada lote com `ArtifactData batch`. Documento já existente pede `if_version`: leia antes com `list` e passe a versão.
 3. Para vídeo, o painel mostra o link `videoUrl` do Higgsfield.
 
 ## 4. Fechar

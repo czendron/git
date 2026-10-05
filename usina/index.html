@@ -109,6 +109,7 @@ table.jobs th{font-family:var(--f-mono);font-size:11px;letter-spacing:.06em;text
   </nav>
 
   <main>
+    <p class="msg bad" id="db-err" role="alert" hidden></p>
     <!-- CAIXA -->
     <section class="view" id="v-caixa">
       <div>
@@ -274,12 +275,23 @@ const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&
 const now = () => Date.now();
 
 /* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(b => { b.id = "t-" + b.dataset.tab; b.setAttribute("aria-controls", "v-" + b.dataset.tab); });
+document.querySelectorAll("section.view").forEach(s => { s.setAttribute("role", "tabpanel"); s.setAttribute("aria-labelledby", "t-" + s.id.slice(2)); });
 function show(tab){
-  document.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === tab)));
+  document.querySelectorAll(".tab").forEach(b => { const on = b.dataset.tab === tab; b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1; });
   document.querySelectorAll("section.view").forEach(s => s.hidden = s.id !== "v-" + tab);
   try { localStorage.setItem("usina-tab", tab); } catch(e) {}
 }
 document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+$(".tabs").addEventListener("keydown", (ev) => {
+  const tabs = [...document.querySelectorAll(".tab")], i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  const k = { ArrowDown:1, ArrowRight:1, ArrowUp:-1, ArrowLeft:-1 }[ev.key];
+  const j = k ? (i + k + tabs.length) % tabs.length : ev.key === "Home" ? 0 : ev.key === "End" ? tabs.length - 1 : -1;
+  if (j < 0) return;
+  ev.preventDefault(); show(tabs[j].dataset.tab); tabs[j].focus();
+});
+show(document.querySelector('.tab[aria-selected="true"]').dataset.tab);
 try { const t = localStorage.getItem("usina-tab"); if (t && $("#v-"+t)) show(t); } catch(e) {}
 const hashTab = location.hash.replace("#",""); if (hashTab && $("#v-"+hashTab)) show(hashTab);
 
@@ -342,7 +354,12 @@ function listen(col, key, order, render){
   S.db.collection(col).orderBy(order, "desc").limit(300).onSnapshot(snap => {
     state[key] = snap.docs.map(d => ({ _id:d.id, ...d.data() }));
     render();
-  }, err => { console.warn(col, err); });
+  }, err => { console.warn(col, err); dbError(col, err); });
+}
+function dbError(col, err){
+  $("#d-db").classList.remove("on"); $("#d-db").classList.add("off");
+  const box = $("#db-err"); box.hidden = false;
+  box.textContent = `Não consegui ler "${col}" do banco (${(err && err.code) || "erro"}). Recarregue a página; se continuar, confira as permissões do artifact.`;
 }
 async function saveJob(job){
   const id = job.jobId;
@@ -646,7 +663,7 @@ function renderJobs(){
     <td class="mono">${esc(j.model)}</td>
     <td><span class="chip ${chipFor(j.status)}">${esc(j.status||"?")}</span></td>
     <td>${j.url?`<a href="${esc(j.url)}" target="_blank" rel="noopener">abrir ${j.kind==="video"?"vídeo":"imagem"} ↗</a>`:"—"}</td>
-    <td class="mono"><button class="btn ghost" data-copy="${esc(j._id)}" title="Copiar ID">${esc(j._id.slice(0,8))}…</button></td></tr>`).join("");
+    <td class="mono"><button class="btn ghost" data-copy="${esc(j._id)}" title="Copiar ID">${esc(String(j._id).slice(0,8))}…</button></td></tr>`).join("");
   body.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "copiado"; } catch(e){ b.textContent = b.dataset.copy; }
   }));
@@ -687,7 +704,10 @@ function pendingFor(f){
   const out = [];
   for (const st of ["storyboard","frames","video"]) {
     const g = (f.gates||{})[st]; if (!g) continue;
-    const decided = state.decisoes.some(d => d.ref === f.ref && d.stage === st && !d.applied);
+    // Já decidido = existe decisão desta etapa feita depois da revisão atual (qa_at, em s). Assim o card não volta
+    // quando a decisão é marcada applied antes do próximo export da fila, e volta quando a etapa é refeita.
+    const qaAt = Number(g.qa_at || 0) * 1000;
+    const decided = state.decisoes.some(d => d.ref === f.ref && d.stage === st && (!d.applied || Number(d.at || 0) >= qaAt));
     if (g.qa === "pass" && g.caio === "pending" && !decided) {
       if ((st === "storyboard" && f.state === "storyboard") || (st === "frames" && f.state === "frames") || (st === "video" && f.state === "revisao")) out.push(st);
     }
@@ -704,7 +724,7 @@ function renderCaixa(){
     const a = f.assets || {};
     const media = st === "storyboard" ? img(a.storyboard, "storyboard")
       : st === "frames" ? `<div class="row" style="flex-wrap:nowrap;gap:6px">${img(a.start,"primeiro frame")}${img(a.end,"último frame")}</div>`
-      : `${img(a.sheet,"folha do vídeo")}${f.videoUrl?`<a href="${esc(f.videoUrl)}" target="_blank" rel="noopener">Assistir o vídeo ↗</a>`:""}${(f.cuts||[]).length?`<span class="chip bad">cortes em ${esc(f.cuts.join(", "))} s</span>`:""}`;
+      : `${img(a.sheet,"folha do vídeo")}${f.videoUrl?`<a href="${esc(f.videoUrl)}" target="_blank" rel="noopener">Assistir o vídeo ↗</a>`:""}${(f.cuts||[]).length?`<span class="chip bad">cortes em ${esc(f.cuts.map(c => Number(c).toFixed(1)).join(", "))} s</span>`:""}`;
     const qa = ((f.gates||{})[st]||{}).qa_notes;
     return `<article class="card">
       <div class="chips"><span class="chip br">${esc(f.handle||f.page)}</span><span class="chip info">${esc(STAGE_LABEL[st])}</span><span class="chip">${esc(f.duration||"")}s</span></div>
@@ -721,7 +741,12 @@ function renderCaixa(){
   host.querySelectorAll("[data-dec]").forEach(b => b.addEventListener("click", async () => {
     const ref = b.dataset.ref, st = b.dataset.st, verdict = b.dataset.dec;
     const notes = (host.querySelector(`[data-notes="${CSS.escape(ref+"|"+st)}"]`)||{}).value || "";
-    if (verdict === "reject" && !notes.trim()) { b.textContent = "Escreva o motivo"; return; }
+    if (verdict === "reject" && !notes.trim()) {
+      const inp = host.querySelector(`[data-notes="${CSS.escape(ref+"|"+st)}"]`);
+      b.textContent = "Escreva o motivo"; setTimeout(() => { b.textContent = "Refazer"; }, 2500);
+      if (inp) { inp.setAttribute("aria-invalid", "true"); inp.focus(); }
+      return;
+    }
     b.disabled = true;
     const id = ref.replace("/","--") + "--" + st + "--" + now();
     const doc = { ref, stage:st, verdict, notes:notes.trim(), at:now(), applied:false };
@@ -739,7 +764,7 @@ function renderFila(){
   if (!rows.length) { body.innerHTML = `<tr><td colspan="5" class="note">A fila está vazia. O próximo ciclo da automação cria as ideias do dia.</td></tr>`; return; }
   body.innerHTML = rows.map(f => {
     const gates = Object.entries(f.gates||{}).map(([k,g]) => `<span class="chip ${g.qa==="pass"?"ok":g.qa==="fail"?"bad":"warn"}" title="revisor de IA: ${esc(g.qa)} · Caio: ${esc(g.caio)}">${esc(k)} ${g.caio==="approved"?"✓":g.caio==="rejected"?"✗":"…"}</span>`).join(" ");
-    return `<tr><td>${esc(f.title)}<div class="note">${esc(f.premise).slice(0,120)}</div></td><td>${esc(f.page)}</td>
+    return `<tr><td>${esc(f.title)}<div class="note">${esc(String(f.premise ?? "").slice(0,120))}</div></td><td>${esc(f.page)}</td>
       <td><span class="chip ${f.state==="pronto"?"ok":f.state==="descartado"||f.state==="erro"?"bad":"info"}">${esc(STATE_LABEL[f.state]||f.state)}</span></td>
       <td>${gates||"—"}</td><td class="note">${new Date(f.updatedAt||0).toLocaleString("pt-BR")}</td></tr>`;
   }).join("");
@@ -773,15 +798,19 @@ function renderSaude(){
       ${(s.notes||[]).map(n => `<p class="note">• ${esc(n)}</p>`).join("")}</article>
     <article class="card"><span class="eyebrow">Livro-caixa (últimas)</span>${(s.ledger||[]).slice(-8).reverse().map(r => `<p class="note mono">${new Date(r.at*1000).toLocaleDateString("pt-BR")} ${esc(r.page)} ${esc(r.action)} US$ ${Number(r.usd).toFixed(2)}</p>`).join("") || `<p class="note">vazio</p>`}</article>`;
   const posted = state.fila.filter(f => f.state === "postado" || f.state === "pronto");
-  $("#pl-item").innerHTML = posted.length ? posted.map(f => `<option value="${esc(f.ref)}">${esc(f.page)} · ${esc(f.title)}</option>`).join("") : `<option value="">Nenhum vídeo pronto ainda</option>`;
+  const plSel = $("#pl-item"), plCur = plSel.value;
+  plSel.innerHTML = posted.length ? posted.map(f => `<option value="${esc(f.ref)}">${esc(f.page)} · ${esc(f.title)}</option>`).join("") : `<option value="">Nenhum vídeo pronto ainda</option>`;
+  if (plCur && posted.some(f => f.ref === plCur)) plSel.value = plCur;
   const body = $("#placar");
-  body.innerHTML = state.placar.length ? state.placar.map(r => `<tr><td>${esc(r.title||r.ref)}</td><td>${esc(r.views)}</td><td>${esc(r.shares)}</td><td>${r.views?((100*r.shares/r.views).toFixed(1)+"%"):"—"}</td><td>${esc(r.follows)}</td><td>${esc(r.ret3)}%</td></tr>`).join("") : `<tr><td colspan="6" class="note">Sem números ainda.</td></tr>`;
+  body.innerHTML = state.placar.length ? state.placar.map(r => `<tr><td>${esc(r.title||r.ref)}</td><td>${esc(r.views)}</td><td>${esc(r.shares)}</td><td>${r.views?((100*r.shares/r.views).toFixed(1)+"%"):"—"}</td><td>${esc(r.follows)}</td><td>${r.ret3 != null && r.ret3 !== "" ? esc(r.ret3) + "%" : "—"}</td></tr>`).join("") : `<tr><td colspan="6" class="note">Sem números ainda.</td></tr>`;
 }
 $("#b-placar").addEventListener("click", async () => {
   const ref = $("#pl-item").value, m = $("#pl-msg");
   if (!ref) { m.textContent = "Escolha um vídeo."; return; }
   const f = state.fila.find(x => x.ref === ref) || {};
-  const doc = { ref, title:f.title||ref, page:f.page||"", views:Number($("#pl-views").value||0), shares:Number($("#pl-shares").value||0), follows:Number($("#pl-follows").value||0), ret3:Number($("#pl-ret").value||0), createdAt:now() };
+  const num = (sel, max) => { const v = Number($(sel).value || 0); return Number.isFinite(v) && v >= 0 && (!max || v <= max) ? v : NaN; };
+  const doc = { ref, title:f.title||ref, page:f.page||"", views:num("#pl-views"), shares:num("#pl-shares"), follows:num("#pl-follows"), ret3:num("#pl-ret", 100), createdAt:now() };
+  if ([doc.views, doc.shares, doc.follows, doc.ret3].some(Number.isNaN)) { m.textContent = "Números inválidos: use valores ≥ 0 (retenção até 100%)."; return; }
   try { await put("placar", ref.replace("/","--"), doc); m.textContent = "Salvo."; } catch(e){ m.textContent = "Não salvou: só quem edita o painel lança números."; }
 });
 
@@ -804,8 +833,8 @@ renderIdeas(); renderChars(); renderScripts(); renderJobs(); renderYt(); renderC
     listen("fila", "fila", "updatedAt", () => { renderCaixa(); renderFila(); renderSaude(); });
     listen("decisoes", "decisoes", "at", renderCaixa);
     listen("placar", "placar", "createdAt", renderSaude);
-    S.db.collection("paginas").onSnapshot(snap => { state.paginas = snap.docs.map(d => ({ _id:d.id, ...d.data() })); renderPaginas(); }, () => {});
-    S.db.doc("saude/atual").onSnapshot(snap => { state.saude = snap.exists ? snap.data() : null; renderSaude(); }, () => {});
+    S.db.collection("paginas").onSnapshot(snap => { state.paginas = snap.docs.map(d => ({ _id:d.id, ...d.data() })); renderPaginas(); }, e => dbError("paginas", e));
+    S.db.doc("saude/atual").onSnapshot(snap => { state.saude = snap.exists ? snap.data() : null; renderSaude(); }, e => dbError("saude", e));
   }
 })();
 })();

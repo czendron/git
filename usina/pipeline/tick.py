@@ -79,7 +79,10 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                          "cost_usd": 2 * b["cost_estimates"]["openai_image"]["high"], "provider": "openai"})
     elif st == "frames":
         g = _gate(item, "frames")
-        if g["qa"] == "pending":
+        if g["qa"] == "pending" and item.script.get("en", {}).get("end_change") and "end" not in item.frames:
+            # fallback Higgsfield em dois passos: falta o frame B (edição do A)
+            acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames --provider higgsfield"})
+        elif g["qa"] == "pending":
             acts.append({"do": "review_image", "item": pid, "stage": "frames",
                          "file": [f.get("path") for f in item.frames.values()],
                          "rubric": "prompts/review_frames.md",
@@ -91,6 +94,12 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                 acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} frames"})
         elif needs_caio(page, "frames", now) and g["caio"] == "pending":
             acts.append({"do": "await_caio", "item": pid, "stage": "frames"})
+        elif g["caio"] == "rejected":
+            # Caio recusou os frames: refaz (ou descarta na 3ª), nunca segue para o vídeo.
+            if att.get("frames", 0) >= max_img:
+                acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'frames reprovados 3x'"})
+            else:
+                acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} frames"})
         else:
             if not b.get("switches", {}).get("video_enabled", False):
                 acts.append({"do": "blocked", "item": pid, "why": "vídeo desligado em budget.yaml (switches.video_enabled)"})
@@ -102,6 +111,9 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                 acts.append({"do": "blocked", "item": pid, "why": why})
             elif att.get("video", 0) >= b["per_idea"]["max_video_attempts"]:
                 acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'limite de tentativas de vídeo'"})
+            elif budget.item_spend(item.page, item.id)["credits"] + credits > float(b["per_idea"].get("max_credits", 1e9)):
+                acts.append({"do": "discard", "item": pid,
+                             "how": f"{cmd} discard {pid} --why 'teto de {b['per_idea']['max_credits']} créditos por ideia'"})
             else:
                 acts.append({"do": "video_submit", "item": pid, "est_credits": credits, "provider": "higgsfield",
                              "how": f"Rode `{cmd} video-request {pid}`: ele imprime as imagens a subir e o JSON exato "

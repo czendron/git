@@ -41,6 +41,16 @@ def _span(t: str) -> tuple[float, float] | None:
 
 
 def lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
+    """Valida o roteiro. Roteiro malformado (tipo errado num campo) vira erro de lint, nunca traceback."""
+    if not isinstance(script, dict):
+        return ["o roteiro precisa ser um objeto JSON"], []
+    try:
+        return _lint(script, page)
+    except (TypeError, ValueError, AttributeError, KeyError) as e:
+        return [f"roteiro malformado ({type(e).__name__}: {e}); confira os tipos dos campos"], []
+
+
+def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
     errors: list[str] = []
     warns: list[str] = []
     for k in REQUIRED:

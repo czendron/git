@@ -37,14 +37,29 @@ CAMERA = {
         "video": "Static smartphone resting 40 cm above the ground, tilted up 10°, 63° field of view, 3 m from {obj}, locked off.",
         "storyboard": "63° static low angle from 3 m",
     },
+    # O lint aceita estes dois modos; sem entrada aqui o prompt caía calado na câmera de passante.
+    "static_high": {
+        "fov": 63,
+        "frame": "static phone mounted 2.5 m high, tilted down 20°, 63° field of view, 4 m away",
+        "video": "Static smartphone mounted 2.5 m high, tilted down 20°, 63° field of view, 4 m from {obj}, locked off.",
+        "storyboard": "63° static high angle from 4 m",
+    },
+    "tracking_side": {
+        "fov": 63,
+        "frame": "phone held at chest height by a person walking beside {obj}, 63° field of view, 3 m to {pos} side",
+        "video": ("Smartphone at chest height moving sideways alongside {obj} at {pos} walking pace, 63° field of view, "
+                  "3 m to {pos} side, keeping {obj} in the center third; the camera's only movement is this lateral "
+                  "track and it ends when {sub} stops."),
+        "storyboard": "63° side tracking from 3 m",
+    },
 }
 
 # Silhueta rígida de cada personagem, como material + medida + marco corporal (regra 17).
 SILHOUETTE = {
     "gersinho": ("pompadour", "a giant black lacquered pompadour rising 25 cm above the forehead, as tall as his own "
-                 "head, glossy, rigid like molded resin, every strand fused into one smooth solid shape"),
+                 "head, glossy, rigid like molded resin, every strand fused into one seamless solid shape"),
     "marlene": ("hair dome", "an enormous coppery hairsprayed bouffant shaped into a perfect dome twice as wide as her "
-                "shoulders, rigid like a lacquered helmet, every strand fused into one smooth solid shell"),
+                "shoulders, rigid like a lacquered helmet, every strand fused into one seamless solid shell"),
     "wanderley": ("mustache", "a black waxed horizontal mustache extending straight out to both sides, wider than his "
                   "shoulders, rigid like a carved bar of resin, tips perfectly level"),
 }
@@ -75,6 +90,26 @@ def silhouette(page: Page) -> tuple[str, str]:
 
 def cam(script: dict) -> dict:
     return CAMERA.get(script["camera"]["mode"], CAMERA["static_passerby"])
+
+
+def _sent(text: str) -> str:
+    """Frase completa: maiúscula no início e ponto no fim (campos do roteiro chegam soltos)."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    t = t[0].upper() + t[1:]
+    return t if t[-1] in ".!?" else t + "."
+
+
+def _lc(text: str) -> str:
+    t = (text or "").strip().rstrip(".")
+    return t[:1].lower() + t[1:]
+
+
+def crowd(n) -> str:
+    """'exactly N passersby' ou, com 0, um set só com ele (contagem explícita, regra 13)."""
+    n = int(n or 0)
+    return f"exactly {n} passerby" if n == 1 else f"exactly {n} passersby"
 
 
 def _fmt(text: str, page: Page) -> str:
@@ -126,12 +161,13 @@ def storyboard_prompt(script: dict, page: Page) -> tuple[str, str]:
     times = [st["t"] for st in en["stages"]] if len(en["stages"]) == n else [p.get("t", "") for p in script["storyboard_panels"]]
     sb = {
         "type": f"photographic storyboard, {n} panels in a {grid} grid, read left to right, top to bottom, thin white gutters",
-        "style": f"vertical smartphone photographs, natural daylight, identical camera position and field of view in "
-                 f"every panel ({cam(script)['storyboard']})",
+        "style": f"vertical smartphone photographs, {_lc(en['lighting'])}, identical camera position and field "
+                 f"of view in every panel ({cam(script)['storyboard']})",
         "character": f"the {noun} from image 1 (face) and image 2 ({part}, outfit); exactly one main character in "
                      f"every panel; deadpan in every panel: lips closed, lip corners level, eyes into the lens",
-        "location": f"{en['location']}; exactly {en['extras_count']} passersby in every panel, each busy with their "
-                    f"own task ({en['extras_tasks']}), none looking at {obj}",
+        "location": (f"{en['location']}; {crowd(en['extras_count'])} in every panel, each busy with their "
+                     f"own task ({en['extras_tasks']}), none looking at {obj}" if int(en.get('extras_count') or 0)
+                     else f"{en['location']}; {sub} is the only person in every panel"),
         "panels": [{"position": p, "time": t, "state": s} for p, t, s in zip(pos_list, times, panels)],
         "rules": f"same outfit, same {part} shape and size in every panel; props exactly as listed per panel "
                  f"({en.get('props', 'none')}); no text, no numbers, no speech balloons, no arrows",
@@ -152,9 +188,9 @@ def frame_a_prompt(script: dict, page: Page, with_storyboard: bool) -> str:
         f"Location: {en['location']}.",
         f"The {noun} from image 1 and image 2 — same face as image 1, same {part} shape and outfit as image 2 — "
         f"stands {en['position']}, already in {pos} signature pose: {en['signature_pose']}. {DEADPAN_FRAME}",
-        f"The {part} is fully inside the frame with 10% headroom above it.",
-        f"Background: exactly {en['extras_count']} ordinary passersby busy with their own tasks — {en['extras_tasks']} — "
-        f"none of them looking at {obj}.",
+        f"The {part} is fully inside the frame with 10% headroom above it. {en.get('hands', '')}".strip(),
+        (f"Background: {crowd(en['extras_count'])}, ordinary people busy with their own tasks — {en['extras_tasks']} — "
+         f"none of them looking at {obj}." if int(en.get("extras_count") or 0) else f"{sub.capitalize()} is the only person in the photograph."),
         f"Props: {en.get('props') or 'none besides the location'}.",
         f"{en['lighting']} Deep depth of field, everything sharp, smartphone HDR look, real skin texture.",
         "Exactly one main character. No text, no captions, no speech balloons, no watermarks.",
@@ -165,16 +201,18 @@ def frame_b_prompt(script: dict, page: Page) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, _ = silhouette(page)
-    return "\n".join([
+    lines = [
         f"Edit image 1. Keep the exact same camera position, field of view, location, lighting, passersby layout and "
         f"the {noun}'s identity (face from image 2, {part} and outfit from image 3).",
         f"Change only: {en['end_change']}.",
-        en.get("vacated", "") or "",
-        en.get("end_props", "") or "",
+        _sent(en.get("vacated", "")),
+        _sent(en.get("end_props", "")),
         DEADPAN_FRAME,
-        f"Exactly one main character, exactly {en['extras_count']} passersby, all still busy with their own tasks, "
-        f"none looking at {obj}. No text, no balloons.",
-    ]).replace("\n\n", "\n")
+        (f"Exactly one main character, {crowd(en['extras_count'])}, all still busy with their own tasks, "
+         f"none looking at {obj}. No text, no balloons." if int(en.get("extras_count") or 0)
+         else f"{sub.capitalize()} is the only person in the photograph. No text, no balloons."),
+    ]
+    return "\n".join(line for line in lines if line and line.strip())
 
 
 # ---------------- C4 vídeo ----------------
@@ -185,7 +223,8 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
     sub, pos, obj, noun = _p(page)
     part, sil = silhouette(page)
     nm = name(page)
-    bpm = script.get("music", {}).get("bpm") or page.character.get("bpm", 95)
+    bpm = (script.get("music") or {}).get("bpm") or page.character.get("bpm", 95)
+    extras = int(en.get("extras_count") or 0)
     refs = []
     if has_start or has_end:
         refs.append(" ".join(filter(None, [
@@ -202,14 +241,21 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
                     f"its gutters.")
     action = []
     for i, st in enumerate(en["stages"], 1):
-        action.append(f"[Stage {i} — {st['t']}] {st['text']} End state: {st['end_state']}")
+        text = st["text"] if has_end else st["text"].replace(" The final frame matches the end frame.", "")
+        action.append(f"[Stage {i} — {st['t']}] {text} End state: {st['end_state']}")
     blocks = []
     if repair:
-        blocks += ["REPAIR SCOPE", repair, ""]
+        blocks += ["REPAIR SCOPE",
+                   f"Keep the framing, pacing, location, passersby layout, start and end frames, and {nm}'s identity "
+                   f"exactly as specified.",
+                   f"Change only: {repair.strip().rstrip('.')}.",
+                   f"Protect: the {part} outline, the deadpan mouth, the passersby ignoring {obj}.", ""]
     blocks += [
         "SCENE CONTEXT",
         f"EXACTLY 1 main character — {nm}, {ROLE.get(page.slug, 'the character')}, with {sil.split(',')[0]} — plus "
-        f"exactly {en['extras_count']} background passersby. {en['gag_sentence']}",
+        f"{crowd(en['extras_count'])} in the background. {en['gag_sentence']}" if extras else
+        f"EXACTLY 1 main character — {nm}, {ROLE.get(page.slug, 'the character')}, with {sil.split(',')[0]} — and "
+        f"no one else in the set. {en['gag_sentence']}",
         "",
         "ACTIVE REFERENCES",
         *refs,
@@ -227,7 +273,8 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         "",
         "PERFORMANCE",
         DEADPAN_VIDEO,
-        f"Passersby continue their own tasks — {en['extras_tasks']} — each moving on their own rhythm; none turns toward {obj}.",
+        (f"Passersby continue their own tasks — {en['extras_tasks']} — each moving on their own rhythm; none turns toward {obj}."
+         if extras else ""),
         "",
         "PHYSICS",
         f"The {part} is a single rigid mass — {sil}: it moves only as one solid block with {pos} skull and keeps its "
@@ -238,11 +285,12 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         f"{en['lighting']} Smartphone video look, deep depth of field, everything sharp.",
         "",
         "POSITIVE LOCKS",
-        f"Exactly one main character and exactly {en['extras_count']} passersby for the whole clip. {pos.capitalize()} "
+        (f"Exactly one main character and {crowd(en['extras_count'])} for the whole clip. " if extras else
+         f"Exactly one person, {nm}, for the whole clip. ") + f"{pos.capitalize()} "
         f"face matches @Image 1 and {pos} {part} matches @Image 2 at every distance. "
         f"{en.get('props_lock', '')} No captions, no subtitles, no text on screen.".replace("  ", " "),
     ]
-    return "\n".join(blocks)
+    return "\n".join(b for b in blocks if b is not None).replace("\n\n\n", "\n\n")
 
 
 # ---------------- C5 motion control (Kling MC: só cena) ----------------
@@ -251,11 +299,12 @@ def motion_scene_prompt(script: dict, page: Page) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, sil = silhouette(page)
+    crowd_line = (f"{crowd(en['extras_count']).capitalize()} continue their own tasks; none looks at {obj}."
+                  if int(en.get("extras_count") or 0) else f"{sub.capitalize()} is the only person in the set.")
     return (f"Keep the scene, lighting and passersby from the character image. {en['lighting']} "
-            f"{en['location']}, smartphone video look, everything sharp. The {noun}'s {part} is a rigid lacquered "
+            f"{_sent(en['location'])[:-1]}, smartphone video look, everything sharp. The {noun}'s {part} is a rigid lacquered "
             f"solid that moves only as one block with {pos} head and keeps its exact outline. {pos.capitalize()} face stays "
-            f"deadpan: lips closed, lip corners level, eyes toward the lens. Exactly {en['extras_count']} passersby "
-            f"continue their own tasks; none looks at {obj}. Real-time speed.")
+            f"deadpan: lips closed, lip corners level, eyes toward the lens. {crowd_line} Real-time speed.")
 
 
 def caption(script: dict) -> str:

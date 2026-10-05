@@ -30,6 +30,34 @@ class StoreError(RuntimeError):
     pass
 
 
+def rel(path) -> str:
+    """Caminho para gravar no JSON da fila: relativo à raiz da usina (o repo é clonado em outras máquinas)."""
+    if not path:
+        return ""
+    p = Path(path)
+    try:
+        return p.resolve().relative_to(ROOT.resolve()).as_posix()
+    except ValueError:
+        return str(p)
+
+
+def local(path) -> Path | None:
+    """Resolve um caminho gravado na fila (relativo, ou absoluto de outra máquina) para o arquivo local."""
+    if not path:
+        return None
+    p = Path(path)
+    if not p.is_absolute():
+        return ROOT / p
+    if p.exists():
+        return p
+    parts = p.parts  # absoluto legado de outra máquina: remapeia a partir de out/ ou pages/
+    for anchor in ("out", "pages", "data"):
+        if anchor in parts:
+            i = len(parts) - 1 - parts[::-1].index(anchor)
+            return ROOT.joinpath(*parts[i:])
+    return p
+
+
 @dataclass
 class Page:
     slug: str
@@ -94,6 +122,7 @@ class Item:
     video: dict = field(default_factory=dict)      # {"provider":..,"job_id":..,"url":..,"path":..}
     post: dict = field(default_factory=dict)       # {"caption":..,"audio":..,"scheduled_for":..,"ig_media_id":..}
     history: list = field(default_factory=list)
+    decisions: list = field(default_factory=list)  # ids das decisões do painel já aplicadas (idempotência)
     notes: str = ""
 
     @property
