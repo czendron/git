@@ -89,15 +89,17 @@ Fotorrealismo de celular 9:16, 8–12 s, sem diálogo e sem texto no vídeo. Dea
 **Estágio com outro ator** (pessoa ou bicho que age sobre ele): acrescente `counterpart` ao estágio, com posição e orientação no momento-chave.
 ```json
 {"t": "6.5-8.5s",
- "text": "A vendor steps in from frame-left and hands him a pastel; he takes it with his right hand.",
+ "text": "A vendor steps in from frame-left and holds a pastel out in front of his chest; he keeps the pose, eyes on the lens.",
  "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
  "counterpart": {"who": "the pastel vendor", "position": "frame-left, 60 cm from him, same depth", "facing": "in profile facing frame-right toward him, 90° to the lens"},
- "end_state": "pastel in his right hand, the vendor walking back to frame-left"}
+ "end_state": "the pastel held out 20 cm in front of his chest, the vendor still at frame-left"}
 ```
+No estágio seguinte, ele pega o pastel e o vendedor, que não age mais, ganha tarefa: `"task": "wipes his hands on his apron, eyes on him"` dentro do `counterpart`.
 Notas 1–5. Com qualquer nota abaixo de 3, reescreva antes de entregar.
 
 Regras que o lint confere no bloco `en` (crítica de prompts, `docs/qa/critica-prompts.md`):
 - `facing` com grau e "lens" em todo estágio; `counterpart` quando outro ator interage com ele.
+- Contraparte (playbook B4): nunca atrás dele (`position` com "behind"/"atrás", ou o `facing` dizendo isso), a não ser com `"gag_requires": "behind"` no roteiro; no máximo **um** contato ou golpe por clipe; ele e a contraparte nunca agem no mesmo estágio; no estágio em que ela não age, `counterpart.task` (aviso).
 - `extras_tasks` conta uma tarefa por figurante e a soma bate com `extras_count`.
 - Sem "crowded", "crowd", "packed" ou "lotado": a contagem é exata.
 - `hands` diz "He has exactly two hands" (os figurantes também têm mãos no quadro).

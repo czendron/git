@@ -180,6 +180,8 @@ def _orient(st: dict, prev: dict | None = None) -> str:
         out.append(f"Orientation: {_lc(st['facing'])}.")
     if has_cp:
         out.append(_sent(f"{cp['who']}: {_lc(cp.get('position', ''))}, {_lc(cp.get('facing', ''))}"))
+        if str(cp.get("task") or "").strip():  # playbook B4.6: o parceiro tem tarefa enquanto espera
+            out.append(_sent(f"Meanwhile {_lc(cp['who'])} {_lc(cp['task'])}"))
     return " ".join(out)
 
 

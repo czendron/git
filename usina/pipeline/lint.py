@@ -61,10 +61,120 @@ def task_count(tasks: str) -> int | None:
     return total if found else None
 
 
-def lint_stages(stages, premise: str = "", where: str = "en.stages") -> tuple[list[str], list[str]]:
+# ---- playbook B4 (cena com contraparte), as partes mecanicamente checáveis (rodada 5) ----
+# 1. contraparte atrás dele: o modelo gira o corpo inteiro para encará-la ("nunca atrás"). Atrás de um móvel
+#    (balcão, banca, vidro) não é atrás dele.
+BEHIND = re.compile(r"\b(behind|atr[aá]s|in back of|at (his|her) back)\b(?!\s+(?:(?:the|a|an|his|her)\s+)?(?:\w+\s+)?"
+                    r"(counter|stall|stand|kiosk|desk|table|bar|window|glass|fence|railing|wall|cart|register|"
+                    r"turnstile|car|bus|door|gate|balc[aã]o|banca|vidro|mesa|grade)\b)", re.I)
+BEHIND_CP_FACING = re.compile(r"\b((at|toward|towards|on|facing|faces) (his|her) back|behind (him|her)|nas costas del[ea]|atr[aá]s del[ea])\b",
+                              re.I)
+# 7. contato/golpe: mais de um num clipe = mais de um clipe
+CONTACT = re.compile(r"\b(punch(es|ed|ing)?|hits?|hitting|strik(es?|ing)|struck|slap\w*|kick\w*|push(es|ed|ing)?|shov\w*|"
+                     r"jab\w*|smack\w*|headbutt\w*|tackl\w*|grab\w*|pok(e|es|ing)|taps?|tapping|pecks?|pecking|"
+                     r"bumps?|knocks?|collid\w*|lands? (on|against)|landing on|stops? against|slams?)\b", re.I)
+REPEAT = re.compile(r"\b(twice|two times|three times|\d+ times|again|repeatedly|several times|a few times|"
+                    r"one after another|combo|flurry)\b", re.I)
+ON_CONTACT = re.compile(r"\b(on|after|at the) contact\b", re.I)
+# 5. um ator age por estágio: o que conta como ação da contraparte (gesto de espera não conta)
+CP_ACT = re.compile(CONTACT.pattern[:-3] + r"|glid\w*|fl(y|ies|ew)|flaps?|swoops?|walks?|runs?|jumps?|swings?|throws?|"
+                    r"toss\w*|travels?|lunges?|steps? (in|toward|towards|forward)|reach(es)?|approach\w*|gives?|"
+                    r"offers?|hands? (him|her)|pulls?|drops?|charges?|dives?|enters?|comes? in)\b", re.I)
+PROTAG_SUBJ = re.compile(r"^\s*(?:(?:on contact|then|meanwhile|now|still|and|but|at the same time)[\s,]+)*"
+                         r"(he|she|gerson|gersinho|marlene|wanderley)\s+(\w+)", re.I)
+STATIC = {"keeps", "keep", "holds", "hold", "stays", "stay", "stares", "stare", "remains", "does", "doesn't", "did",
+          "is", "stands", "watches", "looks", "blinks", "breathes", "waits", "freezes", "never", "only", "still",
+          "just", "barely", "continues", "doesnt", "has", "seems", "not", "already", "simply", "sits", "lies"}
+PROTAG_REF = re.compile(r"\b(he|she|him|his|her|gerson|gersinho|marlene|wanderley)\b", re.I)
+CLAUSES = re.compile(r"[;.]|,\s*(?:and|then|while)\s+|\s+(?:and|while|as)\s+(?=(?:he|she|the|a|an|his|her)\b)", re.I)
+_DET = {"the", "a", "an", "one", "his", "her", "its", "their", "grey", "gray", "small", "big", "large", "old", "young"}
+
+
+def _cp_noun(who) -> str:
+    """'the grey seagull' -> 'seagull'; 'the boxer at frame-right' -> 'boxer'."""
+    head = re.split(r"\b(?:at|in|on|with|from|near|by|of|who|that)\b|[,(]", str(who or ""), maxsplit=1)[0]
+    words = [w for w in re.findall(r"[a-zà-ú'-]+", head.lower()) if w not in _DET]
+    return words[-1].removesuffix("'s") if words else ""
+
+
+def _noun_re(noun: str):
+    return re.compile(rf"\b{re.escape(noun)}(?:'s|s|es)?\b", re.I) if noun else None
+
+
+def _cp_acts(clause: str, noun_re) -> bool:
+    """A contraparte é o sujeito da oração (aparece antes de qualquer referência a ele) e faz um movimento."""
+    if not noun_re:
+        return False
+    m = noun_re.search(clause)
+    if not m:
+        return False
+    p = PROTAG_REF.search(clause)
+    return (p is None or m.start() < p.start()) and bool(CP_ACT.search(clause[m.end():]))
+
+
+def _protag_acts(clause: str) -> bool:
+    m = PROTAG_SUBJ.match(clause)
+    return bool(m) and m.group(2).lower() not in STATIC
+
+
+def lint_counterpart(stages, where: str = "en.stages", allow_behind: bool = False) -> tuple[list[str], list[str]]:
+    """Playbook B4 no que dá para checar no texto: contraparte nunca atrás dele (salvo gag_requires: behind),
+    um contato por clipe, um ator age por estágio e tarefa para a contraparte nos estágios em que não age."""
+    errors: list[str] = []
+    warns: list[str] = []
+    idx = [i for i, st in enumerate(stages or [], 1) if isinstance(st, dict) and isinstance(st.get("counterpart"), dict)
+           and st["counterpart"].get("who")]
+    if not idx:
+        return errors, warns
+    contacts: list[str] = []
+    for i in idx:
+        st = stages[i - 1]
+        cp = st["counterpart"]
+        who = str(cp.get("who"))
+        nre = _noun_re(_cp_noun(who))
+        pos, cpf, myf = str(cp.get("position") or ""), str(cp.get("facing") or ""), str(st.get("facing") or "")
+        behind = BEHIND.search(pos) or BEHIND_CP_FACING.search(cpf)
+        if not behind and nre:  # a orientação dele já diz que está de costas para ela
+            n = re.escape(_cp_noun(who))
+            behind = re.search(rf"\bback (is )?(turned )?to(ward)? (the )?{n}|\b(turned )?away from (the )?{n}", myf, re.I)
+        if behind and not allow_behind:
+            errors.append(f"{where}[{i}].counterpart: '{who}' fica atrás dele ('{behind.group(0)}'): o modelo gira o "
+                          f"corpo inteiro para encará-la. Ponha ao lado ou à frente (playbook B4.1) ou, se a piada é "
+                          f"essa, declare \"gag_requires\": \"behind\"")
+        clauses = [c for c in CLAUSES.split(str(st.get("text") or "")) if c and c.strip()]
+        cp_acts = any(_cp_acts(c, nre) for c in clauses)
+        me_acts = any(_protag_acts(c) for c in clauses)
+        if cp_acts and me_acts:
+            errors.append(f"{where}[{i}]: '{who}' e ele agem no mesmo estágio; um ator age por estágio e a reação "
+                          f"começa no contato, no estágio seguinte (playbook B4.5)")
+        if not cp_acts and not str(cp.get("task") or "").strip():
+            warns.append(f"{where}[{i}].counterpart: '{who}' não age neste estágio e está sem tarefa; dê uma em "
+                         f"counterpart.task (ex.: 'bounces on his toes, guard up, eyes on him'; playbook B4.6)")
+        for c in clauses:
+            if ON_CONTACT.search(c):
+                c = ON_CONTACT.sub(" ", c)
+            for m in CONTACT.finditer(c):
+                contacts.append(f"[{i}] {m.group(0)}")
+                if REPEAT.search(c):
+                    contacts.append(f"[{i}] {m.group(0)} ({REPEAT.search(c).group(0)})")
+    if len(contacts) > 1:
+        errors.append(f"{where}: {len(contacts)} contatos/golpes no mesmo clipe ({'; '.join(contacts)}); mais de um "
+                      f"contato = mais de um clipe, encadeados pelo último frame (playbook B4.7)")
+    for i in range(idx[0] + 1, idx[-1]):
+        if i not in idx:
+            warns.append(f"{where}[{i}]: a contraparte some entre os estágios {idx[0]} e {idx[-1]}; repita "
+                         f"counterpart com a mesma posição e uma tarefa (playbook B4.2 e B4.6)")
+    return errors, warns
+
+
+def lint_stages(stages, premise: str = "", where: str = "en.stages",
+                allow_behind: bool = False) -> tuple[list[str], list[str]]:
     """Orientação por estágio (regra 18) e quem encara quem quando outro ator interage com ele (falha do boxe)."""
     errors: list[str] = []
     warns: list[str] = []
+    e, w = lint_counterpart(stages, where, allow_behind)
+    errors += e
+    warns += w
     back_ok = "costas" in str(premise or "")
     for i, st in enumerate(stages or [], 1):
         if not isinstance(st, dict):
@@ -193,13 +303,18 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
     if page and script["page"] != page.get("slug"):
         errors.append(f"page '{script['page']}' não bate com '{page.get('slug')}'")
     if script.get("gag_followup") is not None:
-        e, w = lint_gag(script["gag_followup"], script.get("premise", ""))
+        e, w = lint_gag(script["gag_followup"], script.get("premise", ""), _behind_ok(script))
         errors += e
         warns += w
     return errors, warns
 
 
-def lint_gag(g, premise: str = "") -> tuple[list[str], list[str]]:
+def _behind_ok(script: dict, *more) -> bool:
+    """`"gag_requires": "behind"` no roteiro (ou no gag_followup): a contraparte atrás dele é a piada."""
+    return any(isinstance(x, dict) and str(x.get("gag_requires") or "").lower() == "behind" for x in (script, *more))
+
+
+def lint_gag(g, premise: str = "", allow_behind: bool = False) -> tuple[list[str], list[str]]:
     """Gag pós-motion control (playbook C5): clipe Seedance de 4–5 s a partir do último frame do MC,
     com os 2 últimos estágios do C4 (en.stages de 2 + en.end_change)."""
     errors: list[str] = []
@@ -229,7 +344,7 @@ def lint_gag(g, premise: str = "") -> tuple[list[str], list[str]]:
         errors.append(f"gag_followup.en.stages terminam em {end}s, mas duration_s é {dur}")
     if not en.get("end_change"):
         errors.append("falta gag_followup.en.end_change (o estado final da piada)")
-    e, w = lint_stages(stages, premise, "gag_followup.en.stages")
+    e, w = lint_stages(stages, premise, "gag_followup.en.stages", allow_behind or _behind_ok(g))
     errors += e
     warns += w
     if SLOW.search(_text(en)):
@@ -285,7 +400,7 @@ def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]
             warns.append("estágio do gag com menos de 1,5 s")
     if stages and abs(send - float(script.get("duration_s", 0))) > 0.51:
         errors.append(f"en.stages terminam em {send}s, mas duration_s é {script.get('duration_s')}")
-    e, w = lint_stages(stages, script.get("premise", ""))
+    e, w = lint_stages(stages, script.get("premise", ""), allow_behind=_behind_ok(script))
     errors += e
     warns += w
     e, w = lint_crowd(en)
