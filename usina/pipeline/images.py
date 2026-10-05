@@ -90,3 +90,46 @@ def generate(prompt: str, out: Path, refs: list[Path] | None = None, *, aspect: 
             if attempt < retries:
                 time.sleep(4 * (attempt + 1))
     raise ImageError(f"{type(last).__name__}: {last}")
+
+
+def generate_variants(prompt: str, outs: list[Path], refs: list[Path] | None = None, *, aspect: str = "9:16",
+                      quality: str = "high", model: str | None = None, mock: bool | None = None) -> list[Path]:
+    """N opções do mesmo prompt (playbook C5: "faça 4 variações e cure"). Uma chamada com n=N; se a API devolver
+    menos (ou não aceitar n), completa com chamadas avulsas."""
+    outs = [Path(o) for o in outs]
+    if mock is None:
+        mock = os.getenv("USINA_MOCK") == "1"
+    if mock or len(outs) == 1:
+        for i, o in enumerate(outs, 1):
+            generate(f"{prompt}" if not mock else f"[variante {i}] {prompt}", o, refs, aspect=aspect, quality=quality,
+                     model=model, mock=mock)
+        return outs
+    done: list[Path] = []
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    refs = [Path(r) for r in (refs or [])]
+    if key and refs:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=key)
+            m = model or MODEL_DEFAULT
+            fhs = [open(r, "rb") for r in refs]
+            try:
+                kw = dict(model=m, image=fhs, prompt=prompt, size=SIZES.get(aspect, aspect), quality=quality, n=len(outs))
+                if m in FIDELITY_MODELS:
+                    kw["input_fidelity"] = "high"
+                resp = client.images.edit(**kw)
+            finally:
+                for fh in fhs:
+                    fh.close()
+            for o, d in zip(outs, resp.data):
+                o.parent.mkdir(parents=True, exist_ok=True)
+                o.write_bytes(base64.b64decode(d.b64_json))
+                done.append(o)
+        except Exception as e:  # noqa: BLE001 - cai para chamadas avulsas
+            msg = str(e).lower()
+            if "moderation" in msg or "safety" in msg or "content_policy" in msg:
+                raise ImageError(f"{type(e).__name__}: {e}")
+    for o in outs[len(done):]:
+        generate(prompt, o, refs, aspect=aspect, quality=quality, model=model, mock=False)
+        done.append(o)
+    return done

@@ -15,7 +15,8 @@ ACTIVE = ["ideia", "roteiro", "storyboard", "frames", "video", "revisao", "pront
 CALIBRATION_DAYS = 14
 BUFFER_DAYS = 3  # quantos dias de posts manter no estoque (ideias em produção + prontos)
 TREND_MAX_AGE_DAYS = 7  # ata D7 (radar): trend com menos de 7 dias; esperando a fonte há mais que isso, morreu
-TREND_CAP = 0.30        # ata D7: no máximo 30% de trend por página em 30 dias
+TREND_CAP = 0.30
+TREND_VARIANTS = 4      # playbook C5: "faça 4 variações e cure" o frame do personagem da trend        # ata D7: no máximo 30% de trend por página em 30 dias
 # Ações que geram gasto novo: param quando a página passa do estoque (ata D5). Poll/fetch/revisão/pacote seguem,
 # senão um vídeo já pago ficaria sem buscar.
 SPENDING = {"new_ideas", "video_submit", "write_script"}
@@ -84,8 +85,9 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
         elif att.get("frames", 0) >= max_img:
             acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'frame de trend reprovado 3x'"})
         else:
-            acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames",
-                         "cost_usd": b["cost_estimates"]["openai_image"]["high"], "provider": "openai"})
+            # playbook C5: 4 variações do frame e o revisor cura (corrigir pose no frame custa centavos)
+            acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames --variants {TREND_VARIANTS}",
+                         "cost_usd": TREND_VARIANTS * b["cost_estimates"]["openai_image"]["high"], "provider": "openai"})
     elif st == "roteiro":
         if att.get("storyboard", 0) >= max_img:
             acts.append({"do": "discard", "item": pid, "why": "storyboard reprovado 3x",
@@ -114,6 +116,14 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
         if g["qa"] == "pending" and item.script.get("en", {}).get("end_change") and "end" not in item.frames:
             # fallback Higgsfield em dois passos: falta o frame B (edição do A)
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} image {pid} frames --provider higgsfield"})
+        elif g["qa"] == "pending" and item.variants and not item.frames.get("start"):
+            acts.append({"do": "review_image", "item": pid, "stage": "frames", "pick": True,
+                         "file": [v.get("path") or v.get("url") for v in item.variants],
+                         "rubric": "prompts/review_frames.md",
+                         "how": f"Abra as {len(item.variants)} opções com Read (com rosto.png e silhueta.png), escolha a "
+                                f"melhor pela rubrica com `{cmd} pick {pid} frames <n>` e registre "
+                                f"`{cmd} review {pid} frames pass --notes '...'`. Nenhuma serve: "
+                                f"`{cmd} review {pid} frames fail --notes '...'`."})
         elif g["qa"] == "pending":
             acts.append({"do": "review_image", "item": pid, "stage": "frames",
                          "file": [f.get("path") for f in item.frames.values()],

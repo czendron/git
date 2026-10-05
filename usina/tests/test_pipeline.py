@@ -174,7 +174,7 @@ def test_trend_motion_flow(usina, tmp_path):
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", str(src)], check=True)
     run(usina, "motion-source", ref, "--file", str(src))
     plan = json.loads(run(usina, "plan").stdout)
-    assert any(a.get("cmd", "").endswith("frames") for a in plan["actions"])
+    assert any(a.get("cmd", "").endswith("frames --variants 4") for a in plan["actions"])  # rodada 3: 4 opções (C5)
     run(usina, "image", ref, "frames")
     item = json.loads(next((usina / "data/queue/gersinho").glob("*trend*.json")).read_text())
     assert item["frames"]["start"]["prompt"].startswith("Edit image 1. Replace the dancer")

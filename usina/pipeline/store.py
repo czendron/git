@@ -116,6 +116,7 @@ class Item:
     script: dict = field(default_factory=dict)
     storyboard: dict = field(default_factory=dict) # {"path":..,"prompt":..,"attempts":n,"higgsfield_id":..}
     frames: dict = field(default_factory=dict)     # {"start": {"path":..,"prompt":..,"higgsfield_id":..}, "end": {...}}
+    variants: list = field(default_factory=list)  # trend: opções do frame do personagem antes do `pick` (playbook C5)
     motion: dict = field(default_factory=dict)     # trend: {"source_path","source_hf_id","first_frame","duration","cuts"}
     gates: dict = field(default_factory=dict)      # {"storyboard": {"qa":..,"caio":..,"notes":..}, ...}
     attempts: dict = field(default_factory=dict)   # {"storyboard": n, "frames": n, "video": n}

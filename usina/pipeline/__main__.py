@@ -9,6 +9,7 @@ Comandos principais:
   record-image <page/id> <stage> <key> --hf-job <id> [--url ...]   (quando a imagem veio do Higgsfield)
   record-upload <page/id> <key> --hf-id <media_id>                  (imagem local subida pro Higgsfield)
   review <page/id> storyboard|frames|video pass|fail --notes "..."
+  image <page/id> frames --variants 4 | pick <page/id> frames <n>     (trend: 4 opções do frame, o revisor escolhe)
   approve <page/id> storyboard|frames|video [--reject] [--notes]
   retry <page/id> storyboard|frames|video | discard <page/id> --why "..."
   video-request <page/id> | record-video <page/id> [--job ...] [--url ...] [--credits n]
@@ -280,7 +281,7 @@ def cmd_save_script(a):
     if it.state not in ("ideia", "roteiro"):  # reescrita (triagem C6): tudo que veio do roteiro antigo perde a validade
         for st in ("storyboard", "frames", "video"):
             it.gates.pop(st, None)
-        it.storyboard, it.frames = {}, {}
+        it.storyboard, it.frames, it.variants = {}, {}, []
         if any(k != "history" for k in it.video):
             it.video = {"history": it.video.get("history", []) + [{k: v for k, v in it.video.items() if k != "history"}]}
         _clear_assets(it, "storyboard", "frames", "video")
@@ -313,6 +314,11 @@ def cmd_image(a):
     if not it.script:
         raise StoreError("item sem roteiro")
     _gen_gate(page)
+    nvar = int(getattr(a, "variants", 1) or 1)
+    if nvar > 1 and not (stage == "frames" and it.script.get("format") == "trend"):
+        raise StoreError("--variants só vale para o frame da trend (playbook C5)")
+    if not 1 <= nvar <= 4:
+        raise StoreError("--variants vai de 1 a 4")
     provider = a.provider or _switches().get("image_provider", "openai")
     _check_image_provider(provider)
     b = budget.load_budget()
@@ -355,7 +361,7 @@ def cmd_image(a):
     if provider == "higgsfield":
         # Fallback: mesmo modelo (GPT Image 2.5) via MCP do Higgsfield; a sessão executa e registra.
         ids = _hf_ref_ids(page)
-        n_req = 1 if stage == "frames" else len(jobs)
+        n_req = nvar if stage == "frames" else len(jobs)
         ok, why = budget.can_spend_higgsfield(
             n_req * b["cost_estimates"]["higgsfield_credits"].get("gpt_image_2_5", 2))
         if not ok:
@@ -382,25 +388,31 @@ def cmd_image(a):
                 medias = [{"role": "image_references", "value": trend_first}] + medias
             elif stage == "frames" and it.storyboard.get("higgsfield_id"):
                 medias.append({"role": "image_references", "value": it.storyboard["higgsfield_id"]})
-            reqs.append({"key": key, "params": {
-                "model": "gpt_image_2_5", "aspect_ratio": "16:9" if size == "1536x1024" else "9:16",
-                "quality": "high", "medias": medias, "prompt": prompt}})
+            params = {"model": "gpt_image_2_5", "aspect_ratio": "16:9" if size == "1536x1024" else "9:16",
+                      "quality": "high", "medias": medias, "prompt": prompt}
+            if nvar > 1:  # trend: N opções do frame, o revisor escolhe com `pick`
+                reqs += [{"key": f"var{k}", "params": params} for k in range(1, nvar + 1)]
+            else:
+                reqs.append({"key": key, "params": params})
         out = {"mcp_tool": "mcp__Higgsfield__generate_image_batch",
                "requests": [{"index": i, "params": r["params"]} for i, r in enumerate(reqs)],
                "then": [f"python -m pipeline record-image {a.ref} {stage} {r['key']} --hf-job <job_id> --url <result_url>"
                         for r in reqs]}
+        if nvar > 1:
+            out["depois"] = f"Depois dos record-image, escolha a melhor com `python -m pipeline pick {a.ref} frames <n>`."
         if stage == "frames" and not hf_second and len(jobs) > 1:
             out["depois"] = (f"Frame B é edição do frame A: depois do record-image do start, rode de novo "
                              f"`python -m pipeline image {a.ref} frames --provider higgsfield` para o pedido do end.")
         _print(out)
         return
 
-    ok, why = budget.can_spend("openai", unit * len(jobs))
+    ok, why = budget.can_spend("openai", unit * len(jobs) * nvar)
     if not ok:
         raise StoreError(why)
     mock = bool(a.mock) or os.getenv("USINA_MOCK") == "1"
     refs = _refs(page)
     target = {}
+    variants = []
     for key, prompt, size, extra in jobs:
         name = key if key == stage else f"{stage}-{key}"
         out = wd / f"{name}-v{n}.png"
@@ -411,11 +423,23 @@ def cmd_image(a):
             img_refs = [local(target["start"]["path"])] + refs   # Frame B = edição do Frame A (playbook C2)
         else:
             img_refs = refs + extra
+        if nvar > 1:
+            outs = [wd / f"{name}-v{n}-o{k}.png" for k in range(1, nvar + 1)]
+            images.generate_variants(prompt, outs, img_refs, aspect=size, quality=quality, mock=mock)
+            for k, o in enumerate(outs, 1):
+                budget.record(it.page, it.id, "openai", f"image_{stage}", usd=0 if mock else unit,
+                              note=f"{key} opção {k}{' (mock)' if mock else ''}")
+                variants.append({"n": k, "path": rel(o), "prompt": prompt, "v": n})
+                print(f"ok: {o.relative_to(ROOT)}")
+            continue
         images.generate(prompt, out, img_refs, aspect=size, quality=quality, mock=mock)
         budget.record(it.page, it.id, "openai", f"image_{stage}", usd=0 if mock else unit,
                       note=f"{key}{' (mock)' if mock else ''}")
         target[key] = {"path": rel(out), "prompt": prompt, "v": n}
         print(f"ok: {out.relative_to(ROOT)}")
+    if variants:
+        print(f"{len(variants)} opções: abra todas com Read e escolha com `python -m pipeline pick {a.ref} frames <n>`")
+    it.variants = variants if stage == "frames" else it.variants
     it.attempts[stage] = n
     _clear_assets(it, stage)
     if stage == "storyboard":
@@ -431,10 +455,13 @@ def cmd_image(a):
 
 def cmd_record_image(a):
     page, it = _item(a.ref)
-    if a.stage not in ("storyboard", "frames") or (a.stage == "frames" and a.key not in ("start", "end")) \
+    var = re.fullmatch(r"var([1-4])", a.key or "")
+    if a.stage not in ("storyboard", "frames") or (a.stage == "frames" and a.key not in ("start", "end") and not var) \
             or (a.stage == "storyboard" and a.key != "storyboard"):
-        raise StoreError("use: record-image <ref> storyboard storyboard | frames start|end")
-    seen = [it.storyboard] + list(it.frames.values())
+        raise StoreError("use: record-image <ref> storyboard storyboard | frames start|end|var1..var4")
+    if var and it.script.get("format") != "trend":
+        raise StoreError("variações (varN) só no frame da trend")
+    seen = [it.storyboard] + list(it.frames.values()) + list(it.variants)
     if any(e.get("higgsfield_job") == a.hf_job for e in seen):
         print(f"já registrado: {a.hf_job}")
         return
@@ -450,7 +477,7 @@ def cmd_record_image(a):
     entry = {"higgsfield_job": a.hf_job, "higgsfield_id": a.hf_job, "url": a.url or "", "v": v}
     if a.url:
         name = "storyboard" if a.stage == "storyboard" else f"frames-{a.key}"
-        dst = _workdir(it) / f"{name}-v{v}.png"
+        dst = _workdir(it) / (f"frames-start-v{v}-o{var.group(1)}.png" if var else f"{name}-v{v}.png")
         if _download(a.url, dst):
             entry["path"] = rel(dst)
     it.attempts[a.stage] = v
@@ -462,10 +489,15 @@ def cmd_record_image(a):
     else:
         if not same_round:
             it.frames = {}
+            it.variants = []
             _clear_assets(it, "frames")
             it.gates["frames"] = {"qa": "pending", "caio": "pending"}
             it.set_state("frames", "frames via Higgsfield")
-        it.frames[a.key] = entry
+        if var:
+            it.variants = [x for x in it.variants if x.get("n") != int(var.group(1))] + [
+                {**entry, "n": int(var.group(1))}]
+        else:
+            it.frames[a.key] = entry
     budget.record(it.page, it.id, "higgsfield", f"image_{a.stage}", credits=2, job_id=a.hf_job, note=a.key)
     it.save()
     print("registrado")
@@ -498,6 +530,8 @@ def cmd_review(a):
     _need_state(it, [a.stage], f"review {a.stage}")
     if a.stage == "video" and not it.video.get("path"):
         raise StoreError("vídeo ainda não baixado: rode fetch-video antes de revisar")
+    if a.stage == "frames" and a.verdict == "pass" and it.variants and not it.frames.get("start"):
+        raise StoreError(f"escolha a opção antes: `pick {a.ref} frames <n>` (ou reprove todas com fail)")
     g = it.gates.setdefault(a.stage, {"qa": "pending", "caio": "pending"})
     first = g.get("qa") == "pending"   # re-rodar o mesmo review não conta duas vezes no aproveitamento nem no livro de falhas
     g["qa"] = a.verdict
@@ -512,6 +546,24 @@ def cmd_review(a):
         _log_failure(it, a.stage, a.notes)
     it.save()
     print(f"{a.stage}: {a.verdict}")
+
+
+def cmd_pick(a):
+    """Escolhe uma das opções do frame da trend (playbook C5: 4 variações, o revisor cura)."""
+    page, it = _item(a.ref)
+    _need_state(it, ["frames"], "pick")
+    if it.gates.get("frames", {}).get("qa") != "pending":
+        raise StoreError("o frame já foi revisado; para trocar a opção, `retry` e gere de novo")
+    opt = next((x for x in it.variants if int(x.get("n", 0)) == a.n), None)
+    if not opt:
+        raise StoreError(f"opção {a.n} não existe (há {sorted(x.get('n') for x in it.variants) or 'nenhuma'})")
+    if opt.get("path") and not local(opt["path"]).exists() and not opt.get("higgsfield_id"):
+        raise StoreError(f"arquivo da opção {a.n} sumiu ({opt['path']}); gere de novo")
+    it.frames = {"start": {**{k: v for k, v in opt.items() if k != "n"}, "picked": a.n}}
+    _clear_assets(it, "frames")
+    it.history.append({"at": time.time(), "from": it.state, "to": it.state, "why": f"opção {a.n} do frame escolhida"})
+    it.save()
+    print(f"frame: opção {a.n} ({opt.get('path') or opt.get('higgsfield_id')})")
 
 
 def cmd_approve(a):
@@ -696,7 +748,7 @@ def cmd_motion_source(a):
         for w in warns:
             print(f"aviso: {w}")
         if it.state != "roteiro":
-            it.frames = {}
+            it.frames, it.variants = {}, []
             it.gates.pop("frames", None)
             it.gates.pop("video", None)
             _clear_assets(it, "frames", "video")
@@ -1318,7 +1370,7 @@ def _log_failure(it, stage: str, notes: str) -> None:
 
 
 # Comandos cujo sucesso quebra a sequência de erros (ata D5: "3 erros SEGUIDOS").
-PROGRESS = {"save-script", "image", "record-image", "record-upload", "review", "approve", "retry", "discard",
+PROGRESS = {"save-script", "image", "pick", "record-image", "record-upload", "review", "approve", "retry", "discard",
             "video-request", "record-video", "fetch-video", "package", "posted", "motion-source", "media-restore"}
 # (panel-apply/panel-export rodam todo ciclo, com ou sem erro: não podem zerar a contagem)
 
@@ -1343,7 +1395,10 @@ def main(argv=None):
     p.add_argument("--quality", default="high", choices=["low", "medium", "high", "xhigh"])
     p.add_argument("--mock", action="store_true", default=None)
     p.add_argument("--force", action="store_true"); p.add_argument("--sem-storyboard", action="store_true")
+    p.add_argument("--variants", type=int, default=1, help="trend: N opções do frame (1-4); escolha com pick")
     p.set_defaults(f=cmd_image)
+    p = sp.add_parser("pick"); p.add_argument("ref"); p.add_argument("stage", choices=["frames"])
+    p.add_argument("n", type=int); p.set_defaults(f=cmd_pick)
     p = sp.add_parser("record-image"); p.add_argument("ref"); p.add_argument("stage"); p.add_argument("key")
     p.add_argument("--hf-job", required=True); p.add_argument("--url"); p.set_defaults(f=cmd_record_image)
     p = sp.add_parser("record-upload"); p.add_argument("ref"); p.add_argument("key")

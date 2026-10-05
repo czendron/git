@@ -5,7 +5,7 @@ import json
 import time
 
 from test_pipeline import run, usina  # noqa: F401  (fixture reaproveitada)
-from test_qa_rodada1 import EXAMPLE, item_json, plan, to_frames_approved
+from test_qa_rodada1 import EXAMPLE, item_json, ledger, plan, to_frames_approved
 
 
 def write_lock(root, owner, age_s=0):
@@ -190,3 +190,54 @@ def test_trend_cap_30pct_plan_warns_and_stops_suggesting(usina, tmp_path):
     assert any("acima do teto" in n and "gersinho" in n for n in pl["notes"])
     ni = [a for a in pl["actions"] if a["do"] == "new_ideas"]
     assert ni and all(not a["allow_trend"] and "NÃO crie trend" in a["how"] for a in ni)
+
+
+# ---------- 6. 4 variações do frame da trend (C5) ----------
+
+def trend_with_source(root, tmp_path):
+    from test_qa_rodada2 import clip
+    ref = run(root, "new", "gersinho", "Trend", "--idea", "gang").stdout.strip()
+    run(root, "save-script", ref, TREND)
+    run(root, "motion-source", ref, "--file", str(clip(tmp_path / "src.mp4")))
+    return ref
+
+
+def test_trend_frame_variants_and_pick(usina, tmp_path):
+    ref = trend_with_source(usina, tmp_path)
+    acts = [a for a in plan(usina)["actions"] if a.get("item") == ref]
+    assert acts[0]["cmd"].endswith("frames --variants 4") and acts[0]["cost_usd"] > 0.5
+    out = run(usina, "image", ref, "frames", "--variants", "4").stdout
+    assert out.count("ok: ") == 4
+    it = item_json(usina)
+    assert len(it["variants"]) == 4 and it["frames"] == {} and it["attempts"]["frames"] == 1
+    assert len([r for r in ledger(usina) if r["action"] == "image_frames"]) == 4   # 4 imagens lançadas
+    rv = [a for a in plan(usina)["actions"] if a.get("item") == ref][0]
+    assert rv["do"] == "review_image" and rv.get("pick") and len(rv["file"]) == 4
+    assert run(usina, "review", ref, "frames", "pass", ok=False).returncode == 1     # pick antes
+    assert run(usina, "pick", ref, "frames", "7", ok=False).returncode == 1
+    run(usina, "pick", ref, "frames", "3")
+    it = item_json(usina)
+    assert it["frames"]["start"]["picked"] == 3 and it["frames"]["start"]["path"].endswith("-o3.png")
+    run(usina, "review", ref, "frames", "pass")
+    assert run(usina, "pick", ref, "frames", "2", ok=False).returncode == 1          # já revisado
+    vr = json.loads(run(usina, "video-request", ref).stdout)
+    assert vr["ready"] is False and vr["upload_first"][0]["path"].endswith("-o3.png")
+    # variações só na trend
+    other = run(usina, "new", "gersinho", "Busao", "--idea", "porta").stdout.strip()
+    run(usina, "save-script", other, EXAMPLE)
+    assert run(usina, "image", other, "frames", "--variants", "4", "--force", ok=False).returncode == 1
+
+
+def test_trend_variants_higgsfield_fallback(usina, tmp_path):
+    bt = (usina / "budget.yaml").read_text().replace("image_fallback_allowed: false", "image_fallback_allowed: true")
+    (usina / "budget.yaml").write_text(bt)
+    ref = trend_with_source(usina, tmp_path)
+    run(usina, "record-upload", ref, "source_first", "--hf-id", "SF")
+    out = json.loads(run(usina, "image", ref, "frames", "--provider", "higgsfield", "--variants", "4").stdout)
+    assert len(out["requests"]) == 4 and all("var" in t for t in out["then"]) and "pick" in out["depois"]
+    for k in (1, 2):
+        run(usina, "record-image", ref, "frames", f"var{k}", "--hf-job", f"HJ{k}")
+    it = item_json(usina)
+    assert it["state"] == "frames" and len(it["variants"]) == 2 and it["attempts"]["frames"] == 1
+    run(usina, "pick", ref, "frames", "2")
+    assert item_json(usina)["frames"]["start"]["higgsfield_id"] == "HJ2"
