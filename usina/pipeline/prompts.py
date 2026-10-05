@@ -11,11 +11,16 @@ Fonte da verdade: o roteiro (JSON, bloco `en`) mais a bíblia da página. Regras
   posição e orientação desse ator no mesmo estágio (en.stages[].counterpart): quem encara quem no momento-chave
   (falha do boxe: ele de costas quando o outro socou). Ver docs/qa/critica-prompts.md
 - ficha (rosto + silhueta) em toda geração, inclusive no motion control (videos-analisados §5)
+- tutoriais §11–15 (docs/qa/lint-tutoriais.md): cada referência ligada a um papel e a um nome uma vez; no corpo do
+  prompt só o nome, nunca "the man" (B4.11); um beat de piada por estágio, com o dono nomeado (C4); contraparte fora
+  do quadro, só o membro entrando pela borda (B4.10); frame B com a luz e a nitidez do A (C2); corte só declarado (B2)
 """
 from __future__ import annotations
 
 import json
+import re
 
+from . import lint as _lint
 from .store import Page
 
 PRONOUN = {"he": ("he", "his", "him", "man"), "she": ("she", "her", "her", "woman")}
@@ -101,7 +106,8 @@ def _p(page: Page) -> tuple[str, str, str, str]:
 
 
 def name(page: Page) -> str:
-    return page.character.get("nickname", page.character.get("name", "HIM")).upper().split()[0]
+    """Nome do personagem no prompt (B4.11): o apelido inteiro ('TIA MARLENE', não 'TIA')."""
+    return " ".join(str(page.character.get("nickname", page.character.get("name", "HIM"))).upper().split())
 
 
 def silhouette(page: Page) -> tuple[str, str]:
@@ -122,7 +128,11 @@ def _sent(text: str) -> str:
 
 
 def _lc(text: str) -> str:
+    """Primeira letra minúscula para emendar no meio da frase; nome em caixa alta ('DONA CIDA', 'GERSINHO') fica."""
     t = (text or "").strip().rstrip(".")
+    first = t.split(" ", 1)[0]
+    if len(first) > 1 and first.isupper():
+        return t
     return t[:1].lower() + t[1:]
 
 
@@ -178,19 +188,78 @@ def _orient(st: dict, prev: dict | None = None) -> str:
     has_cp = isinstance(cp, dict) and cp.get("who")
     if st.get("facing") and (prev is None or has_cp or st["facing"] != prev.get("facing")):
         out.append(f"Orientation: {_lc(st['facing'])}.")
-    if has_cp:
+    if has_cp and _lint.is_offscreen(cp):
+        out.append(_offscreen(cp))
+    elif has_cp:
         out.append(_sent(f"{cp['who']}: {_lc(cp.get('position', ''))}, {_lc(cp.get('facing', ''))}"))
+    if has_cp:
         if str(cp.get("task") or "").strip():  # playbook B4.6: o parceiro tem tarefa enquanto espera
             out.append(_sent(f"Meanwhile {_lc(cp['who'])} {_lc(cp['task'])}"))
     return " ".join(out)
 
 
-def _stage_lines(stages: list, end_change: str = "", keep_final_match: bool = True) -> list[str]:
+def _offscreen(cp: dict) -> str:
+    """B4.10 (degrau 0): a contraparte fica fora do quadro; só o membro entra pela borda, com vetor de tela.
+    Sem segundo rosto no quadro, não há segunda orientação para errar."""
+    who = str(cp["who"]).strip()
+    m = _lint.EDGE.search(str(cp.get("position") or ""))
+    edge = f"the {m.group(1).lower()} edge" if m else "the frame edge"
+    limb = _lc(cp.get("limb") or "one arm")
+    vector = _lc(cp.get("vector") or "")
+    if vector and not re.match(r"(the|his|her|its|their|a|an)\b", vector):
+        vector = "it " + vector
+    return " ".join(filter(None, [
+        _sent(f"{who} stays off-screen beyond {edge}; only {limb} enters the frame" + (f"; {vector}" if vector else "")),
+        _sent(f"No face or body of {re.sub(r'^The ', 'the ', who)} appears in the frame")]))
+
+
+def _possessive(who: str) -> str:
+    w = str(who).strip()
+    return w + ("'" if w.endswith("s") else "'s")
+
+
+def _owner(st: dict, nm: str) -> tuple[str, bool]:
+    """Dono do beat (C4, videos-analisados §13): `owner` explícito, a contraparte quando é ela quem age no estágio,
+    senão o protagonista. Devolve (nome, é_o_protagonista)."""
+    if str(st.get("owner") or "").strip():
+        o = str(st["owner"]).strip()
+        return o, o.upper() == nm.upper()
+    cp = st.get("counterpart")
+    if isinstance(cp, dict) and cp.get("who"):
+        nre = _lint._noun_re(_lint._cp_noun(cp["who"]))
+        clauses = [c for c in _lint.CLAUSES.split(str(st.get("text") or "")) if c and c.strip()]
+        first = nre.search(clauses[0]) if nre and clauses else None
+        me = _lint.PROTAG_REF.search(clauses[0]) if clauses else None
+        if any(_lint._cp_acts(c, nre) for c in clauses) or (first and (me is None or first.start() < me.start())):
+            return str(cp["who"]).strip(), False
+    return nm, True
+
+
+def _named(text: str, st: dict, nm: str) -> str:
+    """Um beat por estágio com o dono nomeado: o primeiro 'he'/'she' sujeito vira o nome (B4.11: o corpo do prompt
+    chama o personagem pelo nome); se o dono não aparece no texto, o estágio abre com '<DONO>'s beat:'."""
+    owner, mine = _owner(st, nm)
+    if mine:
+        if re.search(rf"\b{re.escape(nm)}\b", text, re.I):
+            return text
+        new, n = re.subn(r"(^|[.;:]\s*|,\s*(?:and|then)\s+|\b(?:and|then|while|until)\s+)(he|she)\b",
+                         lambda m: m.group(1) + nm, text, count=1, flags=re.I)
+        return new if n else f"{_possessive(nm)} beat: {_lc(text)}"
+    noun = _lint._cp_noun(owner)
+    if noun and re.search(rf"\b{re.escape(noun)}", text, re.I):
+        return text
+    return f"{_possessive(owner[:1].upper() + owner[1:])} beat: {_lc(text)}"
+
+
+def _stage_lines(stages: list, end_change: str = "", keep_final_match: bool = True, nm: str = "") -> list[str]:
     """[Stage n — t] texto + orientação + estado final. Sem frame final como âncora (end_change sem end_image),
-    o último estado final é o end_change por extenso; com o end_image, basta o end_state curto do roteiro."""
+    o último estado final é o end_change por extenso; com o end_image, basta o end_state curto do roteiro.
+    Com `nm`, cada estágio nomeia o dono do beat (C4)."""
     lines = []
     for i, st in enumerate(stages, 1):
         text = st["text"] if keep_final_match else st["text"].replace(" The final frame matches the end frame.", "")
+        if nm:
+            text = _named(text, st, nm)
         last = i == len(stages)
         end = _lc(end_change) if (last and end_change and not keep_final_match) else _lc(st["end_state"])
         lines.append(" ".join(filter(None, [f"[Stage {i} — {st['t']}] {_sent(text)}",
@@ -204,11 +273,30 @@ def _turn_rule(pos: str) -> str:
             f"{pos} face is visible in every frame.")
 
 
-def _ref_lines(nm: str, pos: str, part: str) -> list[str]:
-    """Mapa de referências pelo conteúdo + número (o 2.5 casa o material pelo que vê, não só pela ordem)."""
-    return [f"@Image 1 (the close-up face photo on grey) defines {nm}'s face — full-preserve, 100% matches the reference.",
-            f"@Image 2 (the silhouette sheet on grey) defines only {pos} {part} shape and outfit — full-preserve. Do not "
-            f"take the grey backdrop, the panel layout or the extra views."]
+def _ref_lines(nm: str, pos: str, part: str, cast: list | None = None) -> list[str]:
+    """Mapa de referências pelo conteúdo + papel + nome (o 2.5 casa o material pelo que vê, não só pela ordem).
+    B4.11: cada imagem é ligada a um nome uma vez aqui; daí em diante o prompt usa só o nome."""
+    lines = [f"@Image 1 (the close-up face photo on grey) is {nm}'s face reference: it defines {nm}'s face — "
+             f"full-preserve, 100% matches the reference.",
+             f"@Image 2 (the silhouette sheet on grey) is {nm}'s silhouette reference: it defines only {pos} {part} "
+             f"shape and outfit — full-preserve. Do not take the grey backdrop, the panel layout or the extra views."]
+    for who in cast or []:
+        lines.append(f"{who[:1].upper() + who[1:]} is a different person from {nm}, with a face, hair and clothes "
+                     f"of their own; nothing of {who} comes from @Image 1 or @Image 2.")
+    if cast:
+        lines.append(f"From here on each actor is named only by name: {nm}"
+                     + "".join(f", {w}" for w in cast) + ".")
+    return lines
+
+
+def _human_cast(stages: list) -> list[str]:
+    """Contrapartes humanas do clipe (B4.11), na ordem em que aparecem, sem repetir."""
+    out: list[str] = []
+    for st in stages or []:
+        cp = st.get("counterpart") if isinstance(st, dict) else None
+        if _lint.is_human(cp) and str(cp["who"]).strip() not in out:
+            out.append(str(cp["who"]).strip())
+    return out
 
 
 # ---------------- C3 storyboard ----------------
@@ -285,6 +373,7 @@ def frame_b_prompt(script: dict, page: Page) -> str:
         _sent(en.get("vacated", "")),
         _sent(en.get("end_props", "")),
         _orient(last),
+        "Same light direction, exposure and sharpness as image 1.",
         DEADPAN_FRAME,
         (f"Exactly one main character, {crowd(en['extras_count'])}, all still busy with their own tasks, "
          f"none looking at {obj}. No text, no balloons." if int(en.get("extras_count") or 0)
@@ -294,6 +383,15 @@ def frame_b_prompt(script: dict, page: Page) -> str:
 
 
 # ---------------- C4 vídeo ----------------
+
+def _cut_line(script: dict) -> str:
+    """Plano-sequência por padrão (regra 6); corte só quando o roteiro declara `cut: {at}` (playbook B2)."""
+    cut = script.get("cut") or (script.get("en") or {}).get("cut")
+    at = cut.get("at") if isinstance(cut, dict) else None
+    if at is not None:
+        return f"Exactly one HARD CUT at {float(at):g}s; otherwise the camera holds still; no drift mid-shot."
+    return "One continuous shot; the camera does not cut on its own; no drift mid-shot."
+
 
 def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, has_storyboard: bool,
                  repair: str = "") -> str:
@@ -307,7 +405,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         refs.append(" ".join(filter(None, [
             "The start frame defines the opening composition, positions, pose and camera." if has_start else "",
             "The end frame defines the final composition and the gag's end state." if has_end else ""])))
-    refs += _ref_lines(nm, pos, part)
+    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]))
     if has_storyboard:
         stg = en["stages"]
         mapping = ", ".join(f"panel {i + 1} is {s['t']}" for i, s in enumerate(stg))
@@ -333,13 +431,13 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         *refs,
         "",
         "CAMERA",
-        _fmt(cam(script)["video"], page) + " One continuous shot; the camera does not cut on its own; no drift mid-shot.",
+        _fmt(cam(script)["video"], page) + " " + _cut_line(script),
         "",
         "LOCATION MAP",
         f"{en['location_map']} The set contains only what the start frame shows.",
         "",
         "ACTION",
-        *_stage_lines(en["stages"], en.get("end_change", ""), keep_final_match=has_end),
+        *_stage_lines(en["stages"], en.get("end_change", ""), keep_final_match=has_end, nm=nm),
         _turn_rule(pos),
         "",
         "PERFORMANCE",
@@ -357,8 +455,9 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         "",
         "POSITIVE LOCKS",
         ((f"Exactly one main character and {crowd(extras)} for the whole clip. " if extras else
-          f"Exactly one person, {nm}, for the whole clip. ") + f"{pos.capitalize()} "
-         f"face matches @Image 1 and {pos} {part} matches @Image 2 at every distance. "
+          f"Exactly one person, {nm}, for the whole clip. ") + f"{nm}'s "
+         f"face matches {pos} face reference (@Image 1) and {pos} {part} matches {pos} silhouette reference "
+         f"(@Image 2) at every distance. "
          f"{en.get('props_lock', '')} No captions, no subtitles, no text on screen.").replace("  ", " "),
     ]
     return "\n".join(b for b in blocks if b is not None).replace("\n\n\n", "\n\n")
@@ -440,16 +539,16 @@ def gag_prompt(script: dict, page: Page) -> str:
         "ACTIVE REFERENCES",
         "The start frame defines the opening composition, pose, location, lighting, passersby and camera: continue "
         "from it exactly, with no jump.",
-        *_ref_lines(nm, pos, part),
+        *_ref_lines(nm, pos, part, _human_cast(gen["stages"])),
         "The image references never change the start-frame composition.",
         "",
         "CAMERA",
         # trend: a câmera é a do vídeo-fonte (o FOV dele, não o da tabela); trava sem zoom para o gag não reenquadrar
-        "Same camera position, lens and framing as the start frame, locked off, no zoom. One continuous shot; no cut; "
-        "no drift.",
+        "Same camera position, lens and framing as the start frame, locked off, no zoom. "
+        + (_cut_line(g) if g.get("cut") or gen.get("cut") else "One continuous shot; no cut; no drift."),
         "",
         "ACTION",
-        *_stage_lines(gen["stages"], gen.get("end_change", ""), keep_final_match=False),
+        *_stage_lines(gen["stages"], gen.get("end_change", ""), keep_final_match=False, nm=nm),
         _turn_rule(pos),
         "",
         "PERFORMANCE",
@@ -466,8 +565,8 @@ def gag_prompt(script: dict, page: Page) -> str:
         "POSITIVE LOCKS",
         (f"Exactly one main character and {crowd(extras)} for the whole clip. " if extras else
          f"Exactly one person, {nm}, for the whole clip. ")
-        + f"{pos.capitalize()} face matches @Image 1 and {pos} {part} matches @Image 2. No captions, no subtitles, "
-          f"no text on screen.",
+        + f"{nm}'s face matches {pos} face reference (@Image 1) and {pos} {part} matches {pos} silhouette reference "
+          f"(@Image 2). No captions, no subtitles, no text on screen.",
     ]
     return "\n".join(blocks).replace("\n\n\n", "\n\n")
 

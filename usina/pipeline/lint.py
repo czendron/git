@@ -117,11 +117,155 @@ def _protag_acts(clause: str) -> bool:
     return bool(m) and m.group(2).lower() not in STATIC
 
 
-def lint_counterpart(stages, where: str = "en.stages", allow_behind: bool = False) -> tuple[list[str], list[str]]:
+# ---- tutoriais §11–15 (docs/qa/lint-tutoriais.md) ----
+# B4.11: cada ator com nome próprio. "the man" / "a person" sem descritor vira "the man" e "the other man" no prompt.
+GENERIC_WHO = {"man", "men", "person", "people", "guy", "guys", "woman", "women", "homem", "pessoa", "cara",
+               "mulher", "someone", "somebody", "alguém", "alguem", "other", "one", "sujeito", "moço", "moça"}
+WHO_FILLER = {"the", "a", "an", "one", "other", "another", "second", "o", "um", "uma", "outro", "outra", "that",
+              "this", "some", "segundo", "segunda", "de", "da", "do", "in", "on", "at", "with", "from", "of", "by",
+              "near", "who", "that", "is", "standing", "frame-left", "frame-right", "left", "right", "center"}
+ANIMALS = {"dog", "cat", "seagull", "gull", "pigeon", "bird", "horse", "chicken", "rooster", "monkey", "parrot",
+           "goat", "cow", "duck", "pig", "donkey", "lizard", "capybara", "squirrel", "crab", "fly", "bee",
+           "cachorro", "gato", "gaivota", "pombo", "galinha", "galo", "macaco", "papagaio", "capivara", "vira-lata"}
+# O substantivo do protagonista (o que o prompt e os frames usam para ele) não pode nomear a contraparte.
+PROTAG_NOUNS = {"gersinho": {"man", "gerson", "gersinho", "singer"},
+                "marlene": {"woman", "marlene", "auntie", "tia"},
+                "wanderley": {"man", "wanderley", "uncle"}}
+OTHER_ONE = re.compile(r"\bthe other (?:man|men|one|ones|guy|woman|person)\b", re.I)
+IMAGE_SUBJ = re.compile(r"(?:^|[.;:!?]\s*|,\s*|\b(?:and|then|while|as|when|until|but)\s+)(@\s?Image\s*\d+)(?:'s)?\s+"
+                        r"(?!\()", re.I)
+GENERIC_IN_TEXT = re.compile(r"\b(?:the|a|an|another)\s+(man|woman|guy|person)\b", re.I)
+# B4.10: contraparte fora do quadro (só o membro entra pela borda)
+OFFSCREEN = re.compile(r"\boff[- ]?screen\b|\bout of (?:the )?frame\b|\boutside the frame\b|\benter\w*\b[^.;]*\bedge\b|"
+                       r"\bfrom (?:the )?[\w-]+ (?:frame )?edge\b", re.I)
+EDGE = re.compile(r"\b(frame-(?:left|right|top|bottom)|(?:bottom|top)-(?:left|right)|left|right|top|bottom)\b", re.I)
+SCREEN_VEC = re.compile(r"\b(?:screen|frame)-(?:left|right|top|bottom)\b[^.;]{0,30}?\b(?:to|toward|towards|into)\s+"
+                        r"(?:the\s+)?(?:screen|frame)-(?:left|right|top|bottom|center)\b", re.I)
+# Corte num plano-sequência (regras 6–7; B2): só com corte declarado no roteiro.
+CUT = re.compile(r"\bcut to\b|\bhard cut\b|\bshot\s+(?:\d+|one|two|three|four)\b", re.I)
+# §15: o que o frame final mostra tem de estar escrito nos últimos estágios.
+_END_DETS = {"the", "a", "an", "his", "her", "its", "their", "both", "each", "one", "two", "three", "four", "five",
+             "this", "that", "these", "those", "another"}
+_END_STOP = {"of", "in", "on", "at", "to", "into", "onto", "from", "with", "by", "for", "toward", "towards", "through",
+             "between", "above", "below", "under", "over", "behind", "beside", "near", "around", "against", "past",
+             "and", "or", "but", "while", "as", "so", "that", "which", "who", "where", "when", "is", "are", "was",
+             "were", "be", "been", "has", "have", "still", "now", "again", "fully", "only", "just", "also", "out",
+             "up", "down", "off", "away", "back", "same", "all", "no", "not", "than",
+             "sticks", "rests", "pours", "holds", "stands", "keeps", "stays", "hangs", "lies", "sits", "meets",
+             "swings", "slides", "falls", "drops", "tilts", "leans", "covers", "points", "faces", "remains", "shows",
+             "touches", "springs", "comes", "goes", "runs", "flows", "drips", "looks", "stares", "keep", "hold",
+             "stand", "stay", "seen", "tilted", "raised"}
+_END_SKIP = {"lens", "camera", "frame", "frame-left", "frame-right", "edge", "edges", "center", "centre", "front",
+             "side", "sides", "top", "bottom", "middle", "left", "right", "face", "head", "hand", "hands", "finger",
+             "fingers", "shoulder", "shoulders", "chest", "eye", "eyes", "arm", "arms", "foot", "feet", "leg", "legs",
+             "hip", "hips", "body", "mouth", "lips", "brows", "pose", "expression", "task", "tasks", "passenger",
+             "passengers", "passersby", "passerby", "people", "person", "man", "woman", "deadpan", "way", "place",
+             "shot", "clip", "scene", "moment", "result", "end", "start", "state", "outline", "beat", "time", "cm",
+             "m", "line", "position", "spot", "level", "height", "half", "rest"}
+
+
+def _stem(w: str) -> str:
+    w = w.lower().removesuffix("'s")
+    if w.endswith("ies") and len(w) > 4:
+        return w[:-3] + "y"
+    if w.endswith(("ches", "shes", "sses", "xes")):
+        return w[:-2]
+    if w.endswith("s") and not w.endswith("ss") and len(w) > 3:
+        return w[:-1]
+    return w
+
+
+def end_nouns(text: str) -> list[str]:
+    """Núcleos dos sintagmas nominais ('the two glass door leaves are closed' -> 'leaves'), sem corpo nem cenário
+    genérico: os props e lugares que o frame final mostra (videos-analisados §15)."""
+    toks = re.findall(r"[a-z][a-z'-]*|[,.;:()]|\d+(?:\.\d+)?", str(text or "").lower())
+    out: list[str] = []
+    i = 0
+    while i < len(toks):
+        if toks[i] not in _END_DETS:
+            i += 1
+            continue
+        j, phrase = i + 1, []
+        while j < len(toks) and len(phrase) < 5:
+            t = toks[j]
+            if (t in _END_DETS or t in _END_STOP or not t[0].isalpha() or t.endswith(("ed", "ing", "ly"))
+                    or t.endswith("°")):
+                break
+            phrase.append(t)
+            j += 1
+        if phrase:
+            head = phrase[-1].removesuffix("'s")
+            if head not in _END_SKIP and len(head) > 2 and head not in out:
+                out.append(head)
+        i = j if j > i + 1 else i + 1
+    return out
+
+
+def lint_end_nouns(stages, end_text: str, where: str = "en.stages") -> list[str]:
+    """§15 (Kling end frame): os substantivos do estado final têm de aparecer no texto dos 2 últimos estágios,
+    senão o modelo salta para o end frame no último segundo (fim brusco)."""
+    stages = [st for st in (stages or []) if isinstance(st, dict)]
+    if not stages or not str(end_text or "").strip():
+        return []
+    said = {_stem(w) for st in stages[-2:] for w in re.findall(r"[a-z][a-z'-]*", str(st.get("text") or "").lower())}
+    missing = [n for n in end_nouns(end_text) if _stem(n) not in said]
+    if not missing:
+        return []
+    return [f"{where}: o frame final mostra {', '.join(repr(m) for m in missing)}, mas o texto dos 2 últimos "
+            f"estágios não cita; escreva no estágio do gag, senão a transição sai brusca (videos-analisados §15; "
+            f"playbook C4)"]
+
+
+def protagonist_nouns(slug: str = "", page: dict | None = None) -> set[str]:
+    """Como o prompt chama o protagonista: 'man'/'woman' (frames), o nome e o papel. A contraparte não pode usar."""
+    out = set(PROTAG_NOUNS.get(str(slug or ""), set()))
+    ch = (page or {}).get("character") or {}
+    if ch:
+        out.add("woman" if ch.get("pronoun") == "she" else "man")
+        for k in ("name", "nickname"):
+            out |= {w.lower() for w in re.findall(r"[A-Za-zÀ-ú]+", str(ch.get(k) or "")) if len(w) > 2}
+    return out
+
+
+def is_offscreen(cp) -> bool:
+    """B4.10: `position` nomeia a borda de entrada ('enters from frame-right edge', 'off-screen frame-right')."""
+    return isinstance(cp, dict) and bool(OFFSCREEN.search(str(cp.get("position") or "")))
+
+
+def is_human(cp) -> bool:
+    return isinstance(cp, dict) and bool(cp.get("who")) and _cp_noun(cp.get("who")) not in ANIMALS
+
+
+def _who_error(who: str, protag: set[str]) -> str:
+    """B4.11: 'the man' sem descritor, ou o mesmo substantivo do protagonista, vira 'the man / the other man'."""
+    noun = _cp_noun(who)
+    words = re.findall(r"[a-zà-ú'-]+", str(who).lower())
+    if noun and noun in protag:
+        return (f"'{who}' usa '{noun}', o mesmo substantivo do protagonista: o modelo troca os dois (rosto, roupa). "
+                f"Dê um nome próprio ou um papel (ex.: 'the boxer', 'DONA CIDA'; playbook B4.11)")
+    generic = noun in GENERIC_WHO or not noun
+    content = [w for w in words if w not in WHO_FILLER and w not in GENERIC_WHO]
+    if generic and not content:
+        return (f"'{who}' é genérico: vira 'the man' e 'the other man' no prompt. Dê um nome próprio, um papel ou "
+                f"um descritor visível (ex.: 'the boxer in red gloves', 'DONA CIDA'; playbook B4.11)")
+    return ""
+
+
+def lint_counterpart(stages, where: str = "en.stages", allow_behind: bool = False,
+                     protagonist: set[str] | frozenset = frozenset()) -> tuple[list[str], list[str]]:
     """Playbook B4 no que dá para checar no texto: contraparte nunca atrás dele (salvo gag_requires: behind),
-    um contato por clipe, um ator age por estágio e tarefa para a contraparte nos estágios em que não age."""
+    um contato por clipe, um ator age por estágio e tarefa para a contraparte nos estágios em que não age.
+    B4.11: `counterpart.who` com nome próprio (nunca genérico nem o substantivo do protagonista)."""
     errors: list[str] = []
     warns: list[str] = []
+    named: set[str] = set()
+    for i, st in enumerate(stages or [], 1):
+        cp = st.get("counterpart") if isinstance(st, dict) else None
+        if isinstance(cp, dict) and cp.get("who") and str(cp["who"]) not in named:
+            named.add(str(cp["who"]))
+            msg = _who_error(str(cp["who"]), set(protagonist))
+            if msg:
+                errors.append(f"{where}[{i}].counterpart.who: {msg}")
     idx = [i for i, st in enumerate(stages or [], 1) if isinstance(st, dict) and isinstance(st.get("counterpart"), dict)
            and st["counterpart"].get("who")]
     if not idx:
@@ -167,42 +311,110 @@ def lint_counterpart(stages, where: str = "en.stages", allow_behind: bool = Fals
     return errors, warns
 
 
-def lint_stages(stages, premise: str = "", where: str = "en.stages",
-                allow_behind: bool = False) -> tuple[list[str], list[str]]:
-    """Orientação por estágio (regra 18) e quem encara quem quando outro ator interage com ele (falha do boxe)."""
+def lint_stages(stages, premise: str = "", where: str = "en.stages", allow_behind: bool = False,
+                protagonist: set[str] | frozenset = frozenset(), allow_cut: bool = False) -> tuple[list[str], list[str]]:
+    """Orientação por estágio (regra 18) e quem encara quem quando outro ator interage com ele (falha do boxe).
+    Mais (tutoriais §11–15): ator pelo nome (B4.11), contraparte fora do quadro (B4.10), sem corte no plano-sequência."""
     errors: list[str] = []
     warns: list[str] = []
-    e, w = lint_counterpart(stages, where, allow_behind)
+    e, w = lint_counterpart(stages, where, allow_behind, protagonist)
     errors += e
     warns += w
     back_ok = "costas" in str(premise or "")
+    on_screen_human: list[int] = []
     for i, st in enumerate(stages or [], 1):
         if not isinstance(st, dict):
             continue
+        text = str(st.get("text") or "")
+        cp = st.get("counterpart")
+        has_cp = isinstance(cp, dict) and bool(cp.get("who"))
+        off = has_cp and is_offscreen(cp)
         facing = str(st.get("facing") or "")
         if not facing:
             errors.append(f"{where}[{i}]: falta 'facing' (orientação dele neste estágio, em graus a partir da lente, "
                           f"ex.: 'chest 0° to the lens, eyes on the lens')")
         elif not (DEG.search(facing) and LENS.search(facing)):
             errors.append(f"{where}[{i}].facing '{facing}': diga o ângulo em graus em relação à lente (regra 18)")
-        if BACK_EN.search(facing + " " + str(st.get("text", ""))) and not back_ok:
+        if BACK_EN.search(facing + " " + text) and not back_ok:
             errors.append(f"{where}[{i}]: ele fica de costas para a câmera (só se a piada for isso, regra 5 do roteirista)")
-        clauses = re.split(r"[;.]", str(st.get("text", "")))
+        clauses = re.split(r"[;.]", text)
         if any(ACTOR.search(c) and INTERACT.search(c) for c in clauses):
-            cp = st.get("counterpart")
-            if not isinstance(cp, dict) or not cp.get("who") or not cp.get("position") or not cp.get("facing"):
+            if not has_cp or not cp.get("position") or (not off and not cp.get("facing")):
                 errors.append(f"{where}[{i}]: outro ator interage com ele; declare 'counterpart' {{who, position, "
                               f"facing}} (onde está e para onde olha no momento-chave)")
-            elif not DEG.search(str(cp.get("facing"))):
+            elif not off and not DEG.search(str(cp.get("facing"))):
                 errors.append(f"{where}[{i}].counterpart.facing: diga o ângulo em graus (ex.: 'in profile facing "
                               f"frame-left toward him, 90° to the lens')")
+        if off and not SCREEN_VEC.search(str(cp.get("vector") or "") + " " + text):
+            errors.append(f"{where}[{i}].counterpart: '{cp['who']}' fica fora do quadro (B4.10), então rosto e olhar "
+                          f"não são exigidos, mas o membro que entra precisa de vetor de tela em counterpart.vector "
+                          f"(ex.: 'the right glove travels screen-right to screen-left and stops against his "
+                          f"pompadour')")
+        if has_cp and not off and is_human(cp):
+            on_screen_human.append(i)
+        # B4.11: ninguém é "the other man" nem "@Image N" fazendo a ação (regra 10)
+        m = OTHER_ONE.search(text)
+        if m:
+            errors.append(f"{where}[{i}]: '{m.group(0)}' no texto; cada ator tem nome próprio (counterpart.who), "
+                          f"nunca 'the man' e 'the other man' (playbook B4.11)")
+        m = IMAGE_SUBJ.search(text)
+        if m:
+            errors.append(f"{where}[{i}]: '{m.group(1)}' como sujeito da frase; o handle fica no ACTIVE REFERENCES "
+                          f"e a ação usa o nome (regra 10; B4.11)")
+        if has_cp and is_human(cp):
+            noun = _cp_noun(cp["who"])
+            g = [x for x in GENERIC_IN_TEXT.finditer(text) if x.group(1).lower() != noun]
+            if g:
+                errors.append(f"{where}[{i}]: '{g[0].group(0)}' no texto com contraparte humana; chame pelo nome de "
+                              f"counterpart.who ('{cp['who']}'), nunca por 'the man' (playbook B4.11)")
+        m = CUT.search(text)
+        if m and not allow_cut:
+            errors.append(f"{where}[{i}]: '{m.group(0)}' num clipe de plano-sequência; o Seedance obedece e corta. "
+                          f"Outro enquadramento = outra geração (B2), ou declare o corte no roteiro com "
+                          f"\"cut\": {{\"at\": 6.5}} (regras 6–7)")
         if ABSTRACT_END.search(str(st.get("end_state", ""))):
             warns.append(f"{where}[{i}].end_state abstrato ('{ABSTRACT_END.search(str(st.get('end_state'))).group(0)}'): "
                          f"descreva o que se vê no quadro (regra 5)")
-        m = VAGUE.search(str(st.get("text", "")))
+        m = VAGUE.search(text)
         if m:
             warns.append(f"{where}[{i}]: verbo vago '{m.group(0)}': escreva o movimento do corpo (pé, direção, mão)")
+    if len(on_screen_human) >= 2:
+        warns.append(f"info: {where}{on_screen_human}: contraparte humana com rosto no quadro em "
+                     f"{len(on_screen_human)} estágios; considere B4.10 passo 0 (só o membro entrando pela borda, "
+                     f"'position': 'enters from the frame-right edge', ou um clipe separado com corte de olhar)")
     return errors, warns
+
+
+def _cut_declared(*objs) -> bool:
+    """Corte explícito no roteiro (`"cut": {"at": 6.5}` no topo, no `en` ou no gag_followup; playbook B2)."""
+    return any(isinstance(o, dict) and bool(o.get("cut")) for o in objs)
+
+
+def lint_cut(cut, dur: float, where: str = "cut") -> list[str]:
+    if not cut:
+        return []
+    at = cut.get("at") if isinstance(cut, dict) else None
+    try:
+        at = float(at)
+    except (TypeError, ValueError):
+        return [f"{where}: diga quando é o corte ({{\"at\": 6.5}}); o prompt vira 'Exactly one HARD CUT at 6.5s'"]
+    if not 0 < at < dur:
+        return [f"{where}.at {at}s fora do clipe (0–{dur}s)"]
+    return []
+
+
+def _gag_timing(stages, where: str, gag_idx: int, hold_idx: int | None, gag_min: float = 2.0) -> list[str]:
+    """Playbook B1: o gag precisa de ≥2 s (contando o assentamento) e o resultado fica parado ≥0,5 s."""
+    errors: list[str] = []
+    n = len(stages)
+    for idx, minimum, what in ((gag_idx, gag_min, "o gag"), (hold_idx, 0.5, "o resultado parado (hold final)")):
+        if idx is None or not -n <= idx < n or not isinstance(stages[idx], dict):
+            continue
+        sp = _span(stages[idx].get("t", ""))
+        if sp and sp[1] - sp[0] < minimum - 1e-6:
+            errors.append(f"{where}[{idx % n + 1}] ({stages[idx].get('t')}) tem {sp[1] - sp[0]:.1f} s; {what} precisa "
+                          f"de ≥{minimum:g} s (playbook B1, regra 5)")
+    return errors
 
 
 def lint_crowd(en: dict, where: str = "en") -> tuple[list[str], list[str]]:
@@ -287,6 +499,14 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
     tr = script["trend"]
     if not tr.get("name") or not tr.get("source_hint"):
         errors.append("trend precisa de name e source_hint (de onde vem o vídeo-fonte)")
+    if not CONSENT.search(" ".join(str(tr.get(k) or "") for k in ("consent", "source_note", "source_hint"))):
+        warns.append("trend sem nota de consentimento/autoria da fonte: diga em trend.consent quem gravou e quem "
+                     "autorizou (fonte gravada pelo Caio, motion library licenciada; dança de terceiro só com "
+                     "autorização; videos-analisados §12)")
+    if not _source_deadpan(script["en"]):
+        warns.append("en não diz que o dançarino da fonte está deadpan: a expressão da fonte passa para o "
+                     "personagem. Escreva en.source_expression, ex.: 'the source dancer is deadpan: lips closed, "
+                     "lip corners level' (videos-analisados §12; playbook C5)")
     dur = float(script["duration_s"])
     if not 3 <= dur <= 15:
         errors.append(f"duração {dur}s fora de 3–15 s para motion control (corte a fonte no trecho da coreografia)")
@@ -303,10 +523,23 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
     if page and script["page"] != page.get("slug"):
         errors.append(f"page '{script['page']}' não bate com '{page.get('slug')}'")
     if script.get("gag_followup") is not None:
-        e, w = lint_gag(script["gag_followup"], script.get("premise", ""), _behind_ok(script))
+        e, w = lint_gag(script["gag_followup"], script.get("premise", ""), _behind_ok(script),
+                        protagonist_nouns(script.get("page"), page))
         errors += e
         warns += w
     return errors, warns
+
+
+CONSENT = re.compile(r"consent|autoriz|autoria|authori[sz]|licen[cs]|gravad[oa] pel[oa]|recorded by|own recording|"
+                     r"fonte pr[oó]pria|direitos", re.I)
+
+
+def _source_deadpan(en: dict) -> bool:
+    """§12: a fonte de dança é gravada deadpan (en.source_expression, ou uma frase do en ligando fonte e deadpan)."""
+    if re.search(r"\bdeadpan\b", str(en.get("source_expression") or ""), re.I):
+        return True
+    return bool(re.search(r"\b(source|fonte|dancer)\b[^.;]*\bdeadpan\b|\bdeadpan\b[^.;]*\b(source|fonte)\b",
+                          _text(en), re.I))
 
 
 def _behind_ok(script: dict, *more) -> bool:
@@ -314,7 +547,8 @@ def _behind_ok(script: dict, *more) -> bool:
     return any(isinstance(x, dict) and str(x.get("gag_requires") or "").lower() == "behind" for x in (script, *more))
 
 
-def lint_gag(g, premise: str = "", allow_behind: bool = False) -> tuple[list[str], list[str]]:
+def lint_gag(g, premise: str = "", allow_behind: bool = False,
+             protagonist: set[str] | frozenset = frozenset()) -> tuple[list[str], list[str]]:
     """Gag pós-motion control (playbook C5): clipe Seedance de 4–5 s a partir do último frame do MC,
     com os 2 últimos estágios do C4 (en.stages de 2 + en.end_change)."""
     errors: list[str] = []
@@ -344,9 +578,16 @@ def lint_gag(g, premise: str = "", allow_behind: bool = False) -> tuple[list[str
         errors.append(f"gag_followup.en.stages terminam em {end}s, mas duration_s é {dur}")
     if not en.get("end_change"):
         errors.append("falta gag_followup.en.end_change (o estado final da piada)")
-    e, w = lint_stages(stages, premise, "gag_followup.en.stages", allow_behind or _behind_ok(g))
+    # 2 estágios (armação e piada): a piada e o resultado parado dividem o último, então ≥2 s + 0,5 s
+    if len(stages) == 2:
+        errors += _gag_timing(stages, "gag_followup.en.stages", -1, None, gag_min=2.5)
+    errors += lint_cut(g.get("cut") or en.get("cut"), dur, "gag_followup.cut")
+    e, w = lint_stages(stages, premise, "gag_followup.en.stages", allow_behind or _behind_ok(g), protagonist,
+                       _cut_declared(g, en))
     errors += e
     warns += w
+    warns += lint_end_nouns(stages, " ".join(str(en.get(k) or "") for k in ("end_change", "end_props")),
+                            "gag_followup.en.stages")
     if SLOW.search(_text(en)):
         errors.append("gag_followup.en com palavra de câmera lenta (regra 19)")
     if WIND.search(_text(en)):
@@ -396,13 +637,17 @@ def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]
         send = sp[1]
         if i == 2 and sp[1] - sp[0] < 1.5 * 2:
             warns.append("estágio da assinatura curto (<3 s): cada movimento precisa de ≥1,5 s")
-        if i == len(stages) - 1 and sp[1] - sp[0] < 1.5:
-            warns.append("estágio do gag com menos de 1,5 s")
     if stages and abs(send - float(script.get("duration_s", 0))) > 0.51:
         errors.append(f"en.stages terminam em {send}s, mas duration_s é {script.get('duration_s')}")
-    e, w = lint_stages(stages, script.get("premise", ""), allow_behind=_behind_ok(script))
+    if len(stages) >= 3:
+        errors += _gag_timing(stages, "en.stages", -2, -1)
+    errors += lint_cut(script.get("cut") or en.get("cut"), float(script.get("duration_s") or 0))
+    e, w = lint_stages(stages, script.get("premise", ""), allow_behind=_behind_ok(script),
+                       protagonist=protagonist_nouns(script.get("page"), page), allow_cut=_cut_declared(script, en))
     errors += e
     warns += w
+    if script.get("end_frame") or en.get("end_change"):
+        warns += lint_end_nouns(stages, " ".join(str(en.get(k) or "") for k in ("end_change", "end_props")))
     e, w = lint_crowd(en)
     errors += e
     warns += w

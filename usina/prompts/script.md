@@ -24,7 +24,7 @@ Fotorrealismo de celular 9:16, 8–12 s, sem diálogo e sem texto no vídeo. Dea
 ## Formatos
 - `proprio`: lugar + ação banal + piada. É o padrão, 60% do mix.
 - `trend`: motion control de uma coreografia viral, sempre com cenário, figurino e piada próprios (no máximo 25–30%).
-  O roteiro de trend segue `prompts/examples/gersinho-trend-calcadao.json`. Opcional: `gag_followup` = 2º clipe de 4–5 s (Seedance, a partir do último frame da dança) com `en.stages` de 2 estágios (armação e piada, `t`/`text`/`facing`/`end_state`, mais `counterpart` se outro ator agir sobre ele) e `en.end_change` (o estado final da piada). É a piada física da fórmula da casa depois da coreografia (playbook C5). A mesma trend nunca vai para duas páginas na mesma semana (ata D7).
+  O roteiro de trend segue `prompts/examples/gersinho-trend-calcadao.json`. A fonte tem dono: `trend.consent` diz quem gravou e quem autorizou (fonte gravada pelo Caio, motion library licenciada; dança de terceiro só com autorização). `en.source_expression` diz que o dançarino da fonte está **deadpan**, porque a expressão da fonte passa para o personagem (`videos-analisados.md` §12). Sem um ou outro, o lint avisa. Opcional: `gag_followup` = 2º clipe de 4–5 s (Seedance, a partir do último frame da dança) com `en.stages` de 2 estágios (armação e piada, `t`/`text`/`facing`/`end_state`, mais `counterpart` se outro ator agir sobre ele) e `en.end_change` (o estado final da piada). É a piada física da fórmula da casa depois da coreografia (playbook C5). A mesma trend nunca vai para duas páginas na mesma semana (ata D7).
 - `crossover`: dois personagens da casa. Cada página posta o seu próprio arquivo, do ponto de vista dela.
 
 ## Saída (JSON, só isso)
@@ -56,6 +56,7 @@ Fotorrealismo de celular 9:16, 8–12 s, sem diálogo e sem texto no vídeo. Dea
   "caption": "legenda curta no tom da página",
   "hashtags": ["#..."],
   "crossover": null,
+  "cut": null,
   "originality_note": "o que é novo em relação aos últimos 20",
   "brand_safety": ["sem camisa de time", "sem criança em destaque"],
   "risks": "o que pode dar errado na geração e o que conferir",
@@ -95,6 +96,19 @@ Fotorrealismo de celular 9:16, 8–12 s, sem diálogo e sem texto no vídeo. Dea
  "end_state": "the pastel held out 20 cm in front of his chest, the vendor still at frame-left"}
 ```
 No estágio seguinte, ele pega o pastel e o vendedor, que não age mais, ganha tarefa: `"task": "wipes his hands on his apron, eyes on him"` dentro do `counterpart`.
+
+**Nome do ator (playbook B4.11).** `counterpart.who` é um nome próprio ou um papel com descritor visível (`"DONA CIDA"`, `"the pastel vendor"`, `"the boxer in red gloves"`), nunca `"the man"`, `"a woman"`, `"um cara"` ou `"a pessoa"` sozinhos, e nunca o substantivo do protagonista (`man` para Gersinho e Wanderley, `woman` para Marlene, o nome ou o papel deles). No `text`, a contraparte humana aparece por esse nome: nada de `"the other man"`, `"a man"` nem `@Image 3` como sujeito. O pipeline liga cada imagem a um nome uma vez no ACTIVE REFERENCES e troca o primeiro `he`/`she` de cada estágio pelo nome do personagem.
+
+**Dono do beat (C4).** Um beat de piada por estágio. O dono é quem age: o personagem, ou a contraparte quando ela é o sujeito. Se o texto não deixa claro, ponha `"owner": "the vendor"` no estágio.
+
+**Contraparte fora do quadro (B4.10, degrau 0).** Antes de pôr um segundo rosto no quadro, veja se a piada aceita só o membro entrando pela borda. Com `position` nomeando a borda, `facing` não é exigido, mas o vetor de tela do membro é:
+```json
+"counterpart": {"who": "the boxer in red gloves", "position": "off-screen, enters from the frame-right edge",
+                "limb": "his right red glove", "vector": "travels screen-right to screen-left and stops against the side of the pompadour"}
+```
+Contraparte humana com rosto no quadro em 2 ou mais estágios gera o aviso `info: … considere B4.10 passo 0`.
+
+**Corte.** O clipe é um plano-sequência: `cut to`, `hard cut` e `shot 2` no `text` são erro. Se o gag precisa mesmo de um corte num clipe só (B2), declare no topo do roteiro `"cut": {"at": 6.5}`; o prompt vira `Exactly one HARD CUT at 6.5s`.
 Notas 1–5. Com qualquer nota abaixo de 3, reescreva antes de entregar.
 
 Regras que o lint confere no bloco `en` (crítica de prompts, `docs/qa/critica-prompts.md`):
@@ -105,5 +119,8 @@ Regras que o lint confere no bloco `en` (crítica de prompts, `docs/qa/critica-p
 - `hands` diz "He has exactly two hands" (os figurantes também têm mãos no quadro).
 - `fov_deg` igual ao do modo (selfie 84°, os outros 63°), e o mesmo `shot` em todos os painéis de um plano travado.
 - Verbos vagos ("dances", "fights", "reacts", "interacts") viram aviso: escreva o movimento do corpo.
+- Tempo (playbook B1): o estágio do gag (o penúltimo) tem **≥2 s** e o último (o resultado parado) **≥0,5 s**. No `gag_followup`, o 2º estágio junta piada e resultado: **≥2,5 s**.
+- Fim (`videos-analisados.md` §15): os objetos e lugares de `end_change`/`end_props` (a porta, a emenda, a cabine, a haste do guarda-chuva) aparecem escritos no `text` dos 2 últimos estágios. Senão é aviso: o modelo salta para o end frame no último segundo.
+- Atores com nome, contraparte fora do quadro e corte: ver acima (B4.11, B4.10, B2). Detalhes em `docs/qa/lint-tutoriais.md`.
 
 O bloco `en` é o que vira prompt (os modelos obedecem melhor em inglês). Escreva-o seguindo `playbook/seedance-master.md` (grade de beats B1 e template C4): só coisas visíveis e mensuráveis, frases positivas (diga o que acontece, não o que evitar), esquerda e direita do ponto de vista da câmera, emoção como músculo. **Não descreva a aparência do personagem**: ela vem da imagem de referência, e o pipeline injeta só a âncora mínima.

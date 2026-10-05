@@ -6,7 +6,8 @@
   "gag_without_sound": "a coreografia viral feita por um tiozão brega de topete gigante que não muda a cara",
   "trend": {
     "name": "Gang Gang (Chef Boy)",
-    "source_hint": "motion library do Higgsfield ou recorte de 8-10 s da coreografia, 1 pessoa, corpo inteiro, câmera parada"
+    "source_hint": "motion library do Higgsfield ou recorte de 8-10 s da coreografia, 1 pessoa, corpo inteiro, câmera parada",
+    "consent": "fonte da motion library do Higgsfield (licenciada) ou gravada pelo Caio; recorte de dança de terceiro só com autorização por escrito de quem dança (videos-analisados §12)"
   },
   "camera": {
     "mode": "static_passerby",
@@ -48,7 +49,8 @@
     "lighting": "Late-morning Rio sun from frame-right, hard shadows, bright sky, 5600K.",
     "extras_count": 5,
     "extras_tasks": "two joggers pass in the background, one vendor arranges coconuts at the kiosk, one woman walks a dog, one man reads his phone on a bench",
-    "replace_subject": "the dancer"
+    "replace_subject": "the dancer",
+    "source_expression": "the source dancer is deadpan: lips closed, lip corners level, brows level, eyes on the lens; the source audio is muted"
   },
   "gag_followup": {
     "duration_s": 5,
