@@ -85,7 +85,7 @@ def _gen_gate(page) -> None:
     """Ata D6: rascunho nunca gera (nem com --force); ativo só com ficha aprovada e no D+N da estreia."""
     gate = launch.check(page)
     if not gate["can_generate"]:
-        raise StoreError(f"{page.slug}: não gera ({gate['summary']}). Veja `launch-check {page.slug}` (ata D6)")
+        raise StoreError(f"{page.slug}: não gera ({gate['gen_summary']}). Veja `launch-check {page.slug}` (ata D6)")
 
 
 def _check_image_provider(provider: str) -> None:
@@ -240,7 +240,7 @@ def cmd_new(a):
         raise StoreError(f"página '{a.page}' está em '{page.data.get('status')}': não gera nada (ata D6). Use --force para testar.")
     gate = launch.check(page)
     if page.active and not gate["can_generate"] and not a.force:
-        raise StoreError(f"portão de estreia fechado ({gate['summary']}): `launch-check {a.page}` (ata D6)")
+        raise StoreError(f"portão de estreia fechado ({gate['gen_summary']}): `launch-check {a.page}` (ata D6)")
     slug = slugify(a.title)
     dup = [i for i in list_items(a.page) if i.state != "descartado" and slugify(i.idea.get("title", "")) == slug]
     if dup and not a.force:
@@ -283,6 +283,7 @@ def cmd_save_script(a):
         for st in ("storyboard", "frames", "video"):
             it.gates.pop(st, None)
         it.storyboard, it.frames, it.variants = {}, {}, []
+        it.video_opts = {}  # roteiro novo: a triagem do roteiro antigo não vale mais
         if any(k != "history" for k in it.video):
             it.video = {"history": it.video.get("history", []) + [{k: v for k, v in it.video.items() if k != "history"}]}
         _clear_assets(it, "storyboard", "frames", "video")
@@ -563,10 +564,13 @@ def _review_gag(a, it):
     g = it.gates.setdefault("gag", {"qa": "pending", "caio": "skip"})
     first = g.get("qa") == "pending"
     g.update({"qa": a.verdict, "qa_notes": a.notes, "qa_at": time.time()})
+    if a.verdict == "pass" and first:
+        _gag_resolved(it)
     if a.verdict == "fail" and first:
         _log_failure(it, "gag", a.notes or "gag reprovado")
         if it.attempts.get("gag", 0) >= GAG_MAX_ATTEMPTS:
             it.video["gag"] = {**gag, "dropped": f"reprovado {GAG_MAX_ATTEMPTS}x"}
+            _gag_resolved(it)
             print(f"gag reprovado {GAG_MAX_ATTEMPTS}x: descartado, o pacote sai só com o motion control")
     it.save()
     print(f"gag: {a.verdict}")
@@ -582,16 +586,28 @@ def cmd_pick(a):
     if not opt:
         raise StoreError(f"opção {a.n} não existe (há {sorted(x.get('n') for x in it.variants) or 'nenhuma'})")
     if opt.get("path") and not local(opt["path"]).exists() and not opt.get("higgsfield_id"):
-        raise StoreError(f"arquivo da opção {a.n} sumiu ({opt['path']}); gere de novo")
+        raise StoreError(f"arquivo da opção {a.n} sumiu ({opt['path']}): restaure (`media-status`) ou gere de novo "
+                         f"com `retry {a.ref} frames`")
     it.frames = {"start": {**{k: v for k, v in opt.items() if k != "n"}, "picked": a.n}}
     _clear_assets(it, "frames")
+    arch = (it.post.get("media") or {}).get(f"var{a.n}")
+    if arch and arch.get("path") == opt.get("path"):  # a opção já foi arquivada: não sobe de novo como 'start'
+        it.post["media"]["start"] = arch
+        if (it.post.get("assets") or {}).get(f"var{a.n}"):
+            it.post["assets"]["start"] = it.post["assets"][f"var{a.n}"]
     it.history.append({"at": time.time(), "from": it.state, "to": it.state, "why": f"opção {a.n} do frame escolhida"})
     it.save()
     print(f"frame: opção {a.n} ({opt.get('path') or opt.get('higgsfield_id')})")
 
 
+GAG_WAIT = ("o gag (C5) ainda está em produção: o Caio aprova o vídeo final (motion control + gag) quando o gag "
+            "passar no QA ou for descartado (ata D3)")
+
+
 def cmd_approve(a):
     page, it = _item(a.ref)
+    if a.stage == "video" and not a.reject and _gag_unresolved(it):
+        raise StoreError(GAG_WAIT)
     g = it.gates.setdefault(a.stage, {"qa": "pending", "caio": "pending"})
     g["caio"] = "rejected" if a.reject else "approved"
     g["caio_notes"] = a.notes
@@ -664,6 +680,7 @@ def cmd_video_request(a):
     spent = budget.item_spend(it.page, it.id)["credits"]
     if spent + est > float(cap.get("max_credits", 1e9)):
         raise StoreError(f"ideia já gastou {spent:.0f} créditos; +{est:.0f} passaria do teto de {cap['max_credits']} (ata D5)")
+    opts = _triage_opts(a, it)
     if s.get("format") == "trend":
         return _video_request_trend(a, page, it, b)
     need_upload, medias = [], []
@@ -680,7 +697,7 @@ def cmd_video_request(a):
         raise StoreError(f"{page.slug}: precisa de higgsfield_id para face e silhouette no page.yaml")
     medias += [{"role": "image_references", "value": i} for i in ref_ids]  # @Image 1 rosto, @Image 2 silhueta
     has_sb = False
-    use_grid = not a.no_grid
+    use_grid = not opts.get("no_grid")
     if it.storyboard and use_grid:
         if it.storyboard.get("higgsfield_id"):
             medias.append({"role": "image_references", "value": it.storyboard["higgsfield_id"]})  # @Image 3
@@ -698,7 +715,8 @@ def cmd_video_request(a):
         return
     has_start = any(m["role"] == "start_image" for m in medias)
     has_end = any(m["role"] == "end_image" for m in medias)
-    prompt = prompts.video_prompt(s, page, has_start=has_start, has_end=has_end, has_storyboard=has_sb, repair=a.repair)
+    prompt = prompts.video_prompt(s, page, has_start=has_start, has_end=has_end, has_storyboard=has_sb,
+                                  repair=opts.get("repair", ""))
     (_workdir(it) / f"video-v{it.attempts.get('video', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     res = "720p" if budget.degraded_mode() else str(page.data.get("video_resolution", "720p"))
     _print({
@@ -708,12 +726,54 @@ def cmd_video_request(a):
             "model": "seedance_2_5", "mode": "omni_reference", "aspect_ratio": "9:16",
             "duration": int(s.get("duration_s", 10)), "resolution": a.resolution or res, "generate_audio": False,
             "medias": medias, "prompt": prompt}}],
+        "triage": opts or "nenhuma",
         "note": "Se a resposta recomendar um preset, reenvie com declined_preset_id.",
         "then": f"python -m pipeline record-video {a.ref} --job <job_id> --credits <créditos>",
     })
 
 
+def _triage_opts(a, it) -> dict:
+    """Triagem C6 (uma variável por tentativa) gravada no item: --no-grid/--repair/--no-sheet valem para as
+    próximas tentativas até mudar. Antes (QA rodada 4) a escolha se perdia: um job que falhava no provedor voltava
+    para frames e o plano pedia `video-request` puro, desfazendo a triagem em silêncio."""
+    opts = {} if getattr(a, "reset_opts", False) else dict(it.video_opts or {})
+    if getattr(a, "no_grid", False):
+        opts["no_grid"] = True
+    if getattr(a, "grid", False):
+        opts.pop("no_grid", None)
+    if getattr(a, "repair", ""):
+        opts["repair"] = a.repair
+    if getattr(a, "no_sheet", False):
+        opts["no_sheet"] = True
+    if opts != (it.video_opts or {}):
+        it.video_opts = opts
+        it.save()
+    if opts:
+        print(f"triagem em vigor: {json.dumps(opts, ensure_ascii=False)} (mude com --grid, --repair '...' ou "
+              f"--reset-opts)", file=sys.stderr)
+    return opts
+
+
 GAG_MAX_ATTEMPTS = 2
+
+
+def _gag_unresolved(it) -> bool:
+    """Trend com gag pedido, MC aprovado no QA e o gag ainda sem QA ok nem descarte: o vídeo final não existe."""
+    s = it.script or {}
+    if s.get("format") != "trend" or not s.get("gag_followup"):
+        return False
+    if it.gates.get("video", {}).get("qa") != "pass":
+        return False
+    return not (it.video.get("gag") or {}).get("dropped") and it.gates.get("gag", {}).get("qa") != "pass"
+
+
+def _gag_resolved(it) -> None:
+    """Gag aprovado ou descartado = o vídeo final (MC + gag) existe agora. Ata D3: o Caio aprova o vídeo FINAL,
+    então a revisão do vídeo "recomeça" aqui (qa_at novo): decisão do painel anterior vira obsoleta e o card volta."""
+    g = it.gates.setdefault("video", {"qa": "pending", "caio": "pending"})
+    g["qa_at"] = time.time()
+    if g.get("caio") == "approved":
+        g["caio"] = "pending"
 
 
 def _gag_est(it, b) -> float:
@@ -777,10 +837,15 @@ def _video_request_gag(a, page, it):
 def _record_gag(a, it):
     gag = dict(it.video.get("gag") or {})
     hist = it.video.setdefault("gag_history", [])
+    if a.refunded and a.failed is None:  # rodada 4: antes o --refunded do gag era ignorado em silêncio
+        failed = [h for h in hist if h.get("failed") is not None]
+        return _refund(it, a.job or (failed[-1].get("job_id") if failed else None), gag=True)
     if a.failed is not None:
         if not gag.get("job_id"):
             if hist and hist[-1].get("failed") is not None:
                 print("falha do gag já registrada")
+                if a.refunded:
+                    _refund(it, hist[-1].get("job_id"), gag=True)
                 return
             raise StoreError("nenhum gag em andamento")
         hist.append({**gag, "failed": a.failed or "falhou"})
@@ -791,6 +856,8 @@ def _record_gag(a, it):
         _log_failure(it, "gag", f"job do gag falhou: {a.failed or 'sem motivo'}")
         it.save()
         print("falha do gag registrada")
+        if a.refunded:
+            _refund(it, gag.get("job_id"), gag=True)
         return
     if a.job:
         if a.job == gag.get("job_id") or any(h.get("job_id") == a.job for h in hist):
@@ -818,7 +885,10 @@ def cmd_skip_gag(a):
     gag = dict(it.video.get("gag") or {})
     if gag.get("job_id") and not gag.get("path") and not a.force:
         raise StoreError("há um job de gag em andamento; espere o resultado ou use --force")
+    already = bool(gag.get("dropped"))
     it.video["gag"] = {**gag, "dropped": a.why or "sem gag"}
+    if not already:
+        _gag_resolved(it)
     it.save()
     print("gag descartado: o pacote sai só com o motion control")
 
@@ -842,8 +912,9 @@ def _video_request_trend(a, page, it, b):
     # Ficha em toda geração (videos-analisados §5): rosto e silhueta entram depois do frame do personagem, com o papel
     # declarado no prompt (o Genjutsu trata cada imagem como um sujeito; o prompt diz que são o mesmo homem).
     # --no-sheet volta ao pedido só com o frame, para A/B se o modelo duplicar o personagem.
-    sheet_ids = [] if getattr(a, "no_sheet", False) else _hf_ref_ids(page)
-    if not getattr(a, "no_sheet", False) and len(sheet_ids) < 2:
+    no_sheet = bool((it.video_opts or {}).get("no_sheet"))
+    sheet_ids = [] if no_sheet else _hf_ref_ids(page)
+    if not no_sheet and len(sheet_ids) < 2:
         raise StoreError(f"{page.slug}: precisa de higgsfield_id para face e silhouette no page.yaml "
                          f"(ou rode com --no-sheet)")
     prompt = prompts.motion_scene_prompt(s, page, with_sheet=bool(sheet_ids))
@@ -972,14 +1043,17 @@ def cmd_record_video(a):
     print("registrado")
 
 
-def _refund(it, job: str | None) -> None:
+def _refund(it, job: str | None, gag: bool = False) -> None:
     """Estorno: o Higgsfield devolveu os créditos do job falho. Lança o negativo do que foi lançado no envio,
-    para a falha do provedor não comer o teto da ideia (160) nem o diário. Uma vez por job."""
+    para a falha do provedor não comer o teto da ideia (160) nem o diário. Uma vez por job (MC/vídeo ou gag)."""
     if not job:
         raise StoreError("qual job? use --job <id>")
-    hist = [h.get("job_id") for h in it.video.get("history", []) if h.get("failed") is not None]
+    src = it.video.get("gag_history" if gag else "history", [])
+    hist = [h.get("job_id") for h in src if h.get("failed") is not None]
     if job not in hist:
-        raise StoreError(f"o job {job} não está registrado como falho neste item (rode --failed antes)")
+        flag = " --gag" if gag else ""
+        raise StoreError(f"o job {job} não está registrado como falho neste item "
+                         f"(rode `record-video <ref>{flag} --failed` antes)")
     rows = [r for r in budget.rows() if r.get("job_id") == job and r.get("item") == it.id]
     if any(r["action"] == "video_refund" for r in rows):
         print(f"estorno do job {job} já lançado")
@@ -1083,9 +1157,11 @@ def cmd_package(a):
     if joined and joined.exists() and joined != mp4:
         joined.unlink()
     cover = local(it.video.get("last"))
-    if not cover or not cover.exists():
+    if joined or not cover or not cover.exists():  # com gag, a capa é o fim do gag (a piada), não o fim do MC
         cover = media.last_frame(mp4, pk / "_last.jpg")
     shutil.copy(cover, pk / "capa.jpg")
+    if cover.name == "_last.jpg":
+        cover.unlink()
     h = media.video_hash(mp4, pk)
     for f in pk.glob("_h*.jpg"):
         f.unlink()
@@ -1129,29 +1205,46 @@ def _find_duplicate(h: str, me) -> str:
     return ""
 
 
-def cmd_posted(a):
-    page, it = _item(a.ref)
-    _need_state(it, ["pronto"], "posted")
+def _mark_posted(page, it, link: str = "", at: float | None = None, why: str = "postado pelo Caio") -> None:
     gate = launch.check(page)
     if not gate["can_post"]:  # o post já aconteceu no app: registra, mas avisa (ata D6)
         print(f"ATENÇÃO: estreia de {page.slug} antes do portão ({gate['summary']}; ata D6)", file=sys.stderr)
     if it.post.get("duplicate_of"):
         print(f"ATENÇÃO: o pacote estava marcado como duplicado de {it.post['duplicate_of']} (ata D8)", file=sys.stderr)
-    it.post.update({"posted_at": time.time(), "link": a.link or ""})
-    it.set_state("postado", "postado pelo Caio")
+    it.post.update({"posted_at": at or time.time(), "link": link or it.post.get("link", "")})
+    it.set_state("postado", why)
     it.save()
+
+
+def cmd_posted(a):
+    page, it = _item(a.ref)
+    _need_state(it, ["pronto"], "posted")
+    _mark_posted(page, it, a.link or "")
     print("postado")
 
 
 def cmd_fetch_refs(a):
     page = get_page(a.page)
+    missing = []
     for r in page.data.get("refs", []):
         dst = page.dir / r["file"]
         if dst.exists():
             print(f"já existe: {dst.name}")
             continue
-        if r.get("url") and _download(r["url"], dst):
+        if a.file and r.get("role") in a.file:  # cópia manual (ex.: baixada pelo Higgsfield show_medias)
+            src = Path(a.file[r["role"]])
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, dst)
+            print(f"copiado: {dst.name} <- {src}")
+        elif r.get("url") and _download(r["url"], dst):
             print(f"baixado: {dst.name}")
+        else:
+            missing.append(r)
+    if missing:  # rodada 4: antes saía com 0 e a dica mandava usar um --file que este comando não tinha
+        raise StoreError(f"{page.slug}: faltam {', '.join(m['file'] for m in missing)}. Baixe a imagem por outro "
+                         f"caminho e rode `fetch-refs {page.slug} --face <arquivo> --silhouette <arquivo>`; sem as "
+                         f"refs locais, `image` pela OpenAI não roda (o fallback --provider higgsfield usa os "
+                         f"higgsfield_id, se switches.image_fallback_allowed estiver true)")
 
 
 def cmd_sheet(a):
@@ -1210,7 +1303,8 @@ def _panel_doc(it, page) -> dict:
         "gag": s.get("gag_without_sound", ""), "duration": s.get("duration_s"), "format": s.get("format", ""),
         "gates": it.gates, "attempts": it.attempts, "assets": it.post.get("assets", {}),
         "caption": it.post.get("caption", ""), "cover_text": s.get("cover", {}).get("text_max4", ""),
-        "music": s.get("music", {}), "videoUrl": it.video.get("url", ""), "gagUrl": (it.video.get("gag") or {}).get("url", ""), "cuts": it.video.get("cuts", []),
+        "music": s.get("music", {}), "videoUrl": it.video.get("url", ""), "gagUrl": (it.video.get("gag") or {}).get("url", ""),
+        "gagPending": _gag_unresolved(it), "cuts": it.video.get("cuts", []),
         "package": it.post.get("package", ""), "handle": page.character.get("handle", ""),
         "updatedAt": int(it.updated_at * 1000), "createdAt": int(it.created_at * 1000),
     }
@@ -1262,7 +1356,8 @@ def cmd_panel_export(a):
           f"out/panel/batch-NN.json; documentos já existentes precisam do if_version lido antes)")
 
 
-MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last", "source", "source_first", "gag_clip")
+MEDIA_KEYS = ("storyboard", "start", "end", "video", "sheet", "gag", "last", "source", "source_first", "gag_clip",
+              "package", "var1", "var2", "var3", "var4")
 MAGIC = {".png": [b"\x89PNG"], ".jpg": [b"\xff\xd8\xff"], ".jpeg": [b"\xff\xd8\xff"],
          ".mp4": [b"ftyp"], ".mov": [b"ftyp"], ".m4v": [b"ftyp"]}
 
@@ -1286,6 +1381,15 @@ def _media_paths(it) -> dict:
     for k, f in (("source", "source_path"), ("source_first", "first_frame")):
         if mo.get(f):
             out[k] = mo[f]
+    # trend: as 4 opções antes do `pick` (rodada 4: a sessão que caía entre o image e o pick perdia as 4)
+    if it.variants and not (it.frames or {}).get("start"):
+        for x in it.variants:
+            if x.get("path") and 1 <= int(x.get("n") or 0) <= 4:
+                out[f"var{int(x['n'])}"] = x["path"]
+    # o MP4 final do pacote (rodada 4: o Caio precisa baixar o que vai postar; com gag, ele só existia no
+    # container que montou o pacote)
+    if it.post.get("package") and it.state == "pronto":
+        out["package"] = f"{it.post['package'].rstrip('/')}/{it.page}-{it.id}.mp4"
     return {k: rel(p) for k, p in out.items()}
 
 
@@ -1339,7 +1443,7 @@ def cmd_media_status(a):
             elif not exists:
                 # sumiu e o arquivo guardado (se houver) é de outra versão: não restaurar o velho no lugar do novo
                 lost.append({"ref": ref, "key": key, "path": path, "archived_version": rec.get("path") or None,
-                             "fix": f"refaça a etapa (retry {ref} {_stage_of(key)} --force) ou restaure à mão"})
+                             "fix": _lost_fix(ref, key)})
     _print({"upload": upload, "restore": restore, "lost": lost,
             "how_upload": "Artifact(url=<painel>, asset=true, file_paths=[...]) e depois "
                           "`python -m pipeline panel-asset <ref> <key> /_blob/<id> --path <path>` para cada arquivo",
@@ -1347,9 +1451,20 @@ def cmd_media_status(a):
                            "`python -m pipeline media-restore <ref> <key> --file <arquivo salvo>`"})
 
 
-def _stage_of(key: str) -> str:
-    return {"storyboard": "storyboard", "start": "frames", "end": "frames", "source": "frames",
-            "source_first": "frames", "gag_clip": "gag"}.get(key, "video")
+def _lost_fix(ref: str, key: str) -> str:
+    """O comando que recupera cada mídia perdida (rodada 4: a fonte da trend sugeria `retry frames`, que não
+    traz a fonte de volta)."""
+    if key in ("source", "source_first"):
+        return (f"a fonte da trend sumiu: `python -m pipeline motion-source {ref} --file <fonte.mp4>` (a mesma "
+                f"fonte, ou outra da motion library; fora de 'roteiro' precisa de --force e o item volta para roteiro)")
+    if key.startswith("var"):
+        return f"as opções do frame sumiram antes do pick: `python -m pipeline retry {ref} frames` e gere de novo"
+    if key == "package":
+        return f"monte o pacote de novo: `python -m pipeline package {ref}`"
+    if key == "gag_clip":
+        return f"`python -m pipeline retry {ref} gag` e peça o gag de novo"
+    stage = {"storyboard": "storyboard", "start": "frames", "end": "frames"}.get(key, "video")
+    return f"refaça a etapa (`python -m pipeline retry {ref} {stage} --force`) ou restaure à mão"
 
 
 def cmd_media_restore(a):
@@ -1414,6 +1529,15 @@ def cmd_panel_apply(a):
             continue
         ref, stage, verdict = d.get("ref"), d.get("stage"), d.get("verdict")
         if stage == "usina" and verdict in ("pause", "resume"):  # kill switch da aba Saúde (ata D2/D8)
+            h = budget.health()
+            seen = h.get("applied_switches") or []
+            if did and did in seen:  # rodada 4: sem isso, um "pausar" ainda não marcado applied pausava de novo
+                print(f"usina: {verdict} {did} já aplicado")
+                done.append(did)
+                continue
+            if did:
+                h["applied_switches"] = (seen + [did])[-200:]
+                budget.save_health(h)
             if verdict == "pause":
                 budget.PAUSE_FILE.write_text(f"pausado pelo Caio no painel: {d.get('notes') or 'sem motivo'}",
                                              encoding="utf-8")
@@ -1433,13 +1557,42 @@ def cmd_panel_apply(a):
                 if did:
                     invalid.append(did)
                 continue
-            if it.state in ("ideia", "roteiro", "storyboard"):
+            if did and did in it.decisions or (it.state == "descartado" and "vetado pelo Caio" in
+                                                (it.history[-1].get("why", "") if it.history else "")):
+                print(f"{ref}: veto já aplicado")
+                done.append(did)
+            elif it.state in ("ideia", "roteiro", "storyboard"):
                 it.set_state("descartado", f"vetado pelo Caio: {d.get('notes') or 'sem motivo'}")
+                if did:
+                    it.decisions.append(did)
                 it.save()
                 print(f"{ref}: vetado")
                 done.append(did)
             else:
                 print(f"{ref}: veto chegou tarde (já em {it.state}); ignorado")
+                stale.append(did)
+            continue
+        if stage == "post" and verdict == "posted":  # botão "Postei" da Fila (rodada 4): pronto -> postado
+            try:
+                page, it = _item(ref)
+            except StoreError as e:
+                print(f"inválido ({e})")
+                if did:
+                    invalid.append(did)
+                continue
+            if it.state == "pronto":
+                try:
+                    at = float(d.get("at") or 0) / 1000.0 or None
+                except (TypeError, ValueError):
+                    at = None
+                _mark_posted(page, it, str(d.get("notes") or ""), at, "postado pelo Caio (painel)")
+                print(f"{ref}: postado")
+                done.append(did)
+            elif it.state == "postado":
+                print(f"{ref}: já postado")
+                done.append(did)
+            else:
+                print(f"{ref}: 'Postei' num item em '{it.state}' (só vale em pronto); ignorado")
                 stale.append(did)
             continue
         if stage not in ("storyboard", "frames", "video") or verdict not in ("approve", "reject"):
@@ -1465,6 +1618,10 @@ def cmd_panel_apply(a):
             at = 0.0
         if at and g.get("qa_at") and at < float(g["qa_at"]):
             print(f"{ref} {stage}: decisão obsoleta (a etapa foi refeita depois); ignorada")
+            stale.append(did)
+            continue
+        if stage == "video" and verdict == "approve" and _gag_unresolved(it):
+            print(f"{ref} video: aprovação obsoleta: {GAG_WAIT}; o card volta no painel")
             stale.append(did)
             continue
         g["caio"] = "approved" if verdict == "approve" else "rejected"
@@ -1509,7 +1666,22 @@ def cmd_placar_import(a):
         raw = json.loads(Path(a.file).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as e:
         raise StoreError(f"não consegui ler {a.file}: {e}")
-    _print(placar.import_rows(raw))
+    res = placar.import_rows(raw)
+    # Número no Placar = o vídeo foi postado (o Placar lista os prontos justamente por isso). Sem isso, um
+    # item postado pelo app ficava em 'pronto' para sempre e o teto de 5 prontos (D5) parava a página (rodada 4).
+    posted = []
+    for d in placar.rows_from_export(raw):
+        try:
+            page, it = _item(d["ref"])
+        except StoreError:
+            continue
+        if it.state == "pronto":
+            at = placar._num(d.get("createdAt") or d.get("updatedAt"))
+            _mark_posted(page, it, "", at / 1000.0 if at else None, "números no Placar: postado")
+            posted.append(d["ref"])
+    if posted:
+        res["marked_posted"] = posted
+    _print(res)
 
 
 def cmd_cadence_check(a):
@@ -1617,6 +1789,8 @@ def main(argv=None):
     p.add_argument("--gag", action="store_true", help="trend: 2º clipe (gag, Seedance 4-5 s) a partir do último frame do MC")
     p.add_argument("--no-sheet", action="store_true",
                    help="trend: Genjutsu só com o frame do personagem, sem rosto e silhueta (A/B se duplicar o personagem)")
+    p.add_argument("--grid", action="store_true", help="volta a mandar a grade (desfaz um --no-grid gravado)")
+    p.add_argument("--reset-opts", action="store_true", help="limpa a triagem gravada (--no-grid/--repair/--no-sheet)")
     p.set_defaults(f=cmd_video_request)
     p = sp.add_parser("skip-gag"); p.add_argument("ref"); p.add_argument("--why", default="")
     p.add_argument("--force", action="store_true"); p.set_defaults(f=cmd_skip_gag)
@@ -1636,7 +1810,11 @@ def main(argv=None):
     p = sp.add_parser("package"); p.add_argument("ref"); p.add_argument("--no-gag", action="store_true")
     p.set_defaults(f=cmd_package)
     p = sp.add_parser("posted"); p.add_argument("ref"); p.add_argument("--link"); p.set_defaults(f=cmd_posted)
-    p = sp.add_parser("fetch-refs"); p.add_argument("page"); p.set_defaults(f=cmd_fetch_refs)
+    p = sp.add_parser("fetch-refs"); p.add_argument("page")
+    p.add_argument("--face", help="arquivo local do rosto (quando o download falha)")
+    p.add_argument("--silhouette", help="arquivo local da silhueta")
+    p.set_defaults(f=lambda a: cmd_fetch_refs(argparse.Namespace(
+        page=a.page, file={k: v for k, v in (("face", a.face), ("silhouette", a.silhouette)) if v})))
     p = sp.add_parser("panel-export"); p.add_argument("--all", action="store_true", help="(sem efeito: tudo é exportado)"); p.set_defaults(f=cmd_panel_export)
     p = sp.add_parser("panel-asset"); p.add_argument("ref"); p.add_argument("key"); p.add_argument("url")
     p.add_argument("--path", help="caminho que o media-status listou (confere que é a versão atual)")

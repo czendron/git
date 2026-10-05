@@ -301,10 +301,12 @@ def test_gag_followup_flow_and_concat(usina, tmp_path):
     run(usina, "fetch-video", ref, "--gag", "--file", str(clip(tmp_path / "gag.mp4", dur=4)))
     a = [a for a in plan(usina)["actions"] if a.get("item") == ref][0]
     assert a["do"] == "review_video" and a["stage"] == "gag"
-    run(usina, "approve", ref, "video")
+    r = run(usina, "approve", ref, "video", ok=False)                            # rodada 4: D3, o Caio vê o vídeo final
+    assert r.returncode == 1 and "gag" in r.stderr
     r = run(usina, "package", ref, ok=False)
-    assert r.returncode == 1 and "gag" in r.stderr                               # gag sem QA
+    assert r.returncode == 1                                                     # gag sem QA nem aprovação
     run(usina, "review", ref, "gag", "pass")
+    run(usina, "approve", ref, "video")
     assert any(x.get("cmd", "").endswith(f"package {ref}") for x in plan(usina)["actions"])
     out = run(usina, "package", ref).stdout
     assert "sem reencode" in out

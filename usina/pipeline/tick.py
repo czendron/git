@@ -165,8 +165,11 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                 acts.append({"do": "discard", "item": pid,
                              "how": f"{cmd} discard {pid} --why 'teto de {b['per_idea']['max_credits']} créditos por ideia'"})
             else:
+                tri = item.video_opts or {}
                 acts.append({"do": "video_submit", "item": pid, "est_credits": credits, "provider": "higgsfield",
-                             "how": f"Rode `{cmd} video-request {pid}`: ele imprime as imagens a subir e o JSON exato "
+                             **({"triage": tri} if tri else {}),
+                             "how": (f"Triagem gravada no item vale nesta tentativa: {tri}. " if tri else "") +
+                                    f"Rode `{cmd} video-request {pid}`: ele imprime as imagens a subir e o JSON exato "
                                     f"para mcp__Higgsfield__generate_video_batch. Suba as imagens (media_upload + PUT, "
                                     f"ou o fallback descrito na saída), envie, e registre com "
                                     f"`{cmd} record-video {pid} --job <job_id> --credits <créditos>`."})
@@ -179,26 +182,49 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
         else:
             g = _gate(item, "video")
             if g["qa"] == "pending":
+                cuts = item.video.get("cuts") or []
+                files = [f for f in (item.video.get("sheet"), item.video.get("gag_sheet"), item.video.get("last")) if f]
                 acts.append({"do": "review_video", "item": pid, "rubric": "prompts/review_video.md",
-                             "file": item.video.get("sheet"),
-                             "how": f"Abra a folha de contato (e o último frame) com Read, aplique a rubrica e registre "
-                                    f"`{cmd} review {pid} video pass|fail --notes '...'`"})
+                             "file": files, "cuts": cuts,
+                             "how": f"Abra a folha de contato, a folha do gag e o último frame com Read, aplique a "
+                                    f"rubrica e registre `{cmd} review {pid} video pass|fail --notes '...'`."
+                                    + (f" ATENÇÃO: cortes detectados em {cuts} s: o clipe é um plano só; confira "
+                                       f"na folha se é corte de verdade (reprove) ou movimento brusco." if cuts else "")})
             elif g["qa"] == "fail":
-                acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} video"})
+                acts.append(_redo_video(item, b, pid, now))
     elif st == "revisao":
         g = _gate(item, "video")
         gag_acts = _gag_actions(item, b, now) if g["caio"] != "rejected" else []
         acts += gag_acts
-        if g["caio"] == "pending":
+        if g["caio"] == "pending" and not gag_acts:  # D3: o Caio vê o vídeo final, com o gag (rodada 4)
             acts.append({"do": "await_caio", "item": pid, "stage": "video"})
         elif g["caio"] == "rejected":
-            acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} video"})
+            acts.append(_redo_video(item, b, pid, now))
         elif not gag_acts:
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} package {pid}"})
+    elif st == "pronto":  # rodada 4: o pacote só sai do container pelo painel; o Caio baixa, posta e avisa
+        acts.append({"do": "await_caio", "item": pid, "stage": "postar",
+                     "how": "O Caio baixa o MP4 na Fila do painel (asset 'package'), posta pelo app e clica Postei "
+                            f"(ou lança números no Placar). Pelo terminal: `{cmd} posted {pid} --link <url>`."})
     return acts
 
 
 GAG_MAX_ATTEMPTS = 2
+
+
+def _redo_video(item: Item, b: dict, pid: str, now: float) -> dict:
+    """Vídeo reprovado (QA ou Caio): `retry`, ou direto `discard` se a próxima tentativa já estoura a ideia
+    (rodada 4: antes o plano mandava retry e só no plano seguinte descobria o teto)."""
+    cmd = "python -m pipeline"
+    cap = b["per_idea"]
+    if item.attempts.get("video", 0) >= cap["max_video_attempts"]:
+        return {"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'limite de tentativas de vídeo'"}
+    if budget.item_spend(item.page, item.id)["credits"] + _est_video_credits(item, b) > float(cap.get("max_credits", 1e9)):
+        return {"do": "discard", "item": pid,
+                "how": f"{cmd} discard {pid} --why 'teto de {cap['max_credits']} créditos por ideia'"}
+    return {"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} video",
+            "next": "triagem C6: na próxima tentativa mude UMA variável (video-request --no-grid, --repair '...' "
+                    "ou reescreva o roteiro com save-script --force)"}
 
 
 def _gag_actions(item: Item, b: dict, now: float) -> list[dict]:
@@ -239,7 +265,7 @@ def _gag_actions(item: Item, b: dict, now: float) -> list[dict]:
     if not gag.get("path"):
         return [{"do": "run", "item": pid, "cmd": f"{cmd} fetch-video {pid} --gag"}]
     return [{"do": "review_video", "item": pid, "stage": "gag", "rubric": "prompts/review_video.md",
-             "file": gag.get("sheet"),
+             "file": [f for f in (gag.get("sheet"), item.video.get("last")) if f], "cuts": gag.get("cuts") or [],
              "how": f"Abra a folha do gag e o último frame do MC ({item.video.get('last')}) com Read: a emenda não pode "
                     f"pular (pose, luz, figurantes) e a piada tem que ler sem som. Registre "
                     f"`{cmd} review {pid} gag pass|fail --notes '...'`."}]
@@ -298,7 +324,7 @@ def plan(now: float | None = None) -> dict:
         # ata D5: "mais de 5 vídeos prontos e não postados na página: para de gerar" (gasto novo; o resto segue)
         full = len(ready) > cap or (stock and len(ready) >= stock)
         if not gate["can_generate"]:
-            out["notes"].append(f"{page.slug}: portão de estreia fechado ({gate['summary']}); não gera (ata D6). "
+            out["notes"].append(f"{page.slug}: portão de estreia fechado ({gate['gen_summary']}); não gera (ata D6). "
                                 f"`python -m pipeline launch-check {page.slug}`")
             full = True
         elif stock:

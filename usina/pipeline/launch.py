@@ -78,6 +78,10 @@ def check(page: Page, now: float | None = None) -> dict:
     gen = all(c["ok"] for c in checks if c["check"] in ("status", "ficha", "dias"))
     post_first = gen and all(c["ok"] for c in checks if c["check"] == "estoque")
     failing = [c["detail"] for c in checks if not c["ok"]]
+    # rodada 4: o motivo de "não gera" só lista o que bloqueia geração; o estoque bloqueia só o 1º post
+    # (antes a mensagem dizia "não gera (…; 0/10 prontos)", como se faltasse estoque para gerar o estoque)
+    gen_failing = [c["detail"] for c in checks if not c["ok"] and c["check"] != "estoque"]
     return {"page": page.slug, "status": status, "can_generate": gen, "can_post": launched or post_first,
             "launched": launched, "ready": ready, "min_stock": 0 if launched else stock_need, "checks": checks,
-            "summary": "portão aberto" if gen and (launched or post_first) else "; ".join(failing)}
+            "summary": "portão aberto" if gen and (launched or post_first) else "; ".join(failing),
+            "gen_summary": "pode gerar" if gen else "; ".join(gen_failing)}

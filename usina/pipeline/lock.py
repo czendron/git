@@ -67,13 +67,19 @@ def describe(d: dict, now: float | None = None) -> str:
 
 def acquire(owner: str | None = None, now: float | None = None) -> tuple[bool, str, dict]:
     now = now or time.time()
-    owner = owner or os.getenv("USINA_TICK_OWNER") or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
     cur = read()
+    # Reentrante (QA rodada 4): sem --owner, a mesma sessão (out/.tick-owner) reusa o seu dono. Antes, o 2º
+    # tick-start da mesma sessão (Routine que dispara de novo na mesma conversa) inventava um dono novo e
+    # recusava o próprio lock por 2 h, enquanto o `plan` dizia que o lock era meu.
+    owner = owner or os.getenv("USINA_TICK_OWNER") or my_owner() \
+        or f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
     msg = ""
     if cur and not stale(cur, now) and cur.get("owner") != owner:
         return False, f"outro ciclo rodando: {describe(cur, now)}", cur
     if cur and stale(cur, now):
         msg = f"lock vencido ignorado ({cur.get('owner', '?')})"
+    elif cur and cur.get("owner") == owner:
+        msg = "o lock já era deste ciclo: renovado"
     d = {"owner": owner, "pid": os.getpid(), "host": socket.gethostname(), "at": now, "ttl_s": TTL_S,
          "started": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now))}
     LOCK.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
