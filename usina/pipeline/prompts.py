@@ -207,6 +207,23 @@ def counterpart_sheet_prompt(script: dict, page: Page, cp: dict) -> str:
     return json.dumps(sheet, ensure_ascii=False, indent=2)
 
 
+def _cps(counterpart) -> list[tuple[str, int]]:
+    """Ficha(s) de outras pessoas: (nome, nº da imagem). Aceita uma tupla (rodada 7) ou uma lista (elenco)."""
+    if not counterpart:
+        return []
+    if isinstance(counterpart, tuple) and len(counterpart) == 2 and isinstance(counterpart[1], int):
+        return [counterpart]
+    return [c for c in counterpart if c]
+
+
+def _and(names: list[str]) -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def counterpart_lines(counterpart, noun: str) -> str:
+    return " ".join(counterpart_frame_line(w, n, noun) for w, n in _cps(counterpart))
+
+
 def counterpart_frame_line(cp_who: str, n: int, noun: str) -> str:
     """Linha dos frames A/B: a ficha da contraparte é a imagem n e só ela define essa pessoa."""
     w = cp_who[:1].upper() + cp_who[1:]
@@ -313,8 +330,7 @@ def _turn_rule(pos: str) -> str:
             f"{pos} face is visible in every frame.")
 
 
-def _ref_lines(nm: str, pos: str, part: str, cast: list | None = None, cp_image: int | None = None,
-               cp_who: str = "") -> list[str]:
+def _ref_lines(nm: str, pos: str, part: str, cast: list | None = None, sheets: dict | None = None) -> list[str]:
     """Mapa de referências pelo conteúdo + papel + nome (o 2.5 casa o material pelo que vê, não só pela ordem).
     B4.11: cada imagem é ligada a um nome uma vez aqui; daí em diante o prompt usa só o nome. Com `cp_image`
     (rodada 7), a ficha da contraparte humana ganha a sua linha de papel."""
@@ -322,8 +338,10 @@ def _ref_lines(nm: str, pos: str, part: str, cast: list | None = None, cp_image:
              f"full-preserve, 100% matches the reference.",
              f"@Image 2 (the silhouette sheet on grey) is {nm}'s silhouette reference: it defines only {pos} {part} "
              f"shape and outfit — full-preserve. Do not take the grey backdrop, the panel layout or the extra views."]
+    sheets = {str(k).strip().lower(): v for k, v in (sheets or {}).items()}
     for who in cast or []:
-        if cp_image and who.lower() == cp_who.strip().lower():
+        cp_image = sheets.get(who.strip().lower())
+        if cp_image:
             lines.append(f"@Image {cp_image} (the 4-panel reference sheet of another person on grey) is "
                          f"{_possessive(who)} reference: it defines {_possessive(who)} face, hair, build and clothes — "
                          f"full-preserve. {who[:1].upper() + who[1:]} is a different person from {nm}; nothing of "
@@ -386,13 +404,14 @@ def storyboard_prompt(script: dict, page: Page) -> tuple[str, str]:
 
 # ---------------- C2 frames ----------------
 
-def _alone(sub: str, counterpart: tuple[str, int] | None) -> str:
-    if counterpart:  # rodada 7: a contraparte com ficha pode estar no quadro; o "only person" a apagaria
-        return f"Besides {counterpart[0]}, {sub} is the only person in the photograph."
+def _alone(sub: str, counterpart) -> str:
+    cps = _cps(counterpart)
+    if cps:  # rodada 7: a contraparte com ficha pode estar no quadro; o "only person" a apagaria
+        return f"Besides {_and([w for w, _ in cps])}, {sub} is the only person in the photograph."
     return f"{sub.capitalize()} is the only person in the photograph."
 
 
-def frame_a_prompt(script: dict, page: Page, with_storyboard: bool, counterpart: tuple[str, int] | None = None) -> str:
+def frame_a_prompt(script: dict, page: Page, with_storyboard: bool, counterpart=None) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, _ = silhouette(page)
@@ -411,13 +430,14 @@ def frame_a_prompt(script: dict, page: Page, with_storyboard: bool, counterpart:
         (f"Background: {crowd(en['extras_count'])}, ordinary people busy with their own tasks — {en['extras_tasks']} — "
          f"none of them looking at {obj}." if int(en.get("extras_count") or 0) else _alone(sub, counterpart)),
         f"Props: {en.get('props') or 'none besides the location'}.",
-        counterpart_frame_line(counterpart[0], counterpart[1], noun) if counterpart else "",
+        _featured_line(en),
+        counterpart_lines(counterpart, noun),
         f"{en['lighting']} Deep depth of field, everything sharp, smartphone HDR look, real skin texture.",
         "Exactly one main character. No text, no captions, no speech balloons, no watermarks.",
     ] if x)
 
 
-def frame_b_prompt(script: dict, page: Page, counterpart: tuple[str, int] | None = None) -> str:
+def frame_b_prompt(script: dict, page: Page, counterpart=None) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, _ = silhouette(page)
@@ -430,7 +450,7 @@ def frame_b_prompt(script: dict, page: Page, counterpart: tuple[str, int] | None
         _sent(en.get("end_props", "")),
         _orient(last),
         "Same light direction, exposure and sharpness as image 1.",
-        counterpart_frame_line(counterpart[0], counterpart[1], noun) if counterpart else "",
+        counterpart_lines(counterpart, noun),
         DEADPAN_FRAME,
         (f"Exactly one main character, {crowd(en['extras_count'])}, all still busy with their own tasks, "
          f"none looking at {obj}. No text, no balloons." if int(en.get("extras_count") or 0)
@@ -451,7 +471,7 @@ def _cut_line(script: dict) -> str:
 
 
 def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, has_storyboard: bool,
-                 repair: str = "", counterpart: tuple[str, int] | None = None) -> str:
+                 repair: str = "", counterpart=None) -> str:
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, sil = silhouette(page)
@@ -462,7 +482,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         refs.append(" ".join(filter(None, [
             "The start frame defines the opening composition, positions, pose and camera." if has_start else "",
             "The end frame defines the final composition and the gag's end state." if has_end else ""])))
-    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]), *(_cp_args(counterpart)))
+    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]) + _extra_cast(en, counterpart), _sheet_map(counterpart))
     if has_storyboard:
         stg = en["stages"]
         mapping = ", ".join(f"panel {i + 1} is {s['t']}" for i, s in enumerate(stg))
@@ -482,7 +502,8 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
     blocks += [
         "SCENE CONTEXT",
         (f"EXACTLY 1 main character — {who} — plus {crowd(extras)} in the background. " if extras else
-         f"EXACTLY 1 main character — {who} — and no one else in the set. ") + en["gag_sentence"],
+         f"EXACTLY 1 main character — {who} — and no one else in the set. ") + en["gag_sentence"]
+        + (" " + _featured_line(en) if _featured_line(en) else ""),
         "",
         "ACTIVE REFERENCES",
         *refs,
@@ -532,7 +553,46 @@ NO_LIKENESS = ("He is a fictional character: do not give him the likeness of any
                "replaced person's face.")
 
 
-def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True, intake: dict | None = None) -> str:
+SWAP_KINDS = ("protagonist", "cast", "object", "new_character")
+
+
+def swaps(intake: dict | None) -> list[dict]:
+    """Trocas pedidas na aba Motion control (intake.swaps), limpas: [{target, kind, cast_id, description}].
+    Sem swaps, o replace_subject antigo vira uma troca pelo protagonista (compatível com pedidos de antes)."""
+    out = []
+    for sw in (intake or {}).get("swaps") or []:
+        if not isinstance(sw, dict) or not str(sw.get("target") or "").strip():
+            continue
+        rw = sw.get("replace_with") if isinstance(sw.get("replace_with"), dict) else {}
+        kind = str(rw.get("kind") or sw.get("kind") or "protagonist").strip()
+        out.append({"target": str(sw["target"]).strip()[:200], "kind": kind if kind in SWAP_KINDS else "object",
+                    "cast_id": str(rw.get("cast_id") or "").strip(),
+                    "description": str(rw.get("description") or "").strip()[:300]})
+    if not out and str((intake or {}).get("replace_subject") or "").strip():
+        out.append({"target": str(intake["replace_subject"]).strip(), "kind": "protagonist", "cast_id": "",
+                    "description": ""})
+    return out
+
+
+def swap_cast_order(intake: dict | None) -> list[str]:
+    """cast_ids das trocas por gente do elenco, na ordem das imagens (image 4, 5, … no frame; depois da ficha no
+    Genjutsu). Uma imagem por pessoa."""
+    out: list[str] = []
+    for sw in swaps(intake):
+        if sw["kind"] == "cast" and sw["cast_id"] and sw["cast_id"] not in out:
+            out.append(sw["cast_id"])
+    return out
+
+
+def _cast_sheet_role(who: str, n: int, nm: str) -> str:
+    return (f"Image {n} (the 4-panel reference sheet of another person on grey) is {_possessive(who)} identity "
+            f"reference: {_possessive(who)} face, hair, build and clothes match image {n} exactly. {who} is a "
+            f"different person from {nm}; nothing of {nm} comes from image {n}. Do not copy its grey backdrop or "
+            f"panel layout.")
+
+
+def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True, intake: dict | None = None,
+                        cast: list[tuple[str, str]] | None = None) -> str:
     """Prompt de cena do motion control. O movimento vem do vídeo-fonte; o prompt escreve o mundo: papéis das imagens,
     câmera, lugar, luz, rigidez, deadpan e a tarefa de cada figurante (a fonte não traz fundo, videos-analisados §8).
 
@@ -551,6 +611,9 @@ def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True, intak
     crowd_line = (f"{crowd(extras).capitalize()} continue their own tasks — {en['extras_tasks']} — each moving on "
                   f"their own rhythm through the whole clip; none looks at {obj}."
                   if extras else f"{sub.capitalize()} is the only person in the set.")
+    first_cast = 4 if with_sheet else 2
+    for i, (_cid, who) in enumerate(cast or []):  # elenco trocado na fonte: a ficha dele vem depois da do personagem
+        roles += " " + _cast_sheet_role(who, first_cast + i, nm)
     custom = _intake_text(intake, "scene_prompt")
     if custom:
         return "\n\n".join([
@@ -578,7 +641,33 @@ def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True, intak
     ])
 
 
-def motion_frame_prompt(script: dict, page: Page, intake: dict | None = None) -> str:
+def _swap_lines(sws: list[dict], page: Page, cast: dict[str, tuple[str, int]]) -> list[str]:
+    """Uma linha por troca (pessoa ou objeto), cada uma com a sua imagem de referência quando houver."""
+    sub, pos, obj, noun = _p(page)
+    part, sil = silhouette(page)
+    nm = name(page)
+    lines = []
+    for i, sw in enumerate(sws, 1):
+        t = sw["target"]
+        if sw["kind"] == "protagonist":
+            lines.append(f"{i}. Replace {t} with {nm}, the {noun} from image 2 and image 3 — same face as image 2, "
+                         f"same {part} shape and outfit as image 3 ({sil}).")
+        elif sw["kind"] == "cast" and sw["cast_id"] in cast:
+            who, n = cast[sw["cast_id"]]
+            lines.append(f"{i}. Replace {t} with {who}, the person on the reference sheet in image {n} — same face, "
+                         f"hair, build and clothes as image {n}; a different person from {nm}. Do not copy the grey "
+                         f"backdrop or the panel layout of image {n}.")
+        elif sw["kind"] == "object":
+            lines.append(f"{i}. Replace {t} with {sw['description'] or 'the object the producer asked for'}, same "
+                         f"size, position and hold as the original, real and physically plausible.")
+        else:  # new_character ou cast sem ficha: só texto, gente fictícia
+            lines.append(f"{i}. Replace {t} with {sw['description'] or 'an ordinary person'}: an invented, fictional "
+                         f"person with an ordinary, non-recognizable face, not a lookalike of anyone.")
+    return lines
+
+
+def motion_frame_prompt(script: dict, page: Page, intake: dict | None = None,
+                        cast: list[tuple[str, str]] | None = None) -> str:
     """Frame do personagem para motion control = edição do 1º frame do vídeo-fonte (videos-analisados §2).
 
     image 1 = primeiro frame da fonte, image 2 = rosto, image 3 = silhueta. Com `intake.frame_prompt` (painel), ele é o
@@ -589,6 +678,30 @@ def motion_frame_prompt(script: dict, page: Page, intake: dict | None = None) ->
     part, sil = silhouette(page)
     who = en.get("replace_subject") or (intake or {}).get("replace_subject") or "the dancer"
     custom = _intake_text(intake, "frame_prompt")
+    sws = swaps(intake)
+    cast_map = {cid: (w, 4 + i) for i, (cid, w) in enumerate(cast or [])}
+    multi = len(sws) > 1 or any(sw["kind"] != "protagonist" for sw in sws)
+    if multi:  # várias trocas (painel, aba Motion control): uma linha por pessoa ou objeto, cada uma com a sua imagem
+        roles = [f"Image 1 is the first frame of the source video. Image 2 (face close-up) and image 3 (silhouette "
+                 f"sheet) are {name(page)}'s identity references."]
+        roles += [f"Image {n} (a 4-panel reference sheet on grey) defines {w}." for w, n in cast_map.values()]
+        body = custom if custom else "\n".join([
+            "Edit image 1. Make exactly these replacements, one per person or object, and nothing else:",
+            *_swap_lines(sws, page, cast_map),
+            "Everyone and everything not listed stays exactly as in image 1.",
+            f"Keep the exact pose, body position, subject size, framing, camera angle and lens of image 1. Place the "
+            f"scene in: {en['location']}. {en['lighting']}"])
+        if not body.lower().startswith("edit image 1"):
+            body = "Edit image 1.\n" + body
+        return "\n".join([
+            body,
+            " ".join(roles),
+            f"Locks: {name(page)}'s {part} is fully inside the frame with 10% headroom above it, one rigid solid with "
+            f"its exact outline. {DEADPAN_FRAME} Every replaced person is a fictional character: no likeness of any real "
+            f"person, nothing of the replaced people's faces.",
+            "Must look like a real vertical smartphone photo: real skin texture, natural exposure, everything sharp. "
+            f"Exactly one main character, {name(page)}. No text, no captions, no watermarks.",
+        ])
     if custom:
         if not custom.lower().startswith("edit image 1"):
             custom = (f"Edit image 1. Replace {who} with the {noun} from image 2 and image 3 — same face as image 2, "
@@ -616,11 +729,40 @@ def motion_frame_prompt(script: dict, page: Page, intake: dict | None = None) ->
     ])
 
 
-def _cp_args(counterpart: tuple[str, int] | None) -> tuple:
-    return (counterpart[1], counterpart[0]) if counterpart else (None, "")
+def _sheet_map(counterpart) -> dict:
+    """{nome: nº da imagem} das fichas de outras pessoas (contraparte avulsa e elenco)."""
+    return {w: n for w, n in _cps(counterpart)}
 
 
-def gag_prompt(script: dict, page: Page, counterpart: tuple[str, int] | None = None) -> str:
+def _extra_cast(en: dict, counterpart=None) -> list[str]:
+    """Figurantes em destaque (en.featured_extras) e quem tem ficha mas não é contraparte: entram no ACTIVE
+    REFERENCES com a linha de papel (ficha) ou de exclusão (sem ficha)."""
+    have = {w.lower() for w in _human_cast(en.get("stages") or [])}
+    out: list[str] = []
+    for ex in _lint.featured_extras({"en": en}):
+        w = ex.get("who") or ""
+        if w and w.lower() not in have and w not in out:
+            out.append(w)
+    for w, _ in _cps(counterpart):
+        if w.lower() not in have and w not in out:
+            out.append(w)
+    return out
+
+
+def _featured_line(en: dict) -> str:
+    """Figurantes em destaque: nome, posição e tarefa (B4.6), fora da contagem de passantes."""
+    parts = []
+    for ex in _lint.featured_extras({"en": en}):
+        if not ex.get("who"):
+            continue
+        bits = ", ".join(x for x in (_lc(ex.get("position", "")), _lc(ex.get("task", ""))) if x)
+        parts.append(f"{ex['who']}" + (f" ({bits})" if bits else ""))
+    if not parts:
+        return ""
+    return _sent("Featured extras, besides the passersby: " + "; ".join(parts) + "; none of them looks at the lens")
+
+
+def gag_prompt(script: dict, page: Page, counterpart=None) -> str:
     """Gag pós-motion control (playbook C5): Seedance 2.5, start_image = último frame do clipe de MC, só os stages
     3 e 4 do C4 (aqui, os 2 estágios de gag_followup.en) e o estado final em end_change."""
     en = script["en"]
@@ -641,7 +783,9 @@ def gag_prompt(script: dict, page: Page, counterpart: tuple[str, int] | None = N
         "ACTIVE REFERENCES",
         "The start frame defines the opening composition, pose, location, lighting, passersby and camera: continue "
         "from it exactly, with no jump.",
-        *_ref_lines(nm, pos, part, _human_cast(gen["stages"]), *(_cp_args(counterpart))),
+        *_ref_lines(nm, pos, part, _human_cast(gen["stages"]) + [w for w, _ in _cps(counterpart)
+                                                                   if w.lower() not in {x.lower() for x in _human_cast(gen["stages"])}],
+                    _sheet_map(counterpart)),
         "The image references never change the start-frame composition.",
         "",
         "CAMERA",

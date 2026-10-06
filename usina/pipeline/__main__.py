@@ -39,7 +39,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import budget, images, launch, lint as lintmod, lock, media, placar, prompts
+from . import budget, cast as castmod, images, launch, lint as lintmod, lock, media, placar, prompts
 from .store import OUT, ROOT, StoreError, get_page, list_items, load_item, load_pages, local, new_item, rel, slugify
 
 FAILS = ROOT / "playbook" / "falhas.md"         # curado à mão (gente e agentes); o pipeline só lê
@@ -101,9 +101,68 @@ def _hf_spend_gate() -> None:
 
 def _cp_needed(it) -> dict | None:
     """Rodada 7: a contraparte humana com rosto no quadro que pede ficha própria (B4.11), ou None (sem contraparte,
-    fora do quadro B4.10, bicho ou objeto). Uma ficha por item: a 1ª contraparte do roteiro."""
-    cps = lintmod.sheet_counterparts(it.script or {})
+    fora do quadro B4.10, bicho ou objeto). Uma ficha avulsa por item: a 1ª pessoa SEM cast_id (contraparte ou
+    figurante em destaque); quem tem cast_id usa a ficha do elenco da página (docs/qa/elenco.md)."""
+    cps = lintmod.oneoff_people(it.script or {})
     return cps[0] if cps else None
+
+
+# Limites de referências por pedido (vendor/higgsfield-ai-prompt-skill: GPT Image 2 aceita até 16 imagens no edit;
+# o Seedance 2.5 aceita até 30 no omni_reference, mas o mapa @Image dos nossos prompts segue o limite de 9 do sistema
+# de @ referências do Seedance 2.0, o único testado; o Genjutsu não documenta limite e fica no mesmo teto).
+OPENAI_EDIT_MAX = 16
+VIDEO_REFS_MAX = 9
+
+
+def _check_ref_count(n: int, limit: int, where: str) -> None:
+    if n > limit:
+        raise StoreError(f"{where}: {n} imagens de referência passam do limite de {limit}. Tire alguém do elenco ou "
+                         f"um figurante em destaque do roteiro (passante de fundo fica só no prompt), ou rode sem a "
+                         f"grade (--no-grid)")
+
+
+def _cast_people(it, page, gag_only: bool = False) -> list[dict]:
+    """Gente do elenco que o item usa: trend = trocas do painel (intake.swaps) + gag; senão contrapartes e
+    figurantes em destaque com cast_id. Cada um com o membro do elenco (ou None se o cast_id não existe)."""
+    s = it.script or {}
+    members = castmod.load(page.slug)
+    if gag_only:
+        people = lintmod.cast_people({"gag_followup": s.get("gag_followup") or {}})
+    elif s.get("format") == "trend" or (it.intake and not s):
+        people = [{"cast_id": c, "who": "", "src": "swap"} for c in prompts.swap_cast_order(it.intake)]
+        people += [p for p in lintmod.cast_people({"gag_followup": s.get("gag_followup") or {}})
+                   if p["cast_id"] not in {x["cast_id"] for x in people}]
+    else:
+        people = lintmod.cast_people(s)
+    out = []
+    for p in people:
+        m = members.get(p["cast_id"])
+        out.append(dict(p, member=m, who=p.get("who") or (castmod.who(m) if m else p["cast_id"])))
+    return out
+
+
+def _require_cast(it, page, ref: str, gag_only: bool = False) -> list[dict]:
+    """Fichas do elenco aprovadas (pré-requisito dos frames e do vídeo). Falta alguma: erro com o comando."""
+    out = []
+    for p in _cast_people(it, page, gag_only):
+        m = p["member"]
+        if m is None:
+            raise StoreError(f"cast_id '{p['cast_id']}' não existe em pages/{page.slug}/cast/ "
+                             f"(`python -m pipeline cast list {page.slug}`)")
+        st = castmod.state(page.slug, m)
+        if st != "aprovado":
+            how = (f"gere com `python -m pipeline image {page.slug} cast-sheet {p['cast_id']}`"
+                   if st in ("sem ficha", "recusada") else "o Caio aprova na Caixa (card Elenco) ou "
+                   f"`python -m pipeline cast approve {page.slug} {p['cast_id']}`")
+            raise StoreError(f"{ref}: a ficha do elenco de {p['who']} ({p['cast_id']}) está '{st}': {how}")
+        f = castmod.sheet_file(page.slug, m)
+        out.append(dict(p, path=f, hf_id=(m.get("refs") or {}).get("higgsfield_id")))
+    return out
+
+
+def _cast_hf_missing(cast_recs: list[dict], page) -> list[dict]:
+    return [{"key": f"cast:{c['cast_id']}", "path": str(c["path"]) if c.get("path") else None, "type": "image"}
+            for c in cast_recs if not c.get("hf_id")]
 
 
 def _cp_sheet(it) -> dict | None:
@@ -417,6 +476,8 @@ def _hf_ref_ids(page) -> list[str]:
 
 
 def cmd_image(a):
+    if a.stage == "cast-sheet":
+        return _image_cast_sheet(a)
     page, it = _item(a.ref)
     stage = a.stage
     if not it.script:
@@ -451,7 +512,10 @@ def cmd_image(a):
         first = local((it.motion or {}).get("first_frame"))
         if not first or not first.exists():
             raise StoreError("trend sem o 1º frame da fonte: rode `motion-source <ref> --file fonte.mp4` antes")
-        jobs.append(("start", prompts.motion_frame_prompt(it.script, page, it.intake), "1024x1536", ["__SOURCE_FIRST__"]))
+        trend_cast = _require_cast(it, page, a.ref)  # elenco trocado na fonte: image 4, 5, … (docs/qa/elenco.md)
+        jobs.append(("start", prompts.motion_frame_prompt(it.script, page, it.intake,
+                                                          [(c["cast_id"], c["who"]) for c in trend_cast]),
+                     "1024x1536", ["__SOURCE_FIRST__"] + [c["path"] for c in trend_cast]))
     elif stage == "frames":
         sb = local(it.storyboard.get("path"))
         with_sb = bool(sb and sb.exists())
@@ -478,8 +542,25 @@ def cmd_image(a):
             cp_extra = []
         else:
             cp_extra = []
-        cp_a = (cp_rec["who"], 3 + int(sb_in_prompt)) if cp_rec else None   # rosto, silhueta, [storyboard], ficha
-        cp_b = (cp_rec["who"], 4) if cp_rec else None                        # frame A, rosto, silhueta, ficha
+        cast_recs = _require_cast(it, page, a.ref)  # elenco: fichas aprovadas, depois da ficha avulsa
+        if provider == "openai":
+            for c in cast_recs:
+                if not c["path"] or not c["path"].exists():
+                    raise StoreError(f"a ficha do elenco {c['cast_id']} não está nesta máquina ({c['path']}): "
+                                     f"`media-status` (restore) ou `cast restore {page.slug} {c['cast_id']} --file`")
+            cp_extra = cp_extra + [c["path"] for c in cast_recs]
+        else:
+            miss = _cast_hf_missing(cast_recs, page)
+            if miss:
+                _print({"ready": False, "upload_first": miss,
+                        "how": "media_upload + PUT + media_confirm(type='image') de cada ficha do elenco e depois "
+                               f"`python -m pipeline record-upload {a.ref} cast:<cast_id> --hf-id <id>`; rode de novo."})
+                return
+        names = ([cp_rec["who"]] if cp_rec else []) + [c["who"] for c in cast_recs]
+        base_a = 3 + int(sb_in_prompt)                                      # rosto, silhueta, [storyboard], fichas
+        cp_a = [(w, base_a + i) for i, w in enumerate(names)] or None
+        cp_b = [(w, 4 + i) for i, w in enumerate(names)] or None            # frame A, rosto, silhueta, fichas
+        _check_ref_count(max(base_a - 1, 3) + len(names), OPENAI_EDIT_MAX, "frames A/B")
         jobs.append(("start", prompts.frame_a_prompt(it.script, page, sb_in_prompt, cp_a),
                      "1024x1536", ([sb] if with_sb else []) + cp_extra))
         if it.script.get("en", {}).get("end_change"):
@@ -499,6 +580,12 @@ def cmd_image(a):
         trend_first = None
         if stage == "frames" and it.script.get("format") == "trend":
             trend_first = (it.motion or {}).get("first_frame_hf_id")
+            miss = _cast_hf_missing(_require_cast(it, page, a.ref), page)
+            if miss:
+                _print({"ready": False, "upload_first": miss,
+                        "how": "media_upload + PUT + media_confirm(type='image') de cada ficha do elenco e depois "
+                               f"`python -m pipeline record-upload {a.ref} cast:<cast_id> --hf-id <id>`; rode de novo."})
+                return
             if not trend_first:  # o prompt edita o 1º frame da fonte: sem ele como image 1, o rosto vira a "fonte"
                 _print({"ready": False, "upload_first": [{"key": "source_first", "path": it.motion.get("first_frame"),
                                                            "type": "image"}],
@@ -520,6 +607,9 @@ def cmd_image(a):
                 medias.append({"role": "image_references", "value": it.storyboard["higgsfield_id"]})
             if stage == "frames" and not trend_first and _cp_sheet(it):  # rodada 7: a ficha por último
                 medias.append({"role": "image_references", "value": _cp_sheet(it)["higgsfield_id"]})
+            if stage == "frames":  # elenco: as fichas aprovadas, na mesma ordem do prompt
+                medias += [{"role": "image_references", "value": c["hf_id"]} for c in _require_cast(it, page, a.ref)
+                           if c.get("hf_id")]
             params = {"model": "gpt_image_2_5", "aspect_ratio": "16:9" if size == "1536x1024" else "9:16",
                       "quality": "high", "medias": medias, "prompt": prompt}
             if nvar > 1:  # trend: N opções do frame, o revisor escolhe com `pick`
@@ -549,8 +639,12 @@ def cmd_image(a):
         name = key if key == stage else f"{stage}-{key}"
         out = wd / f"{name}-v{n}.png"
         (wd / f"{name}-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
-        if extra == ["__SOURCE_FIRST__"]:  # image 1 = 1º frame da fonte, depois rosto e silhueta
-            img_refs = [local(it.motion["first_frame"])] + refs
+        if extra[:1] == ["__SOURCE_FIRST__"]:  # image 1 = 1º frame da fonte, rosto, silhueta, fichas do elenco
+            img_refs = [local(it.motion["first_frame"])] + refs + extra[1:]
+            missing = [str(x) for x in extra[1:] if not x or not Path(x).exists()]
+            if missing:
+                raise StoreError(f"fichas do elenco fora desta máquina: {', '.join(missing)} (`media-status` → restore)")
+            _check_ref_count(len(img_refs), OPENAI_EDIT_MAX, "frame da trend")
         elif extra[:1] == ["__FRAME_A__"]:
             img_refs = [local(target["start"]["path"])] + refs + extra[1:]  # Frame B = edição do Frame A (C2)
         else:
@@ -583,6 +677,48 @@ def cmd_image(a):
         it.gates["frames"] = {"qa": "pending", "caio": "pending"}
         it.set_state("frames", f"frames v{n}")
     it.save()
+
+
+def _image_cast_sheet(a):
+    """Ficha C1 2x2 de um membro do elenco da página (docs/qa/elenco.md), pela OpenAI (images.generate, sem a ref do
+    protagonista): pessoa fictícia, de rosto comum e não reconhecível. Reusada em todo vídeo; o Caio aprova uma vez."""
+    page = get_page(a.ref)
+    cid = a.cast_id
+    if not cid:
+        raise StoreError("uso: image <page> cast-sheet <cast_id>")
+    _gen_gate(page)
+    m = castmod.get(page.slug, cid)
+    st = castmod.state(page.slug, m)
+    if st in ("aprovado", "aguardando") and not a.force:
+        print(f"ficha de {cid} já existe ({st}): {(m.get('refs') or {}).get('sheet')} (refazer: --force)")
+        return
+    provider = a.provider or _switches().get("image_provider", "openai")
+    if provider != "openai":
+        raise StoreError("a ficha do elenco sai só pela OpenAI (images.generate); rode sem --provider higgsfield")
+    unit = budget.load_budget()["cost_estimates"]["openai_image"].get(a.quality, 0.17)
+    ok, why = budget.can_spend("openai", unit)
+    if not ok:
+        raise StoreError(why)
+    mock = bool(a.mock) or os.getenv("USINA_MOCK") == "1"
+    n = int((m.get("refs") or {}).get("v") or 0) + 1
+    look = m["look"] + (f". Caio's note on the last sheet: {m['review']['notes']}"
+                        if (m.get("review") or {}).get("caio") == "rejected" and m["review"].get("notes") else "")
+    prompt = prompts.counterpart_sheet_prompt({}, page, {"who": castmod.who(m), "look": look})
+    d = castmod.cast_dir(page.slug) / "sheets"
+    d.mkdir(parents=True, exist_ok=True)
+    out = d / f"{cid}-v{n}.png"
+    (d / f"{cid}-v{n}.prompt.txt").write_text(prompt, encoding="utf-8")
+    images.generate(prompt, out, [], aspect="1024x1536", quality=a.quality, mock=mock)
+    budget.record(page.slug, f"cast-{cid}", "openai", "image_cast_sheet", usd=0 if mock else unit,
+                  note=f"{cid}{' (mock)' if mock else ''}")
+    m["refs"] = {"sheet": out.relative_to(page.dir).as_posix(), "higgsfield_id": None, "asset": None, "url": None,
+                 "v": n, "at": time.time()}
+    m["status"] = "rascunho"
+    m["review"] = {"caio": "pending", "notes": "", "at": time.time()}
+    castmod.save(page.slug, m)
+    print(f"ok: {out.relative_to(ROOT)}")
+    print(f"o Caio aprova uma vez na Caixa (card Elenco) depois do `media-status` → upload → `cast asset "
+          f"{page.slug} {cid} <url>`; ou `python -m pipeline cast approve {page.slug} {cid}`")
 
 
 def _image_counterpart(a, page, it):
@@ -620,7 +756,7 @@ def _image_counterpart(a, page, it):
     it.history.append({"at": time.time(), "from": it.state, "to": it.state, "why": f"ficha da contraparte v{n}"})
     it.save()
     print(f"ok: {out.relative_to(ROOT)}")
-    others = [c["who"] for c in lintmod.sheet_counterparts(it.script)[1:]]
+    others = [c["who"] for c in lintmod.oneoff_people(it.script)[1:]]
     if others:
         print(f"aviso: só {cp['who']} ganha ficha; {', '.join(others)} segue(m) sem (uma ficha por item)", file=sys.stderr)
 
@@ -881,12 +1017,19 @@ def cmd_video_request(a):
         else:
             need_upload.append({"key": "storyboard", "path": it.storyboard.get("path")})
     cp_rec = _require_cp_sheet(it, a.ref)  # rodada 7: a ficha da contraparte, depois da grade
-    cp_ref = None
+    cp_ref = []
     if cp_rec and cp_rec.get("higgsfield_id"):
         medias.append({"role": "image_references", "value": cp_rec["higgsfield_id"]})
-        cp_ref = (cp_rec["who"], 3 + int(has_sb))
+        cp_ref.append((cp_rec["who"], 3 + int(has_sb)))
     elif cp_rec:
         need_upload.append({"key": "counterpart", "path": cp_rec.get("path")})
+    cast_recs = _require_cast(it, page, a.ref)  # elenco: fichas aprovadas, depois da avulsa, com o nome no prompt
+    need_upload += _cast_hf_missing(cast_recs, page)
+    for c in cast_recs:
+        if c.get("hf_id"):
+            medias.append({"role": "image_references", "value": c["hf_id"]})
+            cp_ref.append((c["who"], 2 + int(has_sb) + len(cp_ref) + 1))
+    _check_ref_count(len(medias) + len(need_upload), VIDEO_REFS_MAX, "video-request")
     if need_upload:
         _print({"ready": False, "upload_first": need_upload,
                 "how": ("Para cada arquivo: mcp__Higgsfield__media_upload(filename=<nome.png>) -> "
@@ -1010,8 +1153,18 @@ def _video_request_gag(a, page, it):
                 "how": "media_upload + PUT + media_confirm(type='image') da ficha da contraparte e depois "
                        f"`python -m pipeline record-upload {a.ref} counterpart --hf-id <id>`; rode `video-request --gag` de novo."})
         return
+    gag_cast = _require_cast(it, page, a.ref, gag_only=True)  # elenco no quadro do gag
+    miss = _cast_hf_missing(gag_cast, page)
+    if miss:
+        _print({"ready": False, "upload_first": miss,
+                "how": "media_upload + PUT + media_confirm(type='image') de cada ficha do elenco e depois "
+                       f"`python -m pipeline record-upload {a.ref} cast:<cast_id> --hf-id <id>`; rode `video-request --gag` de novo."})
+        return
     g = s["gag_followup"]
-    prompt = prompts.gag_prompt(s, page, (cp_rec["who"], 3) if cp_rec else None)
+    sheets = ([(cp_rec["who"], 3)] if cp_rec else []) + [(c["who"], 3 + int(bool(cp_rec)) + i)
+                                                        for i, c in enumerate(gag_cast)]
+    _check_ref_count(3 + len(sheets), VIDEO_REFS_MAX, "video-request --gag")
+    prompt = prompts.gag_prompt(s, page, sheets or None)
     (_workdir(it) / f"gag-v{it.attempts.get('gag', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     _print({
         "ready": True,
@@ -1021,7 +1174,8 @@ def _video_request_gag(a, page, it):
             "duration": int(round(float(g.get("duration_s", 5)))), "resolution": "720p", "generate_audio": False,
             "medias": [{"role": "start_image", "value": it.video["last_hf_id"]}]
                       + [{"role": "image_references", "value": i} for i in ref_ids]
-                      + ([{"role": "image_references", "value": cp_rec["higgsfield_id"]}] if cp_rec else []),
+                      + ([{"role": "image_references", "value": cp_rec["higgsfield_id"]}] if cp_rec else [])
+                      + [{"role": "image_references", "value": c["hf_id"]} for c in gag_cast],
             "prompt": prompt}}],
         "est_credits": est,
         "note": "Se a resposta recomendar um preset, reenvie com declined_preset_id.",
@@ -1112,7 +1266,17 @@ def _video_request_trend(a, page, it, b):
     if not no_sheet and len(sheet_ids) < 2:
         raise StoreError(f"{page.slug}: precisa de higgsfield_id para face e silhouette no page.yaml "
                          f"(ou rode com --no-sheet)")
-    prompt = prompts.motion_scene_prompt(s, page, with_sheet=bool(sheet_ids), intake=it.intake)
+    cast_recs = _require_cast(it, page, a.ref)  # elenco trocado na fonte: a ficha dele vai depois da do personagem
+    miss = _cast_hf_missing(cast_recs, page)
+    if miss:
+        _print({"ready": False, "upload_first": miss,
+                "how": "media_upload + PUT + media_confirm(type='image') de cada ficha do elenco e depois "
+                       f"`python -m pipeline record-upload {a.ref} cast:<cast_id> --hf-id <id>`; rode de novo."})
+        return
+    cast_ids = [c["hf_id"] for c in cast_recs]
+    _check_ref_count(1 + len(sheet_ids) + len(cast_ids), VIDEO_REFS_MAX, "video-request (Genjutsu)")
+    prompt = prompts.motion_scene_prompt(s, page, with_sheet=bool(sheet_ids), intake=it.intake,
+                                         cast=[(c["cast_id"], c["who"]) for c in cast_recs])
     (_workdir(it) / f"video-v{it.attempts.get('video', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     res = "720p" if budget.degraded_mode() else (a.resolution or str(page.data.get("video_resolution", "720p")))
     _print({
@@ -1122,6 +1286,7 @@ def _video_request_trend(a, page, it, b):
             "model": "hf_mult_motion_control", "resolution": res, "prompt": prompt,
             "medias": [{"role": "image_references", "value": f["higgsfield_id"]}]
                       + [{"role": "image_references", "value": i} for i in sheet_ids]
+                      + [{"role": "image_references", "value": i} for i in cast_ids]
                       + [{"role": "video_references", "value": mo["source_hf_id"]}]}}],
         "note": "Genjutsu: a duração é a da fonte. Se a saída vier mais curta que a fonte, o movimento era rápido demais: "
                 "desacelere a fonte para 50-75% e corte de novo (playbook C5).",

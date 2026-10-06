@@ -369,9 +369,80 @@ def sheet_counterparts(script: dict) -> list[dict]:
             continue
         who = str(cp["who"]).strip()
         cur = out.setdefault(who.lower(), {"who": who})
-        if cp.get("look") and not cur.get("look"):
-            cur["look"] = str(cp["look"]).strip()
+        for k in ("look", "cast_id"):  # cast_id: a pessoa é do elenco da página (pages/<p>/cast/, docs/qa/elenco.md)
+            if cp.get(k) and not cur.get(k):
+                cur[k] = str(cp[k]).strip()
     return list(out.values())
+
+
+def featured_extras(script: dict) -> list[dict]:
+    """`en.featured_extras` normalizado: figurante em destaque (rosto visível, em 2+ estágios ou perto da câmera),
+    que ganha ficha (do elenco com `cast_id`, ou avulsa com `look`). Passante de fundo fica só no prompt."""
+    raw = ((script or {}).get("en") or {}).get("featured_extras") or []
+    out = []
+    for i, ex in enumerate(raw if isinstance(raw, list) else [], 1):
+        if not isinstance(ex, dict):
+            continue
+        out.append({"who": str(ex.get("who") or "").strip(), "cast_id": str(ex.get("cast_id") or "").strip(),
+                    "look": str(ex.get("look") or "").strip(), "position": str(ex.get("position") or "").strip(),
+                    "task": str(ex.get("task") or "").strip(), "n": i, "src": "extra"})
+    return out
+
+
+def sheet_people(script: dict) -> list[dict]:
+    """Todo mundo que ganha ficha, na ordem: contrapartes humanas no quadro (rodada 7) e figurantes em destaque.
+    Um por pessoa (cast_id ou who). Figurante do elenco sem `who` fica com who vazio: quem chama resolve pelo nome."""
+    out: list[dict] = []
+    seen: set[str] = set()
+    for p in [dict(c, src="counterpart") for c in sheet_counterparts(script)] + featured_extras(script):
+        key = ("cast:" + p["cast_id"]) if p.get("cast_id") else ("who:" + p.get("who", "").lower())
+        if key in seen or key == "who:":
+            if key == "who:" and p.get("look"):  # figurante só com look e sem nome: ainda conta (o lint avisa)
+                p = dict(p, who=f"the featured extra {p.get('n', len(out) + 1)}")
+            else:
+                continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def oneoff_people(script: dict) -> list[dict]:
+    """Quem ganha ficha AVULSA (sem cast_id): a ficha da contraparte da rodada 7, uma por item (a 1ª)."""
+    return [p for p in sheet_people(script) if not p.get("cast_id")]
+
+
+def cast_people(script: dict) -> list[dict]:
+    """Quem usa a ficha do elenco da página (cast_id)."""
+    return [p for p in sheet_people(script) if p.get("cast_id")]
+
+
+def lint_people(script: dict, cast_ids: set[str] | None = None) -> tuple[list[str], list[str]]:
+    """Elenco (docs/qa/elenco.md): contraparte humana no quadro ou figurante em destaque sem `cast_id` nem `look` sai
+    gente genérica de IA; `cast_id` desconhecido é erro (com `cast_ids`, a lista do elenco da página)."""
+    errors: list[str] = []
+    warns: list[str] = []
+    raw = ((script or {}).get("en") or {}).get("featured_extras")
+    if raw is not None and not isinstance(raw, list):
+        errors.append("en.featured_extras deve ser uma lista de {cast_id | look, who, position, task}")
+    for c in sheet_counterparts(script):
+        if not c.get("cast_id") and not c.get("look"):
+            warns.append(f"contraparte '{c['who']}' sem cast_id nem look: a ficha sai genérica. Use alguém do elenco "
+                         f"(`cast list`) ou descreva a aparência em counterpart.look (docs/qa/elenco.md)")
+    for ex in featured_extras(script):
+        tag = ex["who"] or ex["cast_id"] or f"#{ex['n']}"
+        if not ex["cast_id"] and not ex["look"]:
+            warns.append(f"figurante em destaque {tag} sem cast_id nem look: vira gente genérica de IA. Passante de "
+                         f"fundo fica em extras_tasks; em destaque, use o elenco ou um look (docs/qa/elenco.md)")
+        if not ex["cast_id"] and not ex["who"]:
+            warns.append(f"figurante em destaque {tag} sem who: dê um nome ou papel (B4.11)")
+        if not ex["position"] or not ex["task"]:
+            warns.append(f"figurante em destaque {tag} sem position ou task (B4.6: cada um com uma tarefa)")
+    if cast_ids is not None:
+        for p in cast_people(script):
+            if p["cast_id"] not in cast_ids:
+                errors.append(f"cast_id '{p['cast_id']}' não existe no elenco da página "
+                              f"(`python -m pipeline cast list {script.get('page', '<page>')}`)")
+    return errors, warns
 
 
 def _who_error(who: str, protag: set[str]) -> str:
@@ -617,6 +688,8 @@ def _span(t: str) -> tuple[float, float] | None:
     return (float(m.group(1)), float(m.group(2))) if m else None
 
 
+TREND_MAX_S = 30        # Genjutsu e Seedance 2.5: fonte de 3 a 30 s (vendor/…/model-guide.md)
+TREND_LOOP_MAX_S = 15   # nota leve: 8–15 s é o que faz loop melhor no Reels
 TREND_REQUIRED = ["page", "title", "format", "premise", "gag_without_sound", "camera", "duration_s", "caption",
                   "hashtags", "self_score", "music", "trend", "en"]
 TREND_EN = ["location", "lighting", "extras_count", "extras_tasks", "replace_subject"]
@@ -655,6 +728,9 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
     e, w = lint_crowd(script["en"])
     errors += e
     warns += w
+    e, w = lint_people(script, _cast_ids(page))
+    errors += e
+    warns += w
     tr = script["trend"]
     if not tr.get("name") or not tr.get("source_hint"):
         errors.append("trend precisa de name e source_hint (de onde vem o vídeo-fonte)")
@@ -667,8 +743,12 @@ def lint_trend(script: dict, page: dict | None = None) -> tuple[list[str], list[
                      "personagem. Escreva en.source_expression, ex.: 'the source dancer is deadpan: lips closed, "
                      "lip corners level' (videos-analisados §12; playbook C5)")
     dur = float(script["duration_s"])
-    if not 3 <= dur <= 15:
-        errors.append(f"duração {dur}s fora de 3–15 s para motion control (corte a fonte no trecho da coreografia)")
+    if not 3 <= dur <= TREND_MAX_S:
+        errors.append(f"duração {dur}s fora de 3–{TREND_MAX_S} s para motion control (corte a fonte no trecho da "
+                      f"coreografia)")
+    elif dur > TREND_LOOP_MAX_S:
+        warns.append(f"trend de {dur:.0f} s: o Genjutsu aceita até {TREND_MAX_S} s, mas 8–{TREND_LOOP_MAX_S} s é o que "
+                     f"faz loop melhor no Reels; confira também o teto de créditos por ideia (budget.yaml per_idea)")
     if SLOW.search(_text(script["en"])):
         errors.append("bloco en com palavra de câmera lenta (regra 19)")
     scan = {k: v for k, v in script.items() if k not in ("brand_safety", "risks", "originality_note")}
@@ -753,6 +833,18 @@ def lint_gag(g, premise: str = "", allow_behind: bool = False,
     return errors, warns
 
 
+def _cast_ids(page: dict | None) -> set[str] | None:
+    """cast_ids do elenco da página (pages/<slug>/cast/*.yaml), ou None sem página (não confere)."""
+    slug = (page or {}).get("slug")
+    if not slug:
+        return None
+    from . import cast as _cast
+    try:
+        return set(_cast.load(slug))
+    except Exception:  # noqa: BLE001 - elenco ilegível não derruba o lint
+        return None
+
+
 def lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]:
     """Valida o roteiro. Roteiro malformado (tipo errado num campo) vira erro de lint, nunca traceback."""
     if not isinstance(script, dict):
@@ -807,6 +899,9 @@ def _lint(script: dict, page: dict | None = None) -> tuple[list[str], list[str]]
     if script.get("end_frame") or en.get("end_change"):
         warns += lint_end_nouns(stages, end_text(en))
     e, w = lint_crowd(en)
+    errors += e
+    warns += w
+    e, w = lint_people(script, _cast_ids(page))
     errors += e
     warns += w
     if isinstance(en.get("panels"), list) and stages and len(en["panels"]) != len(stages):

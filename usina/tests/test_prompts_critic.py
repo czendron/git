@@ -178,6 +178,8 @@ def test_last_end_state_is_concrete(bus, page):
     assert prompts._lc(bus["en"]["end_change"]) in last(no_end)   # sem end_image, o end_change vai por extenso
     for f in QUEUE:
         s = json.loads(f.read_text())["script"]
+        if not s or s.get("format") == "trend":  # trend usa motion_scene_prompt, não o C4
+            continue
         for has_end in (True, False):
             v = prompts.video_prompt(s, page, has_start=True, has_end=has_end, has_storyboard=True)
             assert "readable as a cover" not in v and "frozen result" not in v
@@ -248,6 +250,8 @@ def test_rendered_prompts_have_no_slow_words_and_fixed_fov(page):
     slow = re.compile(r"\b(slowly|graceful|smooth)\b|\bslow (?!deliberate blink|blink|motion)", re.I)  # "no slow motion" é a proibição pelo nome (regra 19)
     for f in QUEUE:
         s = json.loads(f.read_text())["script"]
+        if not s or s.get("format") == "trend":  # trend: motion_*_prompt (outro teste)
+            continue
         texts = [prompts.storyboard_prompt(s, page)[0], prompts.frame_a_prompt(s, page, True),
                  prompts.frame_b_prompt(s, page),
                  prompts.video_prompt(s, page, has_start=True, has_end=True, has_storyboard=True)]
