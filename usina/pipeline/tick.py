@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 
-from . import budget, launch, lint as lintmod
+from . import budget, cast as castmod, launch, lint as lintmod, prompts
 from .store import Item, Page, list_items, load_pages
 
 ACTIVE = ["ideia", "roteiro", "storyboard", "frames", "video", "revisao", "pronto"]
@@ -122,7 +122,7 @@ def _est_video_credits(item: Item, b: dict) -> float:
 
 def counterpart_todo(item: Item) -> dict | None:
     """Rodada 7: a contraparte humana no quadro que ainda não tem ficha (ou a ficha é de outra pessoa)."""
-    cps = lintmod.sheet_counterparts(item.script or {})
+    cps = lintmod.oneoff_people(item.script or {})  # quem tem cast_id usa a ficha do elenco (cast_todo)
     if not cps:
         return None
     rec = item.counterpart or {}
@@ -134,6 +134,54 @@ def _counterpart_action(item: Item, b: dict, pid: str, cp: dict) -> dict:
     return {"do": "run", "item": pid, "cmd": f"python -m pipeline image {pid} counterpart",
             "cost_usd": b["cost_estimates"]["openai_image"]["high"], "provider": "openai",
             "why": f"contraparte humana no quadro ({cp['who']}): ficha própria antes dos frames (B4.11; rodada 7)"}
+
+
+def cast_todo(item: Item, page: Page, b: dict) -> dict | None:
+    """Elenco (docs/qa/elenco.md): fichas aprovadas do elenco são pré-requisito dos frames. Sem ficha (ou recusada):
+    `image <page> cast-sheet <id>`; ficha pronta e não aprovada: o Caio aprova na Caixa (card Elenco)."""
+    s = item.script or {}
+    if s.get("format") == "trend":
+        ids = prompts.swap_cast_order(item.intake)
+        ids += [p["cast_id"] for p in lintmod.cast_people({"gag_followup": s.get("gag_followup") or {}})
+                if p["cast_id"] not in ids]
+    else:
+        ids = [p["cast_id"] for p in lintmod.cast_people(s)]
+    if not ids:
+        return None
+    members = castmod.load(page.slug)
+    pid = f"{item.page}/{item.id}"
+    for cid in ids:
+        m = members.get(cid)
+        if m is None:
+            return {"do": "blocked", "item": pid, "why": f"cast_id '{cid}' não existe em pages/{page.slug}/cast/: "
+                                                       f"crie com `python -m pipeline cast new {page.slug} {cid} ...` "
+                                                       f"ou reescreva o roteiro"}
+        st = castmod.state(page.slug, m)
+        if st in ("sem ficha", "recusada"):
+            return {"do": "run", "item": pid, "cast_id": cid,
+                    "cmd": f"python -m pipeline image {page.slug} cast-sheet {cid}",
+                    "cost_usd": b["cost_estimates"]["openai_image"]["high"], "provider": "openai",
+                    "why": f"elenco: {m.get('name', cid)} sem ficha aprovada ({st}); a ficha vale para todo vídeo"}
+        if st == "aguardando":
+            return {"do": "await_caio", "item": pid, "stage": "elenco", "cast_id": cid,
+                    "how": f"O Caio aprova a ficha de {m.get('name', cid)} na Caixa (card Elenco). Suba antes com "
+                           f"`media-status` → Artifact(asset) → `cast asset {page.slug} {cid} <url>`."}
+    return None
+
+
+def trend_over_cap(item: Item, b: dict) -> str:
+    """Trend cujo Genjutsu passa do teto por ideia (ata D5) antes de gastar com imagem: o video-request recusaria."""
+    s = item.script or {}
+    if s.get("format") != "trend":
+        return ""
+    est = _est_video_credits(item, b)
+    cap = float(b["per_idea"].get("max_credits", 1e9))
+    if est <= cap:
+        return ""
+    per = b["cost_estimates"]["higgsfield_credits"]["hf_mult_motion_control_per_s"]
+    return (f"trend de {float(s.get('duration_s', 0)):.1f} s ≈ {est:.0f} créditos no Genjutsu ({per}/s), acima do teto "
+            f"de {cap:.0f} por ideia (ata D5; budget.yaml per_idea, decisão do conselho): recorte a fonte para até "
+            f"{cap / per:.0f} s (`motion-source --file`) ou descarte. Nenhuma imagem gerada.")
 
 
 def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
@@ -162,6 +210,10 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                                 f"motion library do Higgsfield ou trend recortada. `{cmd} motion-source {pid} --file fonte.mp4`"})
         elif att.get("frames", 0) >= max_img:
             acts.append({"do": "discard", "item": pid, "how": f"{cmd} discard {pid} --why 'frame de trend reprovado 3x'"})
+        elif trend_over_cap(item, b):
+            acts.append({"do": "blocked", "item": pid, "why": trend_over_cap(item, b)})
+        elif cast_todo(item, page, b):  # elenco trocado na fonte: ficha aprovada antes das 4 opções
+            acts.append(cast_todo(item, page, b))
         elif counterpart_todo(item):  # gag com contraparte humana no quadro: a ficha sai antes dos frames
             acts.append(_counterpart_action(item, b, pid, counterpart_todo(item)))
         else:
@@ -188,6 +240,8 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
             acts.append({"do": "await_caio", "item": pid, "stage": "storyboard"})
         elif g["caio"] == "rejected":
             acts.append({"do": "run", "item": pid, "cmd": f"{cmd} retry {pid} storyboard"})
+        elif cast_todo(item, page, b):  # elenco: fichas aprovadas antes dos frames
+            acts.append(cast_todo(item, page, b))
         elif counterpart_todo(item):
             acts.append(_counterpart_action(item, b, pid, counterpart_todo(item)))
         else:
@@ -212,7 +266,7 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                                 f"`{cmd} review {pid} frames pass --notes '...'`. Nenhuma serve: "
                                 f"`{cmd} review {pid} frames fail --notes '...'`."})
         elif g["qa"] == "pending":
-            cp_file = (item.counterpart or {}).get("path") if lintmod.sheet_counterparts(item.script or {}) else None
+            cp_file = (item.counterpart or {}).get("path") if lintmod.oneoff_people(item.script or {}) else None
             acts.append({"do": "review_image", "item": pid, "stage": "frames",
                          "file": [f.get("path") for f in item.frames.values()] + ([cp_file] if cp_file else []),
                          "rubric": "prompts/review_frames.md",
@@ -495,6 +549,9 @@ def plan(now: float | None = None) -> dict:
                 if a["do"] == "check_balance":
                     if not any(x["do"] == "check_balance" for x in out["actions"]):
                         out["actions"].insert(0, {k: v for k, v in a.items() if k != "item"})
+                elif a.get("cast_id") and any(x.get("cast_id") == a["cast_id"] and x.get("do") == a["do"]
+                                              for x in out["actions"] + out["waiting_caio"]):
+                    continue  # a mesma ficha do elenco pedida por dois itens: uma ação só
                 elif a["do"] == "await_caio":
                     out["waiting_caio"].append(a)
                 elif out.get("images_blocked") and a.get("provider") == "openai":

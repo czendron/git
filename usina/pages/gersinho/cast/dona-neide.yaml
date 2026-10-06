@@ -2,14 +2,14 @@
 cast_id: dona-neide
 name: Dona Neide
 pronoun: she
-role: feirante da banca de frutas da feira de domingo; grita o preço e não olha para o Gersinho
+role: "feirante da banca de frutas da feira de domingo; grita o preço e não olha para o Gersinho"
 look: >-
   stocky Brazilian woman in her mid fifties, warm brown skin, short wavy hair dyed burgundy under a
   faded yellow visor cap, small gold hoop earrings, sleeveless striped blouse under a green canvas
   apron with two coin pockets, a black pochete belt bag at the waist, rubber flip-flops
 status: rascunho
 recurring: true
-notes: mundo do Gersinho (feira); tarefa padrão: pesa tomate na balança, embrulha em jornal
+notes: "mundo do Gersinho (feira); tarefa padrão: pesa tomate na balança, embrulha em jornal"
 refs:
   sheet: null
   higgsfield_id: null

@@ -18,6 +18,8 @@ Comandos principais:
   video-request <ref> --gag | record-video <ref> --gag ... | fetch-video <ref> --gag | review <ref> gag | skip-gag
   motion-source <page/id> --file fonte.mp4 | --hf-id <id>               (trend: vídeo-fonte do motion control)
   motion-intake motion.json                  pedidos da aba Motion control do painel -> itens de trend (idempotente)
+  cast list|new|show|approve|asset|restore <page> [<cast_id>]   elenco recorrente (docs/qa/elenco.md)
+  image <page> cast-sheet <cast_id>          ficha C1 2x2 de um membro do elenco (OpenAI; o Caio aprova na Caixa)
   media-status [--ref] | media-restore <page/id> <key> --file f | panel-asset <page/id> <key> /_blob/<id> [--path]
   panel-export | panel-apply decisoes.json | placar-import placar.json | cadence-check
   record-error "msg" [--ref] | balance <créditos> | health
@@ -813,6 +815,14 @@ def cmd_record_image(a):
 
 def cmd_record_upload(a):
     page, it = _item(a.ref)
+    if a.key.startswith("cast:"):  # ficha do elenco: o id do Higgsfield fica no yaml do membro (vale para todo vídeo)
+        m = castmod.get(page.slug, a.key.split(":", 1)[1])
+        if not castmod.has_sheet(page.slug, m):
+            raise StoreError(f"{m['cast_id']} sem ficha (`image {page.slug} cast-sheet {m['cast_id']}`)")
+        m.setdefault("refs", {})["higgsfield_id"] = a.hf_id
+        castmod.save(page.slug, m)
+        print("registrado (elenco)")
+        return
     if a.key == "source_first":
         if not (it.motion or {}).get("first_frame"):
             raise StoreError("trend sem fonte registrada: rode motion-source --file antes")
@@ -836,7 +846,7 @@ def cmd_record_upload(a):
             raise StoreError(f"item sem frame '{a.key}' gerado; nada para associar ao upload")
         it.frames[a.key]["higgsfield_id"] = a.hf_id
     else:
-        raise StoreError("key deve ser storyboard, start, end, counterpart, source_first ou last")
+        raise StoreError("key deve ser storyboard, start, end, counterpart, cast:<cast_id>, source_first ou last")
     it.save()
     print("registrado")
 
@@ -1322,8 +1332,9 @@ def cmd_motion_source(a):
         info = media.probe(src)
         cuts = media.detect_cuts(src)
         problems = []
-        if not 3 <= info["duration"] <= 15:
-            problems.append(f"fonte com {info['duration']:.1f}s: corte no trecho da coreografia (3-15 s, ideal 8-10 s)")
+        if not 3 <= info["duration"] <= lintmod.TREND_MAX_S:
+            problems.append(f"fonte com {info['duration']:.1f}s: corte no trecho da coreografia "
+                            f"(3-{lintmod.TREND_MAX_S} s, ideal 8-15 s)")
         if cuts and from_panel and (it.intake or {}).get("cuts_false_alarm"):
             print(f"aviso: cortes em {cuts}, mas o Caio marcou no painel que a fonte não tem corte (falso alarme)")
         elif cuts:
@@ -1342,8 +1353,12 @@ def cmd_motion_source(a):
               "history": (mo.get("history") or []) + ([{k: v for k, v in mo.items() if k != "history"}]
                                                      if mo.get("source_path") else [])}
         warns = problems[:] if a.force else []
-        if info["duration"] > 12:
-            warns.append("fonte longa: o ideal é 8-10 s")
+        if info["duration"] > lintmod.TREND_LOOP_MAX_S:
+            warns.append(f"fonte de {info['duration']:.0f} s: aceita (até {lintmod.TREND_MAX_S} s), mas 8-15 s é o que "
+                         f"faz loop melhor no Reels")
+        cw = _trend_cost(info["duration"]).get("warn")
+        if cw:
+            warns.append(cw)
         if info["width"] > info["height"]:
             warns.append("fonte horizontal: prefira 9:16")
         for w in warns:
@@ -1742,8 +1757,27 @@ def cmd_panel_export(a):
         if did not in mirrored and rec.get("status") == "erro":
             writes.append({"op": "update", "collection": "motion", "doc_id": did, "data": {
                 "status": "erro", "statusNote": rec.get("reason", ""), "ref": "", "statusAt": int(rec.get("at", 0) * 1000)}})
+    # Elenco recorrente (docs/qa/elenco.md): aba Elenco e card "Elenco" da Caixa (ficha nova esperando o Caio)
+    for slug in pages:
+        for cid, m in castmod.load(slug).items():
+            refs = m.get("refs") or {}
+            used = [f"{i.page}/{i.id}" for i in list_items(slug) if i.state not in ("descartado", "postado")
+                    and (cid in {x["cast_id"] for x in lintmod.cast_people(i.script or {})}
+                         or cid in prompts.swap_cast_order(i.intake))]
+            writes.append({"op": "set", "collection": "elenco", "doc_id": f"{slug}--{cid}", "data": {
+                "page": slug, "castId": cid, "name": m.get("name", cid), "pronoun": m.get("pronoun", "he"),
+                "role": m.get("role", ""), "look": m.get("look", ""), "status": m.get("status", "rascunho"),
+                "state": castmod.state(slug, m), "notes": m.get("notes", ""),
+                "sheetUrl": refs.get("url") if refs.get("asset_path") == refs.get("sheet") else "",
+                "sheetAt": int(float(refs.get("at") or 0) * 1000), "review": {k: v for k, v in (m.get("review") or {}).items()
+                                                                            if k != "decisions"},
+                "usedBy": used, "updatedAt": int(time.time() * 1000)}})
     pl = mkplan()
+    bud = budget.load_budget()
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
+        "budget": {"mcPerS": bud["cost_estimates"]["higgsfield_credits"].get("hf_mult_motion_control_per_s"),
+                   "maxCreditsIdea": bud["per_idea"].get("max_credits"),
+                   "dayCapCredits": round(float(bud["day_cap"]["higgsfield"]) / float(bud.get("higgsfield_credit_usd", 0.05)))},
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
         "actions": len(pl["actions"]), "hfSpend": bool(_switches().get("higgsfield_spend_enabled", False)), "waiting": [w["item"] + " · " + w["stage"] for w in _waiting(pl)],
         "ledger": budget.rows()[-15:], "balance": pl.get("balance"),
@@ -1856,6 +1890,10 @@ def cmd_media_status(a):
                 # sumiu e o arquivo guardado (se houver) é de outra versão: não restaurar o velho no lugar do novo
                 lost.append({"ref": ref, "key": key, "path": path, "archived_version": rec.get("path") or None,
                              "fix": _lost_fix(ref, key)})
+    if not a.ref:
+        cu, cr = _cast_media()
+        upload += cu
+        restore += cr
     _print({"upload": upload, "restore": restore, "lost": lost,
             "how_upload": "Artifact(url=<painel>, asset=true, file_paths=[...]) e depois "
                           "`python -m pipeline panel-asset <ref> <key> /_blob/<id> --path <path>` para cada arquivo",
@@ -2013,6 +2051,41 @@ def cmd_panel_apply(a):
                 print(f"{ref}: 'Postei' num item em '{it.state}' (só vale em pronto); ignorado")
                 stale.append(did)
             continue
+        if stage == "elenco" and verdict in ("approve", "reject"):  # card Elenco da Caixa: ficha nova do elenco
+            try:
+                slug, cid = str(ref or "").split("/", 1)
+                m = castmod.get(slug, cid)
+            except (StoreError, ValueError) as e:
+                print(f"inválido ({e})")
+                if did:
+                    invalid.append(did)
+                continue
+            try:
+                at = float(d.get("at") or 0) / 1000.0
+            except (TypeError, ValueError):
+                at = 0.0
+            sheet_at = float((m.get("refs") or {}).get("at") or 0)
+            seen = (m.get("review") or {}).get("decisions") or []
+            if did and did in seen:
+                print(f"{ref} elenco: decisão {did} já aplicada")
+                done.append(did)
+            elif at and sheet_at and at < sheet_at:
+                print(f"{ref} elenco: decisão obsoleta (a ficha foi refeita depois); ignorada")
+                stale.append(did)
+            else:
+                try:
+                    m = castmod.decide(slug, cid, verdict == "approve", str(d.get("notes") or ""))
+                except StoreError as e:
+                    print(f"inválido ({e})")
+                    if did:
+                        invalid.append(did)
+                    continue
+                if did:
+                    m["review"]["decisions"] = (seen + [did])[-50:]
+                    castmod.save(slug, m)
+                print(f"{ref} elenco: {m['status']}")
+                done.append(did)
+            continue
         if stage not in ("storyboard", "frames", "video") or verdict not in ("approve", "reject"):
             print(f"inválido: {json.dumps(d, ensure_ascii=False)[:200]}")
             if did:
@@ -2089,6 +2162,26 @@ def _motion_status(it) -> tuple[str, str]:
     return {"video": "vídeo", "revisao": "revisão", "storyboard": "roteiro"}.get(it.state, it.state), ""
 
 
+def _trend_cost(dur) -> dict:
+    """Créditos estimados do Genjutsu para o trecho (dur × hf_mult_motion_control_per_s) contra o teto por ideia e o
+    teto diário (budget.yaml; ata D5). Os tetos são do conselho: aqui só avisa."""
+    b = budget.load_budget()
+    per_s = float(b["cost_estimates"]["higgsfield_credits"].get("hf_mult_motion_control_per_s", 8))
+    cap = float(b["per_idea"].get("max_credits", 160))
+    day = float(b["day_cap"]["higgsfield"]) / float(b.get("higgsfield_credit_usd", 0.05))
+    if dur is None:
+        return {}
+    est = round(float(dur) * per_s, 1)
+    out = {"est_credits": est, "per_s": per_s, "cap_idea": cap, "cap_day_credits": round(day), "max_s": round(cap / per_s, 1)}
+    if est > cap:
+        out["warn"] = (f"trecho de {float(dur):.1f} s ≈ {est:.0f} créditos no Genjutsu ({per_s:g}/s), acima do teto de "
+                       f"{cap:.0f} créditos por ideia (ata D5): o video-request recusa. Recorte para até "
+                       f"{cap / per_s:.0f} s ou peça ao conselho para mudar o teto")
+    elif est > day:
+        out["warn"] = f"≈ {est:.0f} créditos passam do teto diário do Higgsfield (~{day:.0f} créditos)"
+    return out
+
+
 def cmd_motion_intake(a):
     """Pedidos da aba Motion control do painel (coleção motion, exportada para JSON) → itens de trend.
 
@@ -2102,7 +2195,7 @@ def cmd_motion_intake(a):
         raise StoreError(f"não consegui ler {a.file}: {e}")
     ledger = _motion_ledger()
     by_doc = {str((i.intake or {}).get("doc_id")): i for i in list_items() if (i.intake or {}).get("doc_id")}
-    created, already, invalid, updates = [], [], [], []
+    created, already, invalid, updates, warnings = [], [], [], [], []
     now_ms = int(time.time() * 1000)
 
     def _upd(did, status, ref="", note=""):
@@ -2138,15 +2231,23 @@ def cmd_motion_intake(a):
         asset = _asset_id(d.get("sourceAssetId"), d.get("sourceUrl"), d.get("sourceAssetUrl"))
         if not asset:
             problems.append("sem o asset do clipe (sourceAssetId)")
-        subj = str(d.get("replace_subject") or "").strip()
+        sws = prompts.swaps({"swaps": d.get("swaps") or []})
+        subj = str(d.get("replace_subject") or "").strip() or next(
+            (sw["target"] for sw in sws if sw["kind"] == "protagonist"), "")  # back-compat: 1ª troca pelo protagonista
         if not subj:
-            problems.append("sem replace_subject (quem trocar)")
+            problems.append("sem replace_subject (quem trocar): nenhuma troca põe o personagem da página")
+        if page is not None:
+            members = castmod.load(slug)
+            for sw in sws:
+                if sw["kind"] == "cast" and sw["cast_id"] not in members:
+                    problems.append(f"troca '{sw['target']}' pede o elenco '{sw['cast_id'] or '?'}', que não existe "
+                                    f"em pages/{slug}/cast/")
         try:
             dur = float(d.get("endS")) - float(d.get("startS"))
         except (TypeError, ValueError):
             dur = None
-        if dur is not None and not 3 <= dur <= 15.05:
-            problems.append(f"trecho de {dur:.1f}s fora de 3–15 s (playbook C5)")
+        if dur is not None and not 3 <= dur <= lintmod.TREND_MAX_S + 0.05:
+            problems.append(f"trecho de {dur:.1f}s fora de 3–{lintmod.TREND_MAX_S} s (playbook C5)")
         cuts = d.get("cuts") or []
         if cuts and not d.get("cutsFalseAlarm"):
             problems.append(f"a fonte tem cortes em {cuts} e o Caio não marcou falso alarme (playbook C5)")
@@ -2160,9 +2261,19 @@ def cmd_motion_intake(a):
         title = str(d.get("title") or d.get("label") or "Trend do painel").strip()[:80]
         it = new_item(slug, title, {"title": title, "format": "trend", "source": "painel-motion",
                                     "text": str(d.get("label") or title)})
+        cost = _trend_cost(dur)
+        if cost.get("warn"):
+            warnings.append({"id": did, "warning": cost["warn"]})
+            print(f"{did}: aviso: {cost['warn']}")
         it.intake = {
             "doc_id": did, "source_asset": asset, "first_frame_asset": _asset_id(d.get("firstFrameAssetId")),
             "replace_subject": subj, "scene_prompt": str(d.get("scene_prompt") or ""),
+            "swaps": [{"target": sw["target"], "replace_with": {"kind": sw["kind"], "cast_id": sw["cast_id"],
+                                                                 "description": sw["description"]}} for sw in sws],
+            "instructions": str(d.get("instructions") or "")[:2000],
+            "chat": [{"role": str(c.get("role") or ""), "text": str(c.get("text") or "")[:4000]}
+                     for c in (d.get("chat") or [])[-40:] if isinstance(c, dict)],
+            "cost": cost,
             "frame_prompt": str(d.get("frame_prompt") or ""), "consent": str(d.get("consent") or ""),
             "source_expression": str(d.get("source_expression") or ""),
             "source_deadpan": bool(d.get("sourceDeadpan")), "people": d.get("people") or [],
@@ -2182,11 +2293,78 @@ def cmd_motion_intake(a):
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(updates, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"applied_ids": [c["id"] for c in created] + already + [i["id"] for i in invalid],
-                      "created": created, "already": already, "invalid": invalid,
+                      "created": created, "already": already, "invalid": invalid, "warnings": warnings,
                       "restore": [{"ref": c["ref"], "asset_id": c["asset_id"],
                                    "then": f"python -m pipeline motion-source {c['ref']} --file <arquivo salvo>"}
                                   for c in created],
                       "updates_file": str(out.relative_to(ROOT))}, ensure_ascii=False))
+
+
+def cmd_cast(a):
+    """Elenco recorrente da página (docs/qa/elenco.md): list | new | show | approve | asset | restore."""
+    page = get_page(a.page)
+    if a.action == "list":
+        rows = []
+        for cid, m in castmod.load(page.slug).items():
+            used = [f"{i.page}/{i.id}" for i in list_items(page.slug)
+                    if cid in {p["cast_id"] for p in lintmod.cast_people(i.script or {})}
+                    or cid in prompts.swap_cast_order(i.intake)]
+            rows.append({"cast_id": cid, "name": m.get("name"), "role": m.get("role"), "status": m.get("status"),
+                         "state": castmod.state(page.slug, m), "sheet": (m.get("refs") or {}).get("sheet"),
+                         "used_by": used})
+        _print(rows)
+        return
+    if not a.cast_id:
+        raise StoreError(f"uso: cast {a.action} <page> <cast_id>")
+    if a.action == "new":
+        m = castmod.new(page.slug, a.cast_id, a.name or "", a.look or "", a.role or "", a.pronoun)
+        print(f"criado: pages/{page.slug}/cast/{m['cast_id']}.yaml (rascunho). Ficha: "
+              f"`python -m pipeline image {page.slug} cast-sheet {m['cast_id']}`")
+        return
+    m = castmod.get(page.slug, a.cast_id)
+    if a.action == "show":
+        _print(dict(m, state=castmod.state(page.slug, m)))
+    elif a.action == "approve":
+        m = castmod.decide(page.slug, a.cast_id, not a.reject, a.notes)
+        print(f"{a.cast_id}: {m['status']}" + (" (recusada: o plano pede a ficha de novo)" if a.reject else ""))
+    elif a.action == "asset":
+        url = a.url or ""
+        asset = _asset_id(a.asset_id, url)
+        if not asset:
+            raise StoreError("sem id de asset (32 hex) na url nem em --asset-id")
+        refs = m.setdefault("refs", {})
+        refs["asset"], refs["url"], refs["asset_path"] = asset, url or f"/_blob/{asset}", refs.get("sheet")
+        castmod.save(page.slug, m)
+        print("ok")
+    elif a.action == "restore":
+        src = Path(a.file or "")
+        if not src.is_file() or not src.read_bytes()[:4] == b"\x89PNG":
+            raise StoreError(f"{a.file}: não é um PNG (asset errado?)")
+        dst = castmod.sheet_file(page.slug, m)
+        if not dst:
+            raise StoreError(f"{a.cast_id} sem ficha registrada")
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src, dst)
+        print(f"restaurado: {dst.relative_to(ROOT)}")
+
+
+def _cast_media() -> tuple[list, list]:
+    """Fichas do elenco no asset store do painel: (subir, restaurar). pages/*/cast/sheets/ não vai para o git."""
+    up, rest = [], []
+    for page in load_pages():
+        for cid, m in castmod.load(page.slug).items():
+            refs = m.get("refs") or {}
+            f = castmod.sheet_file(page.slug, m)
+            if not f:
+                continue
+            ref = f"cast:{page.slug}/{cid}"
+            if f.exists() and refs.get("asset_path") != refs.get("sheet"):
+                up.append({"ref": ref, "key": "cast_sheet", "file": str(f), "path": rel(f),
+                           "then": f"python -m pipeline cast asset {page.slug} {cid} <url do asset>"})
+            elif not f.exists() and refs.get("asset") and refs.get("asset_path") == refs.get("sheet"):
+                rest.append({"ref": ref, "key": "cast_sheet", "asset_id": refs["asset"], "to": rel(f),
+                             "then": f"python -m pipeline cast restore {page.slug} {cid} --file <arquivo salvo>"})
+    return up, rest
 
 
 def cmd_record_error(a):
@@ -2347,7 +2525,8 @@ def main(argv=None):
     p.add_argument("--force", action="store_true", help="reescrever o roteiro de um item já em produção")
     p.set_defaults(f=cmd_save_script)
     p = sp.add_parser("image"); p.add_argument("ref")
-    p.add_argument("stage", choices=["storyboard", "counterpart", "frames"])
+    p.add_argument("stage", choices=["storyboard", "counterpart", "frames", "cast-sheet"])
+    p.add_argument("cast_id", nargs="?", help="cast-sheet: o membro do elenco (image <page> cast-sheet <cast_id>)")
     p.add_argument("--provider", choices=["openai", "higgsfield"], default=os.getenv("USINA_IMAGE_PROVIDER"),
                    help="padrão: switches.image_provider do budget.yaml")
     p.add_argument("--quality", default="high", choices=["low", "medium", "high", "xhigh"])
@@ -2418,6 +2597,14 @@ def main(argv=None):
     sp.add_parser("cadence-check").set_defaults(f=cmd_cadence_check)
     p = sp.add_parser("panel-apply"); p.add_argument("file"); p.set_defaults(f=cmd_panel_apply)
     p = sp.add_parser("motion-intake"); p.add_argument("file"); p.set_defaults(f=cmd_motion_intake)
+    p = sp.add_parser("cast", help="elenco recorrente da página (docs/qa/elenco.md)")
+    p.add_argument("action", choices=["list", "new", "show", "approve", "asset", "restore"])
+    p.add_argument("page"); p.add_argument("cast_id", nargs="?"); p.add_argument("url", nargs="?")
+    p.add_argument("--name"); p.add_argument("--look"); p.add_argument("--role")
+    p.add_argument("--pronoun", default="he", choices=["he", "she"])
+    p.add_argument("--reject", action="store_true"); p.add_argument("--notes", default="")
+    p.add_argument("--asset-id"); p.add_argument("--file")
+    p.set_defaults(f=cmd_cast)
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
     sp.add_parser("ledger").set_defaults(f=cmd_ledger)

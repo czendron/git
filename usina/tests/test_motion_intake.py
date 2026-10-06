@@ -65,12 +65,12 @@ def test_intake_rejects_bad_docs_with_reason(usina, tmp_path):
     rows = [{"id": "m-draft", **doc(page="marlene")},
             {"id": "m-cut", **doc(cuts=[4.2])},
             {"id": "m-nosubj", **doc(replace_subject="")},
-            {"id": "m-long", **doc(startS=0, endS=20)},
+            {"id": "m-long", **doc(startS=0, endS=35)},
             {"id": "m-done", **doc(status="na fila")}]
     out = intake(usina, write(tmp_path, rows))
     reasons = {i["id"]: i["reason"] for i in out["invalid"]}
     assert "ata D6" in reasons["m-draft"] and "cortes" in reasons["m-cut"]
-    assert "replace_subject" in reasons["m-nosubj"] and "3–15" in reasons["m-long"]
+    assert "replace_subject" in reasons["m-nosubj"] and "3–30" in reasons["m-long"]
     assert "m-done" not in out["applied_ids"] and not out["created"]
     # o falso alarme marcado pelo Caio libera
     out = intake(usina, write(tmp_path, [{"id": "m-ok", **doc(cuts=[4.2], cutsFalseAlarm=True)}], "b.json"))

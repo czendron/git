@@ -2,14 +2,14 @@
 cast_id: seu-juvenal
 name: Seu Juvenal
 pronoun: he
-role: cobrador do busão da linha do Gersinho; conta moedas na catraca e nunca reage
+role: "cobrador do busão da linha do Gersinho; conta moedas na catraca e nunca reage"
 look: >-
   thin Brazilian man in his late fifties, light olive skin, grey hair neatly side-parted with gel,
   thick black-framed glasses, a small grey goatee, light blue short-sleeve bus company uniform shirt
   with a plain unbranded patch, dark navy trousers, a cloth coin pouch hanging from the wrist
 status: rascunho
 recurring: true
-notes: mundo do Gersinho (busão); sentado na cadeira do cobrador ao lado da catraca
+notes: "mundo do Gersinho (busão); sentado na cadeira do cobrador ao lado da catraca"
 refs:
   sheet: null
   higgsfield_id: null
