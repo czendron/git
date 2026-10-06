@@ -522,9 +522,23 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
 
 # ---------------- C5 motion control (Genjutsu / Kling MC: só cena) ----------------
 
-def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True) -> str:
+def _intake_text(intake: dict | None, key: str) -> str:
+    """Prompt escrito na aba Motion control do painel (motion-intake), limpo e com teto de tamanho."""
+    v = (intake or {}).get(key)
+    return re.sub(r"\s+\n", "\n", str(v)).strip()[:4000] if isinstance(v, str) and v.strip() else ""
+
+
+NO_LIKENESS = ("He is a fictional character: do not give him the likeness of any real person, and keep nothing of the "
+               "replaced person's face.")
+
+
+def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True, intake: dict | None = None) -> str:
     """Prompt de cena do motion control. O movimento vem do vídeo-fonte; o prompt escreve o mundo: papéis das imagens,
-    câmera, lugar, luz, rigidez, deadpan e a tarefa de cada figurante (a fonte não traz fundo, videos-analisados §8)."""
+    câmera, lugar, luz, rigidez, deadpan e a tarefa de cada figurante (a fonte não traz fundo, videos-analisados §8).
+
+    Com `intake.scene_prompt` (pedido do painel), ele vira o corpo do prompt; os papéis das imagens (dependem da ordem
+    em que o pipeline manda as mídias) e as travas inegociáveis (rigidez da silhueta, deadpan, sem rosto real) entram
+    sempre."""
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, sil = silhouette(page)
@@ -537,6 +551,20 @@ def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True) -> st
     crowd_line = (f"{crowd(extras).capitalize()} continue their own tasks — {en['extras_tasks']} — each moving on "
                   f"their own rhythm through the whole clip; none looks at {obj}."
                   if extras else f"{sub.capitalize()} is the only person in the set.")
+    custom = _intake_text(intake, "scene_prompt")
+    if custom:
+        return "\n\n".join([
+            roles,
+            custom,
+            "LOCKS: " + " ".join([
+                f"The {noun}'s {part} is a rigid lacquered solid that moves only as one block with {pos} head and keeps "
+                f"its exact outline. Still air.",
+                f"{pos.capitalize()} face stays deadpan and visible: lips closed, lip corners level, eyes toward the lens.",
+                NO_LIKENESS.replace("He is", f"{sub.capitalize()} is").replace(" him ", f" {obj} "),
+                "Body motion and timing come from the source video, with no added cuts. Exactly one main character. "
+                "Real-time speed. No captions, no subtitles, no text on screen.",
+            ]),
+        ])
     return " ".join([
         roles,
         "Body motion and timing come from the source video; the camera keeps the framing of image 1 and follows the "
@@ -550,15 +578,28 @@ def motion_scene_prompt(script: dict, page: Page, with_sheet: bool = True) -> st
     ])
 
 
-def motion_frame_prompt(script: dict, page: Page) -> str:
+def motion_frame_prompt(script: dict, page: Page, intake: dict | None = None) -> str:
     """Frame do personagem para motion control = edição do 1º frame do vídeo-fonte (videos-analisados §2).
 
-    image 1 = primeiro frame da fonte, image 2 = rosto, image 3 = silhueta.
+    image 1 = primeiro frame da fonte, image 2 = rosto, image 3 = silhueta. Com `intake.frame_prompt` (painel), ele é o
+    corpo do pedido e as travas (silhueta inteira e rígida, deadpan, sem rosto real, um personagem) vão no fim.
     """
     en = script["en"]
     sub, pos, obj, noun = _p(page)
     part, sil = silhouette(page)
-    who = en.get("replace_subject", "the dancer")
+    who = en.get("replace_subject") or (intake or {}).get("replace_subject") or "the dancer"
+    custom = _intake_text(intake, "frame_prompt")
+    if custom:
+        if not custom.lower().startswith("edit image 1"):
+            custom = (f"Edit image 1. Replace {who} with the {noun} from image 2 and image 3 — same face as image 2, "
+                      f"same {part} shape and outfit as image 3 ({sil}).\n" + custom)
+        return "\n".join([
+            custom,
+            f"Locks: the {part} is fully inside the frame with 10% headroom above it, one rigid solid with its exact "
+            f"outline. {DEADPAN_FRAME} " + NO_LIKENESS.replace("He is", f"{sub.capitalize()} is").replace(" him ", f" {obj} "),
+            "Must look like a real vertical smartphone photo: real skin texture, natural exposure, everything sharp. "
+            "Exactly one main character. No text, no captions, no watermarks.",
+        ])
     return "\n".join([
         f"Edit image 1. Replace {who} with the {noun} from image 2 and image 3 — same face as image 2, same {part} "
         f"shape and outfit as image 3 ({sil}).",

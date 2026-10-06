@@ -144,7 +144,9 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
     att = item.attempts
     max_img = b["per_idea"]["max_image_attempts"]
 
-    if st == "ideia":
+    if st == "ideia" and item.intake:
+        acts += _intake_actions(item, pid, now)
+    elif st == "ideia":
         acts.append({"do": "write_script", "item": pid,
                      "how": f"Leia prompts/script.md, pages/{item.page}/page.yaml e `{cmd} memory {item.page}` "
                             f"(falhas curadas do playbook e as registradas em data/falhas.jsonl). Escreva o roteiro JSON para a ideia {item.idea!r} em "
@@ -298,6 +300,32 @@ def plan_item(item: Item, page: Page, b: dict, now: float) -> list[dict]:
                      "how": "O Caio baixa o MP4 na Fila do painel (asset 'package'), posta pelo app e clica Postei "
                             f"(ou lança números no Placar). Pelo terminal: `{cmd} posted {pid} --link <url>`."})
     return acts
+
+
+def _intake_actions(item: Item, pid: str, now: float) -> list[dict]:
+    """Pedido da aba Motion control do painel (motion-intake): restaurar o clipe → motion-source → roteiro de trend
+    escrito em cima do pedido (quem trocar, prompts, consentimento). Depois segue o fluxo normal de trend."""
+    cmd = "python -m pipeline"
+    ik = item.intake or {}
+    mo = item.motion or {}
+    if not mo.get("source_path"):
+        if now - item.created_at > TREND_MAX_AGE_DAYS * 86400:
+            return [{"do": "discard", "item": pid,
+                     "how": f"{cmd} discard {pid} --why 'clipe do painel não restaurado em {TREND_MAX_AGE_DAYS} dias'"}]
+        return [{"do": "restore_source", "item": pid, "asset_id": ik.get("source_asset"),
+                 "how": f"Artifact(action='read', url=<painel>, path='{ik.get('source_asset')}') e depois "
+                        f"`{cmd} motion-source {pid} --file <arquivo salvo>` (webm vira MP4 sozinho). Se o asset "
+                        f"não existir mais: `{cmd} discard {pid} --why 'clipe do painel sumiu'` (o painel mostra o motivo)."}]
+    keep = {k: ik.get(k) for k in ("replace_subject", "scene_prompt", "frame_prompt", "consent", "source_expression",
+                                   "source_deadpan", "people", "flags", "label") if ik.get(k) not in (None, "", [], {})}
+    return [{"do": "write_script", "item": pid, "intake": keep, "duration_s": mo.get("duration"),
+             "how": f"Roteiro de TREND (format 'trend', molde prompts/examples/gersinho-trend-calcadao.json) para o pedido "
+                    f"do painel em `intake`: use en.replace_subject = intake.replace_subject, trend.consent = "
+                    f"intake.consent, en.source_expression = intake.source_expression (tem de dizer deadpan), "
+                    f"duration_s = {mo.get('duration')} (a da fonte); tire lugar, luz, figurantes e tarefas do "
+                    f"intake.scene_prompt. Os prompts do intake têm prioridade no frame e no vídeo (o pipeline acrescenta "
+                    f"as travas). Leia `{cmd} memory {item.page}`, salve em out/scripts/{item.id}.json e rode "
+                    f"`{cmd} save-script {pid} out/scripts/{item.id}.json`."}]
 
 
 GAG_MAX_ATTEMPTS = 2

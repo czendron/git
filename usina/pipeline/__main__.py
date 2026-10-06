@@ -17,6 +17,7 @@ Comandos principais:
   fetch-video <page/id> [--file local.mp4] | package <page/id> | posted <page/id> [--link]
   video-request <ref> --gag | record-video <ref> --gag ... | fetch-video <ref> --gag | review <ref> gag | skip-gag
   motion-source <page/id> --file fonte.mp4 | --hf-id <id>               (trend: vídeo-fonte do motion control)
+  motion-intake motion.json                  pedidos da aba Motion control do painel -> itens de trend (idempotente)
   media-status [--ref] | media-restore <page/id> <key> --file f | panel-asset <page/id> <key> /_blob/<id> [--path]
   panel-export | panel-apply decisoes.json | placar-import placar.json | cadence-check
   record-error "msg" [--ref] | balance <créditos> | health
@@ -387,6 +388,8 @@ def cmd_save_script(a):
         if any(k != "history" for k in it.video):
             it.video = {"history": it.video.get("history", []) + [{k: v for k, v in it.video.items() if k != "history"}]}
         _clear_assets(it, "storyboard", "frames", "video")
+    if script.get("format") == "trend" and (it.motion or {}).get("duration"):
+        script["duration_s"] = round(float(it.motion["duration"]), 1)  # a fonte manda na duração (motion-intake)
     it.script = script
     if it.counterpart and not _cp_sheet(it):  # rodada 7: roteiro novo com outra contraparte (ou sem): ficha velha sai
         it.counterpart = {}
@@ -448,7 +451,7 @@ def cmd_image(a):
         first = local((it.motion or {}).get("first_frame"))
         if not first or not first.exists():
             raise StoreError("trend sem o 1º frame da fonte: rode `motion-source <ref> --file fonte.mp4` antes")
-        jobs.append(("start", prompts.motion_frame_prompt(it.script, page), "1024x1536", ["__SOURCE_FIRST__"]))
+        jobs.append(("start", prompts.motion_frame_prompt(it.script, page, it.intake), "1024x1536", ["__SOURCE_FIRST__"]))
     elif stage == "frames":
         sb = local(it.storyboard.get("path"))
         with_sb = bool(sb and sb.exists())
@@ -1109,7 +1112,7 @@ def _video_request_trend(a, page, it, b):
     if not no_sheet and len(sheet_ids) < 2:
         raise StoreError(f"{page.slug}: precisa de higgsfield_id para face e silhouette no page.yaml "
                          f"(ou rode com --no-sheet)")
-    prompt = prompts.motion_scene_prompt(s, page, with_sheet=bool(sheet_ids))
+    prompt = prompts.motion_scene_prompt(s, page, with_sheet=bool(sheet_ids), intake=it.intake)
     (_workdir(it) / f"video-v{it.attempts.get('video', 0) + 1}.prompt.txt").write_text(prompt, encoding="utf-8")
     res = "720p" if budget.degraded_mode() else (a.resolution or str(page.data.get("video_resolution", "720p")))
     _print({
@@ -1133,19 +1136,32 @@ def cmd_motion_source(a):
     inválido (o id apontaria para a fonte anterior). Por isso: arquivo versionado, id limpo e volta para roteiro.
     """
     page, it = _item(a.ref)
-    if it.script.get("format") != "trend":
-        raise StoreError("motion-source só vale para roteiro com format 'trend'")
+    # pedido do painel (motion-intake): a fonte chega antes do roteiro, que é escrito em cima dela
+    from_panel = it.state == "ideia" and bool(it.intake)
+    if it.script.get("format") != "trend" and not from_panel:
+        raise StoreError("motion-source só vale para roteiro com format 'trend' (ou ideia vinda do painel, motion-intake)")
     mo = dict(it.motion or {})
     if a.file:
-        if it.state != "roteiro":
+        if it.state != "roteiro" and not from_panel:
             _need_state(it, ["roteiro"], "motion-source --file (fonte nova invalida os frames)", a.force)
         src = Path(a.file)
+        if not src.is_file() or src.stat().st_size == 0:
+            raise StoreError(f"{a.file} vazio ou inexistente (o download do asset falhou?)")
+        converted = None
+        with src.open("rb") as fh:
+            head = fh.read(16)
+        if src.suffix.lower() not in (".mp4", ".m4v", ".mov") or b"ftyp" not in head:
+            # clipe do painel gravado em webm (MediaRecorder sem mp4): converte para MP4 H.264 sem áudio
+            converted = media.to_mp4(src, _workdir(it) / "source-intake.mp4")
+            src = converted
         info = media.probe(src)
         cuts = media.detect_cuts(src)
         problems = []
         if not 3 <= info["duration"] <= 15:
             problems.append(f"fonte com {info['duration']:.1f}s: corte no trecho da coreografia (3-15 s, ideal 8-10 s)")
-        if cuts:
+        if cuts and from_panel and (it.intake or {}).get("cuts_false_alarm"):
+            print(f"aviso: cortes em {cuts}, mas o Caio marcou no painel que a fonte não tem corte (falso alarme)")
+        elif cuts:
             problems.append(f"a fonte tem cortes em {cuts}: o motion control quer um plano contínuo (playbook C5)")
         if problems and not a.force:
             raise StoreError("; ".join(problems) + " (use --force se for intencional)")
@@ -1153,6 +1169,8 @@ def cmd_motion_source(a):
         wd = _workdir(it)
         dst = wd / f"source-v{n}{src.suffix or '.mp4'}"
         shutil.copy(src, dst)
+        if converted:
+            converted.unlink(missing_ok=True)
         first = media.frame_at(dst, 0.05, wd / f"source-v{n}-first.jpg")
         mo = {"v": n, "source_path": rel(dst), "first_frame": rel(first), "duration": info["duration"],
               "cuts": cuts, "size": [info["width"], info["height"]],
@@ -1165,14 +1183,20 @@ def cmd_motion_source(a):
             warns.append("fonte horizontal: prefira 9:16")
         for w in warns:
             print(f"aviso: {w}")
-        if it.state != "roteiro":
+        if from_panel:
+            ia = str((it.intake or {}).get("source_asset") or "")
+            if ia and not converted:  # o arquivo é o mesmo do asset do painel: já está arquivado
+                it.post.setdefault("media", {})["source"] = {"asset": ia, "path": rel(dst)}
+            it.intake["source_registered_at"] = time.time()
+        elif it.state != "roteiro":
             it.frames, it.variants = {}, []
             it.gates.pop("frames", None)
             it.gates.pop("video", None)
             _clear_assets(it, "frames", "video")
             it.attempts["frames"] = 0  # frame novo sobre fonte nova: as reprovações da fonte velha não contam
             it.set_state("roteiro", "fonte nova da trend")
-        it.script["duration_s"] = round(float(info["duration"]), 1)
+        if it.script:
+            it.script["duration_s"] = round(float(info["duration"]), 1)
     if a.hf_id:
         if not mo.get("source_path") and not a.file and not a.force:
             raise StoreError("registre o arquivo da fonte antes (--file), ou use --force para só o id")
@@ -1536,8 +1560,23 @@ def cmd_panel_export(a):
             "silhouette": ch.get("silhouette_letter"), "bpm": ch.get("bpm"), "dance": ch.get("dance_style"),
             "world": ch.get("world"), "gag": ch.get("recurring_gag"), "relationship": ch.get("relationship"),
             "signature": ch.get("signature_move"), "cadence": p.data.get("cadence", {}),
+            "nickname": ch.get("nickname", ""), "pronoun": ch.get("pronoun", "he"), "look": ch.get("look", ""),
+            "rules": ch.get("rules") or [],
             "refsReady": len(p.available_refs()) >= 2, "launchedAt": str(p.data.get("launched_at", "") or ""),
             "launch": launch.check(p)["summary"]}})
+    # aba Motion control: o status de cada pedido volta para a coleção motion (update: não apaga o que o painel gravou)
+    mirrored = set()
+    for it in list_items():
+        did = (it.intake or {}).get("doc_id")
+        if did and it.page in pages:
+            st, note = _motion_status(it)
+            writes.append({"op": "update", "collection": "motion", "doc_id": did, "data": {
+                "status": st, "statusNote": note, "ref": f"{it.page}/{it.id}", "statusAt": int(it.updated_at * 1000)}})
+            mirrored.add(did)
+    for did, rec in _motion_ledger().items():
+        if did not in mirrored and rec.get("status") == "erro":
+            writes.append({"op": "update", "collection": "motion", "doc_id": did, "data": {
+                "status": "erro", "statusNote": rec.get("reason", ""), "ref": "", "statusAt": int(rec.get("at", 0) * 1000)}})
     pl = mkplan()
     writes.append({"op": "set", "collection": "saude", "doc_id": "atual", "data": {
         "at": int(time.time() * 1000), "paused": pl["paused"] or "", "spend": pl["spend"], "notes": pl["notes"],
@@ -1852,6 +1891,139 @@ def cmd_panel_apply(a):
                       "invalid_ids": invalid}))
 
 
+MOTION_LEDGER = ROOT / "data" / "motion_intake.json"   # doc_id -> {ref, status, reason, at} (idempotência + erros)
+ASSET_ID = re.compile(r"(?<![0-9a-fA-F])([0-9a-fA-F]{32})(?![0-9a-fA-F])")
+
+
+def _motion_ledger() -> dict:
+    try:
+        return json.loads(MOTION_LEDGER.read_text(encoding="utf-8")) if MOTION_LEDGER.exists() else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _asset_id(*vals) -> str:
+    for v in vals:
+        m = ASSET_ID.search(str(v or ""))
+        if m:
+            return m.group(1).lower()
+    return ""
+
+
+def _motion_status(it) -> tuple[str, str]:
+    """Status do pedido do painel (coleção motion) a partir do item: novo → na fila → fonte registrada → roteiro →
+    frames → vídeo → revisão → pronto → postado, ou descartado/erro com o motivo."""
+    mo = it.motion or {}
+    why = (it.history[-1].get("why", "") if it.history else "")
+    if it.state == "ideia":
+        return ("fonte registrada", "") if mo.get("source_path") else ("na fila", "esperando o ciclo restaurar o clipe")
+    if it.state in ("descartado", "erro"):
+        return it.state, why
+    if it.state == "roteiro" and not mo.get("first_frame"):
+        return "roteiro", "falta registrar a fonte"
+    return {"video": "vídeo", "revisao": "revisão", "storyboard": "roteiro"}.get(it.state, it.state), ""
+
+
+def cmd_motion_intake(a):
+    """Pedidos da aba Motion control do painel (coleção motion, exportada para JSON) → itens de trend.
+
+    Para cada doc novo: cria o item (estado ideia) na página, guarda o pedido em item.intake (replace_subject,
+    prompts de cena e de frame, consentimento, expressão da fonte, pessoas, cortes) e o asset do clipe a restaurar.
+    Idempotente pelo doc_id (ledger em data/motion_intake.json e item.intake.doc_id). Não gasta nada.
+    """
+    try:
+        raw = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        raise StoreError(f"não consegui ler {a.file}: {e}")
+    ledger = _motion_ledger()
+    by_doc = {str((i.intake or {}).get("doc_id")): i for i in list_items() if (i.intake or {}).get("doc_id")}
+    created, already, invalid, updates = [], [], [], []
+    now_ms = int(time.time() * 1000)
+
+    def _upd(did, status, ref="", note=""):
+        updates.append({"op": "update", "collection": "motion", "doc_id": did,
+                        "data": {"status": status, "ref": ref, "statusNote": note, "statusAt": now_ms}})
+
+    for r in _decision_rows(raw):
+        if not isinstance(r, dict):
+            continue
+        d = r.get("data") if isinstance(r.get("data"), dict) else r
+        did = str(r.get("doc_id") or r.get("id") or r.get("_id") or d.get("id") or "")
+        if not did:
+            print(f"ignorado (sem id): {json.dumps(d, ensure_ascii=False)[:160]}")
+            continue
+        if did in by_doc or did in ledger:
+            it = by_doc.get(did)
+            already.append(did)
+            if it is not None:
+                st, note = _motion_status(it)
+                _upd(did, st, f"{it.page}/{it.id}", note)
+            continue
+        if str(d.get("status") or "novo") != "novo":
+            continue  # já processado em outro ciclo (ou marcado à mão)
+        problems = []
+        slug = str(d.get("page") or "")
+        page = None
+        try:
+            page = get_page(slug)
+        except StoreError:
+            problems.append(f"página '{slug}' não existe")
+        if page is not None and not page.active:
+            problems.append(f"página '{slug}' em {page.data.get('status')}: não gera nada (ata D6)")
+        asset = _asset_id(d.get("sourceAssetId"), d.get("sourceUrl"), d.get("sourceAssetUrl"))
+        if not asset:
+            problems.append("sem o asset do clipe (sourceAssetId)")
+        subj = str(d.get("replace_subject") or "").strip()
+        if not subj:
+            problems.append("sem replace_subject (quem trocar)")
+        try:
+            dur = float(d.get("endS")) - float(d.get("startS"))
+        except (TypeError, ValueError):
+            dur = None
+        if dur is not None and not 3 <= dur <= 15.05:
+            problems.append(f"trecho de {dur:.1f}s fora de 3–15 s (playbook C5)")
+        cuts = d.get("cuts") or []
+        if cuts and not d.get("cutsFalseAlarm"):
+            problems.append(f"a fonte tem cortes em {cuts} e o Caio não marcou falso alarme (playbook C5)")
+        if problems:
+            reason = "; ".join(problems)
+            ledger[did] = {"ref": "", "status": "erro", "reason": reason, "at": time.time()}
+            invalid.append({"id": did, "reason": reason})
+            _upd(did, "erro", "", reason)
+            print(f"{did}: erro ({reason})")
+            continue
+        title = str(d.get("title") or d.get("label") or "Trend do painel").strip()[:80]
+        it = new_item(slug, title, {"title": title, "format": "trend", "source": "painel-motion",
+                                    "text": str(d.get("label") or title)})
+        it.intake = {
+            "doc_id": did, "source_asset": asset, "first_frame_asset": _asset_id(d.get("firstFrameAssetId")),
+            "replace_subject": subj, "scene_prompt": str(d.get("scene_prompt") or ""),
+            "frame_prompt": str(d.get("frame_prompt") or ""), "consent": str(d.get("consent") or ""),
+            "source_expression": str(d.get("source_expression") or ""),
+            "source_deadpan": bool(d.get("sourceDeadpan")), "people": d.get("people") or [],
+            "flags": d.get("flags") or {}, "start_s": d.get("startS"), "end_s": d.get("endS"),
+            "crop": d.get("crop"), "cuts": cuts, "cuts_false_alarm": bool(d.get("cutsFalseAlarm")),
+            "label": str(d.get("label") or ""), "created_at": d.get("createdAt"), "intake_at": time.time(),
+        }
+        it.save()
+        ref = f"{it.page}/{it.id}"
+        ledger[did] = {"ref": ref, "status": "na fila", "reason": "", "at": time.time()}
+        created.append({"id": did, "ref": ref, "asset_id": asset})
+        _upd(did, "na fila", ref, "esperando o ciclo restaurar o clipe")
+        print(f"{did}: {ref}")
+    MOTION_LEDGER.parent.mkdir(parents=True, exist_ok=True)
+    MOTION_LEDGER.write_text(json.dumps(ledger, ensure_ascii=False, indent=2), encoding="utf-8")
+    out = OUT / "panel" / "motion-updates.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(updates, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps({"applied_ids": [c["id"] for c in created] + already + [i["id"] for i in invalid],
+                      "created": created, "already": already, "invalid": invalid,
+                      "restore": [{"ref": c["ref"], "asset_id": c["asset_id"],
+                                   "then": f"python -m pipeline motion-source {c['ref']} --file <arquivo salvo>"}
+                                  for c in created],
+                      "updates_file": str(out.relative_to(ROOT))}, ensure_ascii=False))
+
+
 def cmd_record_error(a):
     h = budget.record_error(a.msg, a.ref or "")
     lim = budget.load_budget().get("max_consecutive_errors", 3)
@@ -2080,6 +2252,7 @@ def main(argv=None):
     p = sp.add_parser("placar-import"); p.add_argument("file"); p.set_defaults(f=cmd_placar_import)
     sp.add_parser("cadence-check").set_defaults(f=cmd_cadence_check)
     p = sp.add_parser("panel-apply"); p.add_argument("file"); p.set_defaults(f=cmd_panel_apply)
+    p = sp.add_parser("motion-intake"); p.add_argument("file"); p.set_defaults(f=cmd_motion_intake)
     p = sp.add_parser("pause"); p.add_argument("reason", nargs="?"); p.set_defaults(f=cmd_pause)
     sp.add_parser("resume").set_defaults(f=cmd_resume)
     sp.add_parser("ledger").set_defaults(f=cmd_ledger)

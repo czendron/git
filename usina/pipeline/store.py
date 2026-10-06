@@ -127,6 +127,7 @@ class Item:
     decisions: list = field(default_factory=list)  # ids das decisões do painel já aplicadas (idempotência)
     counterpart: dict = field(default_factory=dict)  # rodada 7: ficha da contraparte humana {"who","path","prompt","v","higgsfield_id"}
     video_opts: dict = field(default_factory=dict)  # triagem C6 em vigor: {"no_grid", "repair", "no_sheet"} (rodada 4)
+    intake: dict = field(default_factory=dict)  # pedido da aba Motion control do painel (motion-intake): doc_id, replace_subject, prompts, consent...
     notes: str = ""
 
     @property

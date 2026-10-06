@@ -73,6 +73,18 @@ def sheet_window(video: Path, out: Path, start: float, end: float, fps: float, c
     raise MediaError("não consegui montar a folha de contato")
 
 
+def to_mp4(src: Path, dst: Path) -> Path:
+    """Converte o clipe do painel (MediaRecorder: webm/vp8-vp9 em vários navegadores) para MP4 H.264 sem áudio.
+    O Higgsfield e o resto do pipeline (folha, MAGIC do media-restore) esperam .mp4."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    base = ["ffmpeg", "-y", "-v", "error", "-i", str(src), "-an", "-movflags", "+faststart"]
+    try:
+        _run(base + ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "veryfast", "-crf", "18", str(dst)])
+    except MediaError:  # ffmpeg sem libx264
+        _run(base + ["-c:v", "mpeg4", "-q:v", "2", str(dst)])
+    return dst
+
+
 def detect_cuts(video: Path, threshold: float = 0.35) -> list[float]:
     """Cortes por diferença de cena (cálculo, não visão). Devolve os instantes em segundos."""
     r = subprocess.run(["ffmpeg", "-v", "info", "-i", str(video), "-vf", f"select='gt(scene,{threshold})',showinfo",
