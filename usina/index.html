@@ -91,6 +91,18 @@ button.chip[aria-checked="true"]{background:var(--sign);color:var(--sign-ink);bo
 .mc-check li.ok{color:var(--ok)}.mc-check li.todo{color:var(--muted)}
 .mc-req{display:grid;grid-template-columns:54px minmax(0,1fr);gap:10px;align-items:start;border-top:1px dashed var(--line);padding-top:10px;margin-top:10px}
 .mc-req img{width:54px;aspect-ratio:9/16;object-fit:cover;border-radius:6px;border:1px solid var(--line);background:var(--paper)}
+.mc-chat{display:grid;gap:10px;border:1px solid var(--line);border-radius:var(--r);padding:12px;background:var(--paper);min-width:0}
+.mc-thread{display:grid;gap:8px;max-height:46vh;overflow-y:auto;min-width:0}
+.mc-msg{padding:8px 12px;border-radius:10px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;max-width:92%;min-width:0}
+.mc-msg.user{justify-self:end;background:var(--sign-soft);color:var(--ink)}
+.mc-msg.assistant{justify-self:start;background:var(--panel);border:1px solid var(--line)}
+.mc-msg.thinking{color:var(--muted);font-style:italic}
+.mc-chat-row{display:grid;gap:8px;grid-template-columns:minmax(0,1fr)}
+.mc-chat-row textarea{min-height:56px;font-family:var(--f-body);font-size:14px}
+.mc-swap{display:grid;gap:8px;grid-template-columns:minmax(0,1fr);border-top:1px dashed var(--line);padding-top:10px;margin-top:10px}
+@media (min-width:700px){.mc-swap{grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.2fr) auto;align-items:end}}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.el-sheet{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px;border:1px solid var(--line);background:var(--paper)}
 @media (min-width:900px){.mc-stage{grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)}}
 @media (max-width:760px){.mc-player video{max-height:50vh}}
 @media (max-width:760px){
@@ -215,6 +227,13 @@ button.chip[aria-checked="true"]{background:var(--sign);color:var(--sign-ink);bo
         <h1>Elenco</h1>
         <p class="lede">A referência de cada personagem vai em todas as gerações (imagem e vídeo) para manter o rosto igual. Use o ID de um job aprovado do Higgsfield.</p>
       </div>
+      <div>
+        <h2>Elenco recorrente das páginas</h2>
+        <p class="note">Gente que volta em vários vídeos (o tio, a feirante, o cobrador). Cada um tem uma ficha 2x2, aprovada uma vez na Caixa e reusada em todo vídeo, para o mesmo rosto aparecer sempre. Passante de fundo fica só no prompt.</p>
+        <div class="row" style="margin-top:8px"><select id="el-page" aria-label="Página do elenco"><option value="">Todas as páginas</option></select></div>
+        <div class="grid" id="elenco" style="margin-top:10px"></div>
+      </div>
+      <h2>Personagens principais (referência no Higgsfield)</h2>
       <div class="grid" id="chars"></div>
       <details class="panel">
         <summary><strong>Adicionar personagem</strong></summary>
@@ -281,7 +300,8 @@ button.chip[aria-checked="true"]{background:var(--sign);color:var(--sign-ink);bo
             </div>
             <label>Início<input type="range" id="mc-start" min="0" step="0.1" aria-describedby="mc-range-note"></label>
             <label>Fim<input type="range" id="mc-end" min="0" step="0.1" aria-describedby="mc-range-note"></label>
-            <p class="note" id="mc-range-note">Trecho de 3 a 15 s (ideal 8–10 s). Padrão: os 10 primeiros segundos.</p>
+            <p class="note" id="mc-range-note">Trecho de 3 a 30 s (8–15 s faz loop melhor no Reels). Padrão: os 10 primeiros segundos.</p>
+            <p class="note" id="mc-cost" role="status"></p>
             <label id="mc-crop-wrap" hidden>Posição do recorte 9:16 (fonte horizontal)<input type="range" id="mc-crop" min="0" max="1" step="0.01" value="0.5"></label>
           </div>
         </div>
@@ -305,7 +325,22 @@ button.chip[aria-checked="true"]{background:var(--sign);color:var(--sign-ink);bo
         <div class="row"><button class="btn" id="mc-who" type="button" disabled>Identificar pessoas no 1º frame</button><span id="mc-who-msg" class="note" role="status"></span></div>
         <div class="chips" id="mc-people" role="radiogroup" aria-label="Pessoa a trocar"></div>
         <div id="mc-flags"></div>
-        <label>Quem sai da cena (em inglês, vai no prompt)<input id="mc-subject" placeholder="the dancer in the white tank top, center"></label>
+        <label>Quem sai da cena para entrar o personagem (em inglês, vai no prompt)<input id="mc-subject" placeholder="the dancer in the white tank top, center"></label>
+        <label>O que trocar (fale do seu jeito)<textarea id="mc-instr" style="font-family:var(--f-body);min-height:70px" placeholder="ex.: troca o dançarino de branco pelo Gersinho e o cara de boné pelo Seu Tadeu; troca a garrafa por um guarda-chuva"></textarea></label>
+        <div class="mc-chat" id="mc-chat-wrap" hidden>
+          <div class="row" style="justify-content:space-between"><strong>Conversa com o agente</strong><span class="note">ele vê o 1º frame, as pessoas, o elenco e as regras do C5</span></div>
+          <div class="mc-thread" id="mc-chat" aria-live="polite"></div>
+          <div id="mc-agent-notes"></div>
+          <label class="sr" for="mc-chat-in">Mensagem para o agente</label>
+          <div class="mc-chat-row"><textarea id="mc-chat-in" rows="2" placeholder="ex.: não, troca só o da esquerda · deixa o fundo igual · coloca a Marlene no lugar da mulher"></textarea>
+            <div class="row"><button class="btn sign" id="mc-chat-send" type="button">Enviar</button><button class="btn ghost" id="mc-chat-stop" type="button" hidden>Parar</button></div></div>
+          <p class="note" id="mc-chat-msg" role="status"></p>
+        </div>
+        <div>
+          <div class="row" style="justify-content:space-between"><strong>Trocas</strong><button class="btn ghost" id="mc-swap-add" type="button">+ troca</button></div>
+          <p class="note">Uma linha por pessoa ou objeto. O que você editar aqui vale mais que o agente: a próxima resposta dele parte daqui.</p>
+          <div id="mc-swaps"></div>
+        </div>
       </div>
 
       <div class="panel" id="mc-step4">
@@ -315,8 +350,8 @@ button.chip[aria-checked="true"]{background:var(--sign);color:var(--sign-ink);bo
         </div>
         <div class="row"><button class="btn" id="mc-write" type="button">Escrever prompts</button><button class="btn ghost" id="mc-write-stop" type="button" hidden>Parar</button><span id="mc-write-msg" class="note" role="status"></span></div>
         <div class="form">
-          <label class="wide">Prompt de cena (Genjutsu, inglês)<textarea id="mc-scene" style="min-height:160px"></textarea></label>
-          <label class="wide">Edição do 1º frame (inglês)<textarea id="mc-frame" style="min-height:120px"></textarea></label>
+          <label class="wide">Prompt de cena (Genjutsu, inglês) — editável; sua edição vale mais<textarea id="mc-scene" style="min-height:160px"></textarea></label>
+          <label class="wide">Edição do 1º frame (inglês, uma troca por linha) — editável; sua edição vale mais<textarea id="mc-frame" style="min-height:120px"></textarea></label>
           <label class="wide">Consentimento e autoria da fonte<input id="mc-consent" placeholder="gravado pelo Caio em 06/10; dançarino autorizou o uso"></label>
           <label class="wide">Expressão do dançarino da fonte<input id="mc-expr" value="the source dancer is deadpan: lips closed, lip corners level"></label>
         </div>
@@ -371,7 +406,7 @@ button.chip[aria-checked="true"]{background:var(--sign);color:var(--sign-ink);bo
 (() => {
 const HF = "Higgsfield";
 const S = { mcp:null, sample:null, db:null, user:null, assets:null, downloads:null, canWrite:false };
-const state = { ideas:[], chars:[], scripts:[], jobs:[], ytdocs:[], motion:[], draft:null };
+const state = { ideas:[], chars:[], scripts:[], jobs:[], ytdocs:[], motion:[], elenco:[], draft:null };
 const $ = (s, r=document) => r.querySelector(s);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const now = () => Date.now();
@@ -554,7 +589,7 @@ function charOptions(sel){
   if (cur && state.chars.some(c => c._id === cur)) sel.value = cur;
 }
 function renderChars(){
-  $("#n-chars").textContent = state.chars.length;
+  $("#n-chars").textContent = state.chars.length + state.elenco.length;
   charOptions($("#r-char")); charOptions($("#m-char"));
   const host = $("#chars");
   if (!state.chars.length) { host.innerHTML = `<div class="empty">Nenhum personagem ainda. Adicione o primeiro abaixo com o ID da imagem aprovada no Higgsfield.</div>`; return; }
@@ -573,6 +608,28 @@ function renderChars(){
     await del("characters", b.dataset.rmChar);
   }));
 }
+const EL_STATE = { aprovado:["ok","aprovada"], aguardando:["warn","esperando você na Caixa"], recusada:["bad","recusada: a usina refaz"], "sem ficha":["", "sem ficha ainda"] };
+function renderElenco(){
+  const sel = $("#el-page"), cur = sel.value;
+  const pages = [...new Set(state.elenco.map(e => e.page))];
+  sel.innerHTML = `<option value="">Todas as páginas</option>` + pages.map(p => `<option ${p === cur ? "selected" : ""}>${esc(p)}</option>`).join("");
+  $("#n-chars").textContent = state.chars.length + state.elenco.length;
+  const host = $("#elenco"), rows = state.elenco.filter(e => !sel.value || e.page === sel.value);
+  if (!S.db) { host.innerHTML = `<div class="empty">Sem banco nesta visualização: o elenco não carrega.</div>`; return; }
+  if (!rows.length) { host.innerHTML = `<div class="empty">O elenco aparece aqui depois do próximo ciclo da automação (pages/&lt;página&gt;/cast/).</div>`; return; }
+  host.innerHTML = rows.map(e => {
+    const [cls, label] = EL_STATE[e.state] || ["", e.state];
+    const pend = state.decisoes.some(d => d.ref === `${e.page}/${e.castId}` && d.stage === "elenco" && !d.applied);
+    return `<article class="card">
+      <div class="row" style="justify-content:space-between"><span class="ticker">${esc(e.name)}</span><span class="chip ${cls}">${esc(pend ? "decisão enviada" : label)}</span></div>
+      ${e.sheetUrl ? `<img class="el-sheet" src="${esc(e.sheetUrl)}" alt="Ficha de ${esc(e.name)}" loading="lazy">` : `<p class="note">A ficha 2x2 sai pela OpenAI quando um roteiro usar ${esc(e.name)} (ou quando a usina pedir).</p>`}
+      <p>${esc(e.role)}</p>
+      <div class="chips"><span class="chip br">${esc(e.page)}</span><span class="chip mono">${esc(e.castId)}</span>${(e.usedBy||[]).length ? `<span class="chip info">em ${esc(e.usedBy.length)} vídeo(s)</span>` : ""}</div>
+      <details><summary class="note">Aparência (inglês, vai no prompt)</summary><p class="note">${esc(e.look)}</p>${e.notes ? `<p class="note">${esc(e.notes)}</p>` : ""}${e.review && e.review.notes ? `<p class="note">Última nota: ${esc(e.review.notes)}</p>` : ""}</details>
+    </article>`;
+  }).join("");
+}
+$("#el-page").addEventListener("change", renderElenco);
 $("#b-add-char").addEventListener("click", async () => {
   const name = $("#c-name").value.trim(), ref = $("#c-ref").value.trim(), desc = $("#c-desc").value.trim();
   const msg = $("#c-msg");
@@ -732,7 +789,9 @@ $("#b-motion").addEventListener("click", async () => {
 
 /* ---------- MOTION: aba nova (vídeo → clipe 9:16 → quem trocar → prompts → usina) ---------- */
 const MC = { dur:0, w:0, h:0, isUrl:false, clip:null, clipType:"", clipUrl:"", first:null, cuts:[], cutsChecked:false,
-  people:[], flags:{}, pick:-1, uploaded:null, sentId:"", imgOK:false, busy:false };
+  people:[], flags:{}, pick:-1, uploaded:null, sentId:"", imgOK:false, busy:false,
+  swaps:[], chat:[], edited:{ scene:false, frame:false, swaps:false }, agentNotes:{ warnings:[], questions:[] } };
+const MC_MAX_S = 30, MC_LOOP_S = 15;   // Genjutsu e Seedance 2.5 aceitam até 30 s; 8–15 s faz loop melhor no Reels
 const C5_RULES = `Genjutsu motion-transfer rules (Usina playbook C5, condensed):
 - Motion, timing and camera come from the source video. The scene prompt writes the WORLD: one specific ordinary Brazilian place, time of day and light, "smartphone video look, everything sharp", the character's locks, and one concrete task for each background person.
 - Do NOT mention image numbers in the scene prompt (the pipeline adds the image roles).
@@ -781,13 +840,14 @@ function mcCaps(){
   const miss = [];
   if (!S.assets) miss.push("o envio está desligado: esta visualização não guarda arquivos (só quem edita o painel envia)");
   if (!S.db) miss.push("sem banco: o pedido não seria salvo e a lista não carrega");
-  if (!S.sample) miss.push("sem Claude: os prompts saem do modelo da página e você digita quem trocar");
+  if (!S.sample) miss.push("sem Claude: sem conversa com o agente; os prompts saem do modelo da página e você monta as trocas à mão");
   else if (!MC.imgOK) miss.push("o Claude desta visualização não recebe imagens: digite quem trocar");
   if (!S.downloads) miss.push("download do clipe indisponível");
   const box = $("#mc-caps");
   box.hidden = !miss.length;
   box.textContent = miss.length ? "Nesta visualização: " + miss.join("; ") + "." : "";
   $("#mc-who").hidden = !(S.sample && MC.imgOK);
+  $("#mc-chat-wrap").hidden = !S.sample;
   $("#mc-write").textContent = S.sample ? "Escrever prompts com Claude" : "Montar prompts pelo modelo";
   mcTodo();
 }
@@ -837,11 +897,26 @@ function mcRange(){ return { s: Number($("#mc-start").value), e: Number($("#mc-e
 function mcSetRange(s, e, moved){
   const D = MC.dur;
   s = Math.max(0, Math.min(Number(s) || 0, D)); e = Math.max(0, Math.min(Number(e) || 0, D));
-  if (moved === "s") { if (e - s < 3) e = Math.min(D, s + 3); if (e - s > 15) e = s + 15; if (e - s < 3) s = Math.max(0, e - 3); }
-  else { if (e - s < 3) s = Math.max(0, e - 3); if (e - s > 15) s = e - 15; if (e - s < 3) e = Math.min(D, s + 3); }
+  if (moved === "s") { if (e - s < 3) e = Math.min(D, s + 3); if (e - s > MC_MAX_S) e = s + MC_MAX_S; if (e - s < 3) s = Math.max(0, e - 3); }
+  else { if (e - s < 3) s = Math.max(0, e - 3); if (e - s > MC_MAX_S) s = e - MC_MAX_S; if (e - s < 3) e = Math.min(D, s + 3); }
   s = Math.round(s * 10) / 10; e = Math.round(e * 10) / 10;
   $("#mc-start").value = s; $("#mc-end").value = e; $("#mc-start-n").value = s.toFixed(1); $("#mc-end-n").value = e.toFixed(1);
-  $("#mc-range-note").textContent = `Trecho de ${(e - s).toFixed(1)} s (${s.toFixed(1)}–${e.toFixed(1)} s). Limite 3 a 15 s; ideal 8–10 s.`;
+  $("#mc-range-note").textContent = `Trecho de ${(e - s).toFixed(1)} s (${s.toFixed(1)}–${e.toFixed(1)} s). Limite 3 a ${MC_MAX_S} s; 8–${MC_LOOP_S} s faz loop melhor no Reels.`;
+  mcCost();
+}
+// Custo do Genjutsu (duração × créditos/s do budget.yaml) contra o teto por ideia (ata D5). Os tetos são do conselho: só avisa.
+function mcBudget(){ const b = (state.saude && state.saude.budget) || {}; return { perS: Number(b.mcPerS) || 8, cap: Number(b.maxCreditsIdea) || 160, day: Number(b.dayCapCredits) || 240 }; }
+function mcCostInfo(){
+  if (!MC.dur) return null;
+  const { s, e } = mcRange(), d = e - s, b = mcBudget(), est = Math.round(d * b.perS);
+  return { d, est, ...b, over: est > b.cap, maxS: Math.floor(b.cap / b.perS) };
+}
+function mcCost(){
+  const el = $("#mc-cost"), c = mcCostInfo(); if (!el) return;
+  if (!c) { el.textContent = ""; el.className = "note"; return; }
+  const loop = c.d > MC_LOOP_S ? ` Acima de ${MC_LOOP_S} s o loop no Reels perde força.` : "";
+  if (c.over) { el.className = "msg bad"; el.textContent = `Estimativa: ≈ ${c.est} créditos no Genjutsu (${c.d.toFixed(1)} s × ${c.perS}/s), acima do teto de ${c.cap} créditos por ideia (ata D5). A usina não manda esse vídeo: recorte para até ${c.maxS} s ou peça ao conselho para mudar o teto.${loop}`; }
+  else { el.className = "note"; el.textContent = `Estimativa: ≈ ${c.est} créditos no Genjutsu (${c.d.toFixed(1)} s × ${c.perS}/s); teto por ideia: ${c.cap}.${loop}`; }
 }
 function mcInvalidate(){
   MC.clip = null; MC.first = null; MC.cuts = []; MC.cutsChecked = false; MC.uploaded = null; MC.sentId = "";
@@ -934,7 +1009,9 @@ async function mcRecord(onTick){
   const ctx = canvas.getContext("2d");
   await seekTo(s); mcDraw(ctx, 720, 1280);
   const stream = canvas.captureStream(30);
-  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5000000 });
+  // 20 MiB por asset: a taxa sai da duração para o clipe ficar perto de 15 MiB (30 s ≈ 4,2 Mbps), entre 2,5 e 5 Mbps
+  const bps = Math.round(Math.max(2500000, Math.min(5000000, 15 * 8 * 1048576 / Math.max(1, e - s))));
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bps });
   const chunks = [];
   rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
   const stopped = new Promise(res => { rec.onstop = res; });
@@ -971,6 +1048,7 @@ $("#mc-prep").addEventListener("click", async () => {
     const clip = await mcRecord((t) => { $("#mc-prep-msg").textContent = `Gravando o clipe (${Math.max(0, t).toFixed(0)} de ${(e - s).toFixed(0)} s)…`; });
     if (!clip.size) throw { code:"empty" };
     if (clip.size > 20 * 1024 * 1024) throw { code:"big", mb: (clip.size / 1048576).toFixed(1) };
+    if (clip.size > 16 * 1024 * 1024) mcSet("#mc-prep-msg", "O clipe passou de 16 MB; ainda cabe no limite de 20 MB.");
     MC.clip = clip; MC.clipType = clip.type;
     MC.clipUrl = URL.createObjectURL(clip);
     const out = $("#mc-out"); out.src = MC.clipUrl; out.hidden = false;
@@ -1001,7 +1079,7 @@ function mcPeople(){
   const host = $("#mc-people");
   host.innerHTML = MC.people.map((p, i) => `<button type="button" class="chip" role="radio" aria-checked="${i === MC.pick}" data-person="${i}">${esc(p.replace_subject)}${p.full_body === false ? " · corpo cortado" : ""}${p.hands_visible === false ? " · sem mãos" : ""}</button>`).join("");
   host.querySelectorAll("[data-person]").forEach(b => b.addEventListener("click", () => {
-    MC.pick = Number(b.dataset.person); $("#mc-subject").value = MC.people[MC.pick].replace_subject; mcPeople(); mcTodo();
+    MC.pick = Number(b.dataset.person); $("#mc-subject").value = MC.people[MC.pick].replace_subject; mcSyncProtagonist(); mcPeople(); mcTodo();
   }));
   const warns = Object.entries(MC.flags || {}).filter(([k, v]) => v === true && FLAG_COPY[k]).map(([k]) => FLAG_COPY[k]);
   $("#mc-flags").innerHTML = warns.map(w => `<p class="msg bad">${esc(w)}</p>`).join("") + (MC.flags && MC.flags.notes ? `<p class="note">${esc(MC.flags.notes)}</p>` : "");
@@ -1020,7 +1098,7 @@ Flags: multiple_people = more than one person visible; camera_moving = motion bl
       .map((p, i) => ({ id: String(p.id || "p" + (i + 1)), replace_subject: String(p.replace_subject).slice(0, 160), position: String(p.position || ""), full_body: p.full_body !== false, hands_visible: p.hands_visible !== false }));
     MC.people = ppl; MC.flags = Object.assign({}, (r && r.flags) || {}, r && r.notes ? { notes: String(r.notes) } : {});
     MC.pick = ppl.length ? 0 : -1;
-    if (ppl.length) $("#mc-subject").value = ppl[0].replace_subject;
+    if (ppl.length) { $("#mc-subject").value = ppl[0].replace_subject; mcSyncProtagonist(); }
     mcPeople();
     mcSet("#mc-who-msg", ppl.length ? `${ppl.length} pessoa(s). Toque em quem sai da cena.` : "Ninguém encontrado no 1º frame. Digite abaixo quem trocar.", ppl.length ? "" : "bad");
   } catch(e){
@@ -1028,12 +1106,154 @@ Flags: multiple_people = more than one person visible; camera_moving = motion bl
     mcSet("#mc-who-msg", e && e.code === "tainted" ? "O site do link não deixa ler o frame (CORS). Use o arquivo." : e && e.code === "image_rejected" ? "O Claude recusou a imagem do frame. Digite quem trocar." : sampleCopy(e), "bad");
   } finally { b.disabled = false; mcTodo(); }
 });
-$("#mc-subject").addEventListener("input", mcTodo);
+$("#mc-subject").addEventListener("input", () => { mcSyncProtagonist(); mcTodo(); });
+
+/* trocas: uma por pessoa ou objeto (o que o Caio edita vale mais que o agente) */
+const SWAP_KINDS = { protagonist:"o personagem da página", cast:"alguém do elenco", object:"um objeto", new_character:"pessoa nova (fictícia)" };
+function mcCastList(){ const pg = $("#mc-page").value; return state.elenco.filter(e => e.page === pg); }
+function mcCleanSwaps(arr){
+  const ids = new Set(mcCastList().map(e => e.castId));
+  return (Array.isArray(arr) ? arr : []).filter(x => x && String(x.target || "").trim()).slice(0, 8).map(x => {
+    const rw = (x.replace_with && typeof x.replace_with === "object") ? x.replace_with : {};
+    const kind = SWAP_KINDS[rw.kind] ? rw.kind : "object";
+    return { target: String(x.target).trim().slice(0, 200), replace_with: { kind, cast_id: kind === "cast" && ids.has(String(rw.cast_id || "")) ? String(rw.cast_id) : (kind === "cast" ? String(rw.cast_id || "") : ""), description: String(rw.description || "").slice(0, 300) } };
+  });
+}
+function mcSyncProtagonist(){
+  const subj = $("#mc-subject").value.trim(); if (!subj) return;
+  const p = MC.swaps.find(x => x.replace_with.kind === "protagonist");
+  if (p) p.target = subj; else MC.swaps.unshift({ target: subj, replace_with: { kind:"protagonist", cast_id:"", description:"" } });
+  mcSwaps();
+}
+function mcSwaps(){
+  const host = $("#mc-swaps"), cast = mcCastList();
+  if (!MC.swaps.length) { host.innerHTML = `<p class="note">Nenhuma troca ainda. Identifique as pessoas, escreva acima o que trocar ou use "+ troca".</p>`; return; }
+  host.innerHTML = MC.swaps.map((x, i) => {
+    const k = x.replace_with.kind;
+    const castSel = k === "cast" ? `<label>Quem do elenco<select data-sw="${i}" data-f="cast_id"><option value="">escolha…</option>${cast.map(e => `<option value="${esc(e.castId)}" ${e.castId === x.replace_with.cast_id ? "selected" : ""}>${esc(e.name)}${e.state === "aprovado" ? "" : " (ficha: " + esc(e.state) + ")"}</option>`).join("")}</select></label>` : `<label>Descrição (inglês)<input data-sw="${i}" data-f="description" value="${esc(x.replace_with.description)}" placeholder="${k === "object" ? "a closed black umbrella" : k === "new_character" ? "a tall woman in a yellow raincoat" : "opcional"}"></label>`;
+    return `<div class="mc-swap"><label>Quem/o que sai (inglês, como no frame)<input data-sw="${i}" data-f="target" value="${esc(x.target)}"></label>
+      <label>Entra<select data-sw="${i}" data-f="kind">${Object.entries(SWAP_KINDS).map(([v, t]) => `<option value="${v}" ${v === k ? "selected" : ""}>${esc(t)}</option>`).join("")}</select></label>
+      ${castSel}<button class="btn ghost" type="button" data-sw-rm="${i}" aria-label="Remover troca ${i + 1}">Remover</button></div>`;
+  }).join("");
+  host.querySelectorAll("[data-sw]").forEach(el => el.addEventListener(el.tagName === "SELECT" ? "change" : "input", () => {
+    const x = MC.swaps[Number(el.dataset.sw)]; if (!x) return;
+    if (el.dataset.f === "target") x.target = el.value;
+    else if (el.dataset.f === "kind") { x.replace_with.kind = el.value; if (el.value !== "cast") x.replace_with.cast_id = ""; mcSwaps(); }
+    else x.replace_with[el.dataset.f] = el.value;
+    MC.edited.swaps = true;
+    if (x.replace_with.kind === "protagonist" && el.dataset.f === "target") $("#mc-subject").value = x.target;
+    mcTodo();
+  }));
+  host.querySelectorAll("[data-sw-rm]").forEach(b => b.addEventListener("click", () => { MC.swaps.splice(Number(b.dataset.swRm), 1); MC.edited.swaps = true; mcSwaps(); mcTodo(); }));
+}
+$("#mc-swap-add").addEventListener("click", () => { MC.swaps.push({ target:"", replace_with:{ kind: MC.swaps.some(x => x.replace_with.kind === "protagonist") ? "cast" : "protagonist", cast_id:"", description:"" } }); MC.edited.swaps = true; mcSwaps(); const ins = $("#mc-swaps").querySelectorAll('[data-f="target"]'); if (ins.length) ins[ins.length - 1].focus(); });
+$("#mc-instr").addEventListener("input", mcTodo);
+$("#mc-scene").addEventListener("input", () => { MC.edited.scene = true; });
+$("#mc-frame").addEventListener("input", () => { MC.edited.frame = true; });
+
+/* conversa com o agente (sample, várias rodadas: manda o histórico inteiro a cada chamada, ele não tem memória) */
+function mcAgentContext(){
+  const pd = mcPageData(), cast = mcCastList();
+  const people = MC.people.map(p => `- ${p.replace_subject} (${p.position || "?"})`).join("\n") || "- (not analysed: rely on the producer's words)";
+  const flags = Object.entries(MC.flags || {}).filter(([k, v]) => v === true).map(([k]) => k).join(", ") || "none";
+  const castTxt = cast.map(e => `- cast_id "${e.castId}": ${e.name} — ${e.role}. Look (EN): ${e.look}. Sheet: ${e.state}`).join("\n") || "- (no recurring cast on this page)";
+  const { s, e } = mcRange();
+  return `You help Caio (a Brazilian producer; write to him in Brazilian Portuguese) set up a Genjutsu motion-transfer video: a real dance clip where people and objects are swapped for our characters. You see the first frame of the source${MC.imgOK && MC.first ? " (attached image)" : " (no image here: rely on the people list and his words)"}.
+
+${C5_RULES}
+
+PAGE CHARACTER (the protagonist): ${pd.name}${pd.nickname ? " (" + pd.nickname + ")" : ""}, a ${pd.noun}. Appearance (EN): ${pd.look || "see reference images"}. Signature hair: ${pd.hair}. Rules: ${pd.rules || "deadpan"}. World: ${pd.world || "ordinary urban Brazil"}.
+RECURRING CAST of this page (use ONLY these cast_ids for "cast"; anyone else is "new_character", fictional, never a real person):
+${castTxt}
+SOURCE: "${$("#mc-title").value.trim() || "dance trend"}", ${(e - s).toFixed(1)} s, vertical 9:16. People in the first frame:
+${people}
+Source flags: ${flags}.
+CAIO'S INSTRUCTIONS (his own words): ${$("#mc-instr").value.trim() || "(none yet)"}
+PLACE asked: ${$("#mc-place").value.trim() || "keep the source place unless he asks otherwise"}
+
+IMAGE ORDER in the first-frame edit: image 1 = first frame of the source, image 2 = ${pd.name}'s face, image 3 = his silhouette sheet, then image 4, 5… = the reference sheets of each cast member swapped in, in the order of the "cast" swaps.
+
+HOW TO ANSWER, every turn: first a short reply to Caio in Brazilian Portuguese (1-4 sentences: what you understood and changed). Then ONE fenced block \`\`\`json with:
+{"swaps":[{"target":"English descriptor of the person/object as seen in the frame, e.g. 'the dancer in the white tank top, center'","replace_with":{"kind":"protagonist|cast|object|new_character","cast_id":"only for cast","description":"English, short"}}],"scene_prompt":"English, 60-160 words, follows the C5 rules, names the swapped cast by name, no image numbers","frame_prompt":"English, starts 'Edit image 1. Make exactly these replacements, one per person or object, and nothing else:' then one numbered line per swap with its image (protagonist = image 2 and image 3; cast = its image number), then the keep/lock lines","warnings":["PT-BR, C5 risks"],"questions":["PT-BR, only what you need Caio to answer"]}
+Exactly one swap is the protagonist (unless Caio clearly says otherwise; then ask). The CURRENT STATE in his last message may contain his manual edits: they win, keep them unless his new message asks to change them.`;
+}
+function mcParseAgent(text){
+  const t = String(text || "");
+  let json = null, shown = t;
+  const fences = [...t.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)];
+  const tryParse = (x) => { try { return JSON.parse(x); } catch(e){ return null; } };
+  if (fences.length) { const f = fences[fences.length - 1]; json = tryParse(f[1].trim()); shown = (t.slice(0, f.index) + t.slice(f.index + f[0].length)).trim(); }
+  if (!json) { const a = t.indexOf("{"), b = t.lastIndexOf("}"); if (a >= 0 && b > a) { json = tryParse(t.slice(a, b + 1)); if (json) shown = (t.slice(0, a) + t.slice(b + 1)).trim(); } }
+  return { shown: shown.replace(/```(?:json)?\s*$/i, "").trim(), json: json && typeof json === "object" ? json : null };
+}
+function mcChatRender(streaming){
+  const host = $("#mc-chat");
+  host.innerHTML = MC.chat.map(m => `<div class="mc-msg ${m.role === "user" ? "user" : "assistant"}">${esc(m.text)}</div>`).join("") + (streaming != null ? `<div class="mc-msg assistant ${streaming ? "" : "thinking"}">${esc(streaming || "Pensando…")}</div>` : "");
+  host.scrollTop = host.scrollHeight;
+  const n = MC.agentNotes;
+  $("#mc-agent-notes").innerHTML = (n.warnings || []).map(w => `<p class="msg bad">${esc(w)}</p>`).join("") + ((n.questions || []).length ? `<p class="note"><strong>O agente pergunta:</strong> ${(n.questions || []).map(esc).join(" · ")}</p>` : "");
+}
+let mcChatCtl = null;
+$("#mc-chat-stop").addEventListener("click", () => mcChatCtl && mcChatCtl.abort());
+async function mcAgentTurn(message){
+  if (!S.sample) return false;
+  const msg = String(message || "").trim(); if (!msg) return false;
+  const btn = $("#mc-chat-send"), wb = $("#mc-write");
+  btn.disabled = true; wb.disabled = true; $("#mc-chat-stop").hidden = false; mcSet("#mc-chat-msg", "");
+  const sent = { scene: $("#mc-scene").value, frame: $("#mc-frame").value, swaps: JSON.stringify(MC.swaps) };
+  MC.edited = { scene:false, frame:false, swaps:false };   // o que mudar durante a espera é edição do Caio e vence
+  const stateTxt = `CURRENT STATE (his manual edits win):\nswaps: ${sent.swaps}\nscene_prompt: ${sent.scene || "(empty)"}\nframe_prompt: ${sent.frame || "(empty)"}\n\nCAIO'S NEW MESSAGE: ${msg}`;
+  MC.chat.push({ role:"user", text: msg }); mcChatRender(""); 
+  const hist = MC.chat.slice(0, -1).slice(-16).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text || "…" }));
+  const turns = [{ role:"user", content: mcAgentContext() }, ...hist, { role:"user", content: stateTxt }];
+  mcChatCtl = new AbortController();
+  const opts = { signal: mcChatCtl.signal, cache:false, onText: ({ text }) => { mcChatRender(mcParseAgent(text.split("```")[0]).shown || "…"); } };
+  if (MC.imgOK && !MC.first && MC.w) { try { MC.first = await mcGrabFirst(); } catch(e){} }
+  if (MC.imgOK && MC.first) opts.images = [MC.first];
+  try {
+    const r = await S.sample(turns, opts);
+    const { shown, json } = mcParseAgent(r && r.text);
+    MC.chat.push({ role:"assistant", text: shown || (json ? "Atualizei as trocas e os prompts." : String((r && r.text) || "").slice(0, 2000)) });
+    if (json) {
+      if (Array.isArray(json.swaps) && !MC.edited.swaps) { const sw = mcCleanSwaps(json.swaps); if (sw.length) { MC.swaps = sw; const p = sw.find(x => x.replace_with.kind === "protagonist"); if (p) $("#mc-subject").value = p.target; } }
+      if (json.scene_prompt && !MC.edited.scene) $("#mc-scene").value = String(json.scene_prompt);
+      if (json.frame_prompt && !MC.edited.frame) $("#mc-frame").value = String(json.frame_prompt);
+      MC.agentNotes = { warnings: (Array.isArray(json.warnings) ? json.warnings : []).map(String).slice(0, 6), questions: (Array.isArray(json.questions) ? json.questions : []).map(String).slice(0, 4) };
+      mcSet("#mc-chat-msg", (MC.edited.scene || MC.edited.frame || MC.edited.swaps) ? "Você editou durante a resposta: mantive a sua edição." : "Trocas e prompts atualizados.");
+    } else mcSet("#mc-chat-msg", "O agente respondeu sem o bloco de dados: as trocas e os prompts não mudaram.", "bad");
+    if (r && r.truncated) mcSet("#mc-chat-msg", "Resposta cortada: peça menos de uma vez.", "bad");
+    mcChatRender(); mcSwaps(); mcTodo();
+    return true;
+  } catch(e){
+    const keep = e && e.text ? mcParseAgent(e.text).shown : "";
+    if (keep) MC.chat.push({ role:"assistant", text: keep });
+    mcChatRender(); mcSet("#mc-chat-msg", sampleCopy(e), e && e.code === "cancelled" ? "" : "bad");
+    if (e && e.code === "images_unavailable") { MC.imgOK = false; mcCaps(); }
+    return false;
+  } finally { btn.disabled = false; wb.disabled = false; $("#mc-chat-stop").hidden = true; }
+}
+$("#mc-chat-send").addEventListener("click", async () => {
+  const box = $("#mc-chat-in"), msg = box.value.trim() || (!MC.chat.length ? $("#mc-instr").value.trim() : "");
+  if (!msg) { mcSet("#mc-chat-msg", "Escreva o que trocar (aqui ou no campo acima).", "bad"); box.focus(); return; }
+  box.value = ""; await mcAgentTurn(msg);
+});
+$("#mc-chat-in").addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); $("#mc-chat-send").click(); } });
 
 /* prompts */
 function mcTemplate(pd, subj, place){
   const where = place || "an ordinary Brazilian street at overcast midday";
   const scene = `${where.charAt(0).toUpperCase() + where.slice(1)}. The camera keeps the framing of the source video; smartphone video look, everything sharp. ${pd.name}'s ${pd.hair} is a rigid lacquered solid that moves only as one block with ${pd.pos} head and keeps its exact outline; still air. ${pd.pos.charAt(0).toUpperCase() + pd.pos.slice(1)} face stays deadpan: lips closed, lip corners level, eyes toward the lens. Two passersby continue their own tasks — one walks past frame-left to frame-right, one checks a phone at a bus stop — each on their own rhythm, at least 1.5 m away; none looks at ${pd.obj}. Real-time speed. Exactly one main character.`;
+  const sws = MC.swaps.filter(x => x.target.trim());
+  if (sws.length > 1 || sws.some(x => x.replace_with.kind !== "protagonist")) {
+    const cast = mcCastList(); let n = 4; const imgOf = {};
+    const lines = sws.map((x, i) => { const k = x.replace_with.kind, c = cast.find(e => e.castId === x.replace_with.cast_id);
+      if (k === "protagonist") return `${i + 1}. Replace ${x.target} with ${pd.name}, the ${pd.noun} from image 2 and image 3 — same face as image 2, same ${pd.hair} shape and outfit as image 3.`;
+      if (k === "cast" && c) { if (!imgOf[c.castId]) imgOf[c.castId] = n++; return `${i + 1}. Replace ${x.target} with ${c.name.toUpperCase()}, the person on the reference sheet in image ${imgOf[c.castId]} — same face, hair, build and clothes; a different person from ${pd.name}.`; }
+      if (k === "object") return `${i + 1}. Replace ${x.target} with ${x.replace_with.description || "the object asked"}, same size, position and hold as the original.`;
+      return `${i + 1}. Replace ${x.target} with ${x.replace_with.description || "an ordinary person"}: an invented, fictional person with an ordinary, non-recognizable face.`; });
+    const frameM = `Edit image 1. Make exactly these replacements, one per person or object, and nothing else:\n${lines.join("\n")}\nEveryone and everything not listed stays exactly as in image 1. Keep the exact pose, body position, subject size, framing, camera angle and lens of image 1. Place the scene in: ${where}.\nThe ${pd.hair} is fully inside the frame with 10% headroom above it. Deadpan: lips closed, lip corners level, eyes looking straight into the lens. Must look like a real vertical smartphone photo. Exactly one main character. No text, no captions, no watermarks.`;
+    return { scene, frame: frameM };
+  }
   const frame = `Edit image 1. Replace ${subj || "the dancer"} with the ${pd.noun} from image 2 and image 3 — same face as image 2, same ${pd.hair} shape and outfit as image 3.
 Keep the exact pose, body position, subject size, framing, camera angle and lens of image 1. Place the scene in: ${where}.
 The ${pd.hair} is fully inside the frame with 10% headroom above it. ${pd.pos.charAt(0).toUpperCase() + pd.pos.slice(1)} face is unobstructed, sharp and evenly lit. Deadpan: lips closed, lip corners level, eyes looking straight into the lens.
@@ -1041,39 +1261,23 @@ Background people stay busy with their own tasks, none looking at ${pd.obj}. Mus
   return { scene, frame };
 }
 let mcCtl = null;
-$("#mc-write-stop").addEventListener("click", () => mcCtl && mcCtl.abort());
+$("#mc-write-stop").addEventListener("click", () => mcChatCtl && mcChatCtl.abort());
 $("#mc-write").addEventListener("click", async () => {
   const b = $("#mc-write"), pd = mcPageData(), subj = $("#mc-subject").value.trim(), place = $("#mc-place").value.trim();
-  if (!subj) { mcSet("#mc-write-msg", "Diga antes quem sai da cena (passo 3).", "bad"); $("#mc-subject").focus(); return; }
+  if (!subj && !MC.swaps.length && !$("#mc-instr").value.trim()) { mcSet("#mc-write-msg", "Diga antes quem sai da cena ou o que trocar (passo 3).", "bad"); $("#mc-subject").focus(); return; }
   if (!S.sample) {
     const t = mcTemplate(pd, subj, place); $("#mc-scene").value = t.scene; $("#mc-frame").value = t.frame;
     mcSet("#mc-write-msg", "Prompts montados pelo modelo da página. Revise o cenário (em inglês) antes de enviar."); mcTodo(); return;
   }
-  b.disabled = true; $("#mc-write-stop").hidden = false; mcCtl = new AbortController();
-  mcSet("#mc-write-msg", "Escrevendo… (até um minuto)");
-  const people = MC.people.map(p => `- ${p.replace_subject} (${p.position || "?"})`).join("\n") || "- (not analysed)";
-  const flags = Object.entries(MC.flags || {}).filter(([k, v]) => v === true).map(([k]) => k).join(", ") || "none";
-  const prompt = `${C5_RULES}
-
-CHARACTER: ${pd.name}${pd.nickname ? " (" + pd.nickname + ")" : ""}, a ${pd.noun}. Appearance (English): ${pd.look || "see the reference images"}. Signature hair: ${pd.hair}. Style rules: ${pd.rules || "deadpan the whole time"}. World: ${pd.world || "ordinary urban Brazil"}. Dance style: ${pd.dance || "from the source video"}.
-SOURCE VIDEO: "${$("#mc-title").value.trim() || "dance trend"}", ${(mcRange().e - mcRange().s).toFixed(1)} s, vertical 9:16. Person to replace: "${subj}". People visible in the first frame:\n${people}\nSource flags: ${flags}.
-PLACE asked by the producer: ${place || "pick one specific ordinary Brazilian place from the character's world that suits the dance"}.
-
-Reply with only JSON: {"scene_prompt": "English, 60-140 words, follows the rules above", "frame_prompt": "English, starts exactly with 'Edit image 1. Replace ${subj} with the ${pd.noun} from image 2 and image 3'", "title": "short Brazilian Portuguese title"}`;
-  try {
-    const r = await S.sample.json(prompt, { signal: mcCtl.signal, cache: false });
-    if (!r || !r.scene_prompt || !r.frame_prompt) throw { code:"invalid_json" };
-    $("#mc-scene").value = String(r.scene_prompt); $("#mc-frame").value = String(r.frame_prompt);
-    if (r.title && !$("#mc-title").value.trim()) $("#mc-title").value = String(r.title).slice(0, 80);
-    mcSet("#mc-write-msg", "Prompts prontos. Revise e edite à vontade: o pipeline acrescenta as travas (topete rígido, cara séria, sem rosto real).");
-  } catch(e){
-    if (e && e.code !== "cancelled") { const t = mcTemplate(pd, subj, place); if (!$("#mc-scene").value.trim()) { $("#mc-scene").value = t.scene; $("#mc-frame").value = t.frame; } }
-    mcSet("#mc-write-msg", sampleCopy(e) + (e && e.code !== "cancelled" ? " Deixei o modelo da página nos campos vazios." : ""), "bad");
-  } finally { b.disabled = false; $("#mc-write-stop").hidden = true; mcTodo(); }
+  mcSet("#mc-write-msg", "O agente está escrevendo… (até um minuto; acompanhe na conversa do passo 3)");
+  const ok = await mcAgentTurn(MC.chat.length ? "Reescreva os dois prompts com as trocas e o cenário atuais." : ($("#mc-instr").value.trim() || `Troque ${subj} pelo personagem da página e escreva os prompts.`) + (place ? ` Cenário: ${place}.` : ""));
+  if (!ok && !$("#mc-scene").value.trim()) { const t = mcTemplate(pd, subj, place); $("#mc-scene").value = t.scene; $("#mc-frame").value = t.frame; mcSet("#mc-write-msg", "O agente não respondeu: deixei o modelo da página nos campos.", "bad"); }
+  else mcSet("#mc-write-msg", ok ? "Prompts prontos. Revise e edite à vontade: o pipeline acrescenta as travas (topete rígido, cara séria, sem rosto real)." : $("#mc-chat-msg").textContent, ok ? "" : "bad");
+  mcTodo();
 });
 for (const id of ["#mc-scene", "#mc-frame", "#mc-consent", "#mc-expr", "#mc-title"]) $(id).addEventListener("input", mcTodo);
 $("#mc-deadpan").addEventListener("change", mcTodo);
-$("#mc-page").addEventListener("change", mcTodo);
+$("#mc-page").addEventListener("change", () => { mcSwaps(); mcTodo(); });
 
 /* enviar */
 function mcMissing(){
@@ -1082,6 +1286,7 @@ function mcMissing(){
   if (MC.cuts.length && !$("#mc-falso").checked) m.push("trecho sem corte, ou marcar falso alarme");
   if (!$("#mc-page").value) m.push("escolher a página");
   if (!$("#mc-subject").value.trim()) m.push("dizer quem sai da cena");
+  if (MC.swaps.some(x => x.replace_with.kind === "cast" && !x.replace_with.cast_id)) m.push("escolher a pessoa do elenco em cada troca");
   if (!$("#mc-scene").value.trim() || !$("#mc-frame").value.trim()) m.push("os dois prompts");
   if (!$("#mc-consent").value.trim()) m.push("consentimento e autoria da fonte");
   if (!$("#mc-deadpan").checked || !/deadpan|s[ée]rio/i.test($("#mc-expr").value)) m.push("confirmar que o dançarino está sério (deadpan)");
@@ -1089,8 +1294,11 @@ function mcMissing(){
 }
 function mcTodo(){
   const miss = mcMissing();
-  const all = ["preparar o clipe (passo 2)", "trecho sem corte, ou marcar falso alarme", "escolher a página", "dizer quem sai da cena", "os dois prompts", "consentimento e autoria da fonte", "confirmar que o dançarino está sério (deadpan)"];
-  $("#mc-todo").innerHTML = all.map(t => `<li class="${miss.includes(t) ? "todo" : "ok"}">${miss.includes(t) ? "○" : "✓"} ${esc(t)}</li>`).join("");
+  const all = ["preparar o clipe (passo 2)", "trecho sem corte, ou marcar falso alarme", "escolher a página", "dizer quem sai da cena", "escolher a pessoa do elenco em cada troca", "os dois prompts", "consentimento e autoria da fonte", "confirmar que o dançarino está sério (deadpan)"];
+  const c = mcCostInfo(), pend = MC.swaps.filter(x => x.replace_with.kind === "cast" && x.replace_with.cast_id).map(x => state.elenco.find(e => e.page === $("#mc-page").value && e.castId === x.replace_with.cast_id)).filter(e => e && e.state !== "aprovado");
+  $("#mc-todo").innerHTML = all.map(t => `<li class="${miss.includes(t) ? "todo" : "ok"}">${miss.includes(t) ? "○" : "✓"} ${esc(t)}</li>`).join("")
+    + (c && c.over ? `<li class="todo">⚠ ≈ ${c.est} créditos, acima do teto de ${c.cap} por ideia: a usina guarda o pedido, mas não manda o vídeo (recorte para até ${c.maxS} s)</li>` : "")
+    + pend.map(e => `<li class="todo">⚠ a ficha de ${esc(e.name)} ainda não está aprovada (${esc(e.state)}): a usina gera e você aprova na Caixa antes dos frames</li>`).join("");
   const send = $("#mc-send");
   send.disabled = !!miss.length || !S.assets || !S.db || MC.busy || !!MC.sentId;
   send.title = !S.assets ? "Esta visualização não guarda arquivos" : !S.db ? "Sem banco nesta visualização" : miss.length ? "Falta: " + miss.join(", ") : "";
@@ -1118,7 +1326,9 @@ $("#mc-send").addEventListener("click", async () => {
     startS: s, endS: e, crop: { x: Number($("#mc-crop").value), w: MC.w, h: MC.h, out: "720x1280" },
     cuts: MC.cuts, cutsFalseAlarm: !!(MC.cuts.length && $("#mc-falso").checked),
     flags: Object.fromEntries(Object.entries(MC.flags || {}).filter(([k, v]) => typeof v === "boolean")),
-    replace_subject: $("#mc-subject").value.trim(), people: MC.people,
+    replace_subject: (MC.swaps.find(x => x.replace_with.kind === "protagonist") || {}).target || $("#mc-subject").value.trim(), people: MC.people,
+    swaps: mcCleanSwaps(MC.swaps), instructions: $("#mc-instr").value.trim(), chat: MC.chat.slice(-40).map(m => ({ role: m.role, text: String(m.text).slice(0, 4000) })),
+    costEstimate: (mcCostInfo() || {}).est || null,
     scene_prompt: $("#mc-scene").value.trim(), frame_prompt: $("#mc-frame").value.trim(),
     consent: $("#mc-consent").value.trim(), source_expression: $("#mc-expr").value.trim(), sourceDeadpan: $("#mc-deadpan").checked,
     createdAt: at, status: "novo" };
@@ -1154,7 +1364,7 @@ function renderMotion(){
     const step = MC_ORDER.indexOf(st);
     return `<div class="mc-req">${m.firstFrameAssetId ? `<img src="/_blob/${esc(m.firstFrameAssetId)}" alt="1º frame" loading="lazy">` : `<span></span>`}
       <div><div class="row" style="justify-content:space-between"><strong>${esc(m.title || m._id)}</strong><span class="chip ${cls}">${esc(st)}</span></div>
-      <div class="note">${esc(m.page)} · ${Number(m.endS - m.startS || 0).toFixed(1)} s · ${esc(m.replace_subject || "")}</div>
+      <div class="note">${esc(m.page)} · ${Number(m.endS - m.startS || 0).toFixed(1)} s · ${esc(m.replace_subject || "")}${(m.swaps || []).length > 1 ? ` · ${esc(m.swaps.length)} trocas` : ""}</div>
       ${step >= 0 ? `<div class="note">${MC_ORDER.map((x, i) => i <= step ? `<strong>${esc(x)}</strong>` : esc(x)).join(" → ")}</div>` : ""}
       ${m.statusNote ? `<div class="note">${bad ? "Motivo: " : ""}${esc(m.statusNote)}</div>` : ""}
       <div class="note">${new Date(m.createdAt || 0).toLocaleString("pt-BR")}${m.ref ? ` · <span class="mono">${esc(m.ref)}</span>` : ""}</div></div></div>`;
@@ -1249,7 +1459,7 @@ setInterval(() => { if (document.visibilityState === "visible" && state.jobs.som
 
 /* ---------- CAIXA / FILA / PAGINAS / SAUDE ---------- */
 Object.assign(state, { fila:[], paginas:[], saude:null, decisoes:[], placar:[] });
-const STAGE_LABEL = { storyboard:"Storyboard", frames:"Primeiro e último frame", video:"Vídeo final" };
+const STAGE_LABEL = { storyboard:"Storyboard", frames:"Primeiro e último frame", video:"Vídeo final", elenco:"Elenco: ficha nova" };
 const STATE_LABEL = { ideia:"ideia", roteiro:"roteiro", storyboard:"storyboard", frames:"frames", video:"vídeo", revisao:"revisão", pronto:"pronto pra postar", postado:"postado", descartado:"descartado", erro:"erro", pausado:"pausado" };
 function pendingFor(f){
   const out = [];
@@ -1268,11 +1478,30 @@ function pendingFor(f){
   return out;
 }
 function img(url, alt){ return url ? `<img src="${esc(url)}" alt="${esc(alt)}" loading="lazy" style="width:100%;border-radius:8px;border:1px solid var(--line);background:var(--paper)">` : ""; }
+// Elenco: ficha nova esperando o Caio (aprova uma vez; vale para todo vídeo). Some quando há decisão posterior à ficha.
+function elencoPending(){
+  return state.elenco.filter(e => e.state === "aguardando" && e.sheetUrl
+    && !state.decisoes.some(d => d.ref === `${e.page}/${e.castId}` && d.stage === "elenco" && (!d.applied || Number(d.at || 0) >= Number(e.sheetAt || 0))));
+}
+function elencoCard(e){
+  const ref = `${e.page}/${e.castId}`;
+  return `<article class="card">
+      <div class="chips"><span class="chip br">${esc(e.page)}</span><span class="chip info">${esc(STAGE_LABEL.elenco)}</span>${(e.usedBy||[]).length?`<span class="chip">${esc(e.usedBy.length)} vídeo(s) esperando</span>`:""}</div>
+      <h3>${esc(e.name)}</h3>
+      <p>${esc(e.role)}</p>
+      ${img(e.sheetUrl, "ficha de " + e.name)}
+      <details><summary class="note">Aparência pedida (inglês)</summary><p class="note">${esc(e.look)}</p></details>
+      <p class="note">Confira: pessoa fictícia, rosto comum, não parece ninguém famoso nem o personagem da página. Aprovada, a ficha vale para todos os vídeos.</p>
+      <label>Motivo (obrigatório para refazer)<input data-notes="${esc(ref)}|elenco" placeholder="ex.: parece um ator conhecido; mais velho"></label>
+      <div class="row"><button class="btn sign" data-dec="approve" data-ref="${esc(ref)}" data-st="elenco">Aprovar</button><button class="btn ghost" data-dec="reject" data-ref="${esc(ref)}" data-st="elenco">Refazer</button></div>
+    </article>`;
+}
 function renderCaixa(){
   const host = $("#caixa"); const cards = [];
   for (const f of state.fila) for (const st of pendingFor(f)) cards.push([f, st]);
-  $("#n-caixa").textContent = cards.length;
-  if (!cards.length) { host.innerHTML = `<div class="empty">Nada esperando você. Quando a usina terminar um storyboard, um par de frames ou um vídeo e o revisor de IA aprovar, aparece aqui.</div>`; return; }
+  const elc = elencoPending();
+  $("#n-caixa").textContent = cards.length + elc.length;
+  if (!cards.length && !elc.length) { host.innerHTML = `<div class="empty">Nada esperando você. Quando a usina terminar um storyboard, um par de frames ou um vídeo e o revisor de IA aprovar, aparece aqui.</div>`; return; }
   host.innerHTML = cards.map(([f, st]) => {
     const a = f.assets || {};
     const media = st === "storyboard" ? img(a.storyboard, "storyboard")
@@ -1290,7 +1519,7 @@ function renderCaixa(){
       <label>Motivo (obrigatório para refazer)<input data-notes="${esc(f.ref)}|${st}" placeholder="ex.: topete achatou no painel 3"></label>
       <div class="row"><button class="btn sign" data-dec="approve" data-ref="${esc(f.ref)}" data-st="${st}">Aprovar</button><button class="btn ghost" data-dec="reject" data-ref="${esc(f.ref)}" data-st="${st}">Refazer</button></div>
     </article>`;
-  }).join("");
+  }).join("") + elc.map(elencoCard).join("");
   host.querySelectorAll("[data-dec]").forEach(b => b.addEventListener("click", async () => {
     const ref = b.dataset.ref, st = b.dataset.st, verdict = b.dataset.dec;
     const notes = (host.querySelector(`[data-notes="${CSS.escape(ref+"|"+st)}"]`)||{}).value || "";
@@ -1304,7 +1533,7 @@ function renderCaixa(){
     const id = ref.replace("/","--") + "--" + st + "--" + now();
     const doc = { ref, stage:st, verdict, notes:notes.trim(), at:now(), applied:false };
     try { await put("decisoes", id, doc); } catch(e){ b.disabled = false; b.textContent = "Não salvou: só quem edita o painel decide"; return; }
-    state.decisoes.push({ _id:id, ...doc }); renderCaixa();
+    state.decisoes.push({ _id:id, ...doc }); renderCaixa(); renderElenco();
   }));
 }
 // Pronto: o MP4 do pacote (asset arquivado pela automação), a legenda e o "Postei" (vira postado no próximo ciclo).
@@ -1412,15 +1641,15 @@ $("#b-placar").addEventListener("click", async () => {
 });
 
 /* ---------- boot ---------- */
-renderIdeas(); renderChars(); renderScripts(); renderJobs(); renderYt(); renderCaixa(); renderFila(); renderPaginas(); renderSaude();
-mcPages(); renderMotion(); mcTodo();
+renderIdeas(); renderChars(); renderElenco(); renderScripts(); renderJobs(); renderYt(); renderCaixa(); renderFila(); renderPaginas(); renderSaude();
+mcPages(); renderMotion(); mcSwaps(); mcTodo();
 (async () => {
   const c = window.claude;
   if (!c || !c.use) { ["#d-hf","#d-claude","#d-db"].forEach(s => $(s).classList.add("off")); mcCaps(); return; }
   const [mcp, sample, db, user, assets, downloads] = await Promise.all(["mcp","sample","db","user","assets","downloads"].map(n => Promise.resolve().then(() => c.use(n)).catch(() => null)));
   S.mcp = mcp; S.sample = sample; S.db = db; S.user = user; S.assets = assets; S.downloads = downloads;
   if (sample && sample.limits) { try { const lim = await sample.limits(); MC.imgOK = !!(lim && lim.images && (lim.images.mediaTypes || []).includes("image/jpeg")); } catch(e){ MC.imgOK = false; } }
-  mcCaps(); renderMotion();
+  mcCaps(); renderMotion(); renderElenco();
   $("#d-hf").classList.add(mcp ? "on" : "off");
   $("#d-claude").classList.add(sample ? "on" : "off");
   $("#d-db").classList.add(db ? "on" : "off");
@@ -1431,11 +1660,12 @@ mcPages(); renderMotion(); mcTodo();
     listen("jobs", "jobs", "createdAt", renderJobs);
     listen("analyses", "ytdocs", "createdAt", renderYt);
     listen("fila", "fila", "updatedAt", () => { renderCaixa(); renderFila(); renderSaude(); });
-    listen("decisoes", "decisoes", "at", () => { renderCaixa(); renderFila(); });
+    listen("decisoes", "decisoes", "at", () => { renderCaixa(); renderFila(); renderElenco(); });
     listen("placar", "placar", "createdAt", renderSaude);
     listen("motion", "motion", "createdAt", renderMotion);
+    listen("elenco", "elenco", "updatedAt", () => { renderElenco(); renderCaixa(); mcSwaps(); mcTodo(); });
     S.db.collection("paginas").onSnapshot(snap => { state.paginas = snap.docs.map(d => ({ _id:d.id, ...d.data() })); renderPaginas(); mcPages(); mcTodo(); }, e => dbError("paginas", e));
-    S.db.doc("saude/atual").onSnapshot(snap => { state.saude = snap.exists ? snap.data() : null; renderSaude(); }, e => dbError("saude", e));
+    S.db.doc("saude/atual").onSnapshot(snap => { state.saude = snap.exists ? snap.data() : null; renderSaude(); mcCost(); mcTodo(); }, e => dbError("saude", e));
   }
 })();
 })();

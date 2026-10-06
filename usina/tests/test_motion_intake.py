@@ -184,12 +184,26 @@ def test_panel_motion_tab_round_trip(usina, tmp_path):
     assert "true:the dancer in the red shirt" in out and "Mais de uma pessoa" in out
     assert "Pedido salvo" in out and "MC overflow at 375px: false" in out
     assert '"type":"video/webm"' in out and '"type":"image/jpeg"' in out and "motion-gersinho-" in out
+    # conversa com o agente, trocas editáveis, edição manual vence, aviso de custo, Caixa/aba Elenco, sem sample
+    assert "MC chat shown: true" in out and "MC swaps after 1: 2 seu-tadeu" in out and "O agente pergunta" in out
+    assert "MC ctx has: true,true,true,true,true" in out
+    assert "MC turn2 turns: 4 | sent manual scene: true | history: true" in out
+    assert "MC manual wins: Edit image 1. MANUAL frame edit" in out
+    assert "MC cost load: Estimativa: ≈ 180 créditos" in out and "acima do teto de 160" in out and "msg bad" in out
+    assert "CAIXA elenco: 1" in out and "Escreva o motivo" in out and '"stage"' not in out.split("ELENCO decision:")[1][:5]
+    assert 'ELENCO decision: [{"ref":"gersinho/seu-tadeu","verdict":"approve"}]' in out and "CAIXA elenco after: 0" in out
+    assert "ELENCO tab: 4" in out and "ELENCO overflow at 375px: false" in out
+    assert "NOSAMPLE chat hidden: true" in out and "2. Replace the green bottle with a closed black umbrella" in out
     docs = json.loads(out.split("MOTION DOC: ", 1)[1].splitlines()[0])
     d = docs[0]
     assert d["status"] == "novo" and d["page"] == "gersinho" and d["cutsFalseAlarm"] is True
-    assert d["scene_prompt"].endswith("SCENE_MOCK") and d["consent"] and d["sourceDeadpan"] is True
+    assert "SCENE_MOCK turn 3" in d["scene_prompt"] and d["consent"] and d["sourceDeadpan"] is True
+    assert [x["replace_with"]["kind"] for x in d["swaps"]] == ["protagonist", "cast"] and d["instructions"].startswith("troca")
+    assert len(d["chat"]) == 6 and d["chat"][0]["role"] == "user" and d["replace_subject"] == "the dancer in the red shirt, center"
     res = intake(usina, write(tmp_path, [{"id": d.pop("id"), "data": d}]))
     assert len(res["created"]) == 1 and res["created"][0]["asset_id"] == "c" * 31 + "1"
+    ik = item(usina)["intake"]
+    assert ik["swaps"][1]["replace_with"]["cast_id"] == "seu-tadeu" and len(ik["chat"]) == 6
 
 
 SWAPS = [{"target": "the dancer in the white tank top, center",

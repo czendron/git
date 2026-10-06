@@ -7,9 +7,13 @@ const fs = require('fs');
     const browser = await chromium.launch({ executablePath: process.argv[4] || undefined });
   const page = await browser.newPage();
   page.on('pageerror', e => console.log('PAGEERROR', e.message));
-  await page.addInitScript((batch) => {
+  const init = (batch) => {
     const cols = {}; window.__writes = [];
     for (const w of batch) { (cols[w.collection] ||= {})[w.doc_id] = w.data; }
+    // elenco: uma ficha nova esperando o Caio (card Elenco da Caixa); custo do Genjutsu alto para testar o aviso de teto
+    (cols.elenco ||= {})['gersinho--seu-tadeu'] = Object.assign({}, (cols.elenco || {})['gersinho--seu-tadeu'] || { page: 'gersinho', castId: 'seu-tadeu', name: 'Seu Tadeu Carimbo', role: 'tio', look: 'bald man', pronoun: 'he' },
+      { state: 'aguardando', status: 'rascunho', sheetUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', sheetAt: 1000, usedBy: ['gersinho/x'], updatedAt: 2 });
+    if (cols.saude && cols.saude.atual) cols.saude.atual.budget = { mcPerS: 30, maxCreditsIdea: 160, dayCapCredits: 240 };
     const fx = batch.find(w=>w.collection==="fila" && ["pronto","postado"].includes(w.data.state)) || batch.find(w=>w.collection==="fila");
     cols.placar = fx ? { "x": { ref: fx.data.ref, title:"t", views: 1200, views7: 7000, shares: 3, follows: 1, ret3: 40, createdAt: 1 } } : {};
     const snapOf = (c) => ({ docs: Object.entries(cols[c]||{}).map(([id,d]) => ({ id, data: () => d })) });
@@ -22,7 +26,23 @@ const fs = require('fs');
     const db = { collection: coll, doc: (p) => ({ onSnapshot(cb){ const [c,id] = p.split('/'); cb({ exists: !!(cols[c]||{})[id], data: () => cols[c][id] }); return () => {}; } }) };
     // aba Motion control: Claude (com imagens), armazenamento e download falsos; MediaRecorder sem codificar nada
     window.__uploads = []; window.__saves = []; window.__samples = [];
-    const sample = async (input) => { window.__samples.push(String(input).slice(0, 80)); return { text: 'ok', truncated: false, modelTierApplied: 'default' }; };
+    // conversa: sample(turns) devolve texto em PT-BR + bloco ```json (trocas, prompts, avisos, perguntas)
+    window.__turns = [];
+    const sample = async (input, opts = {}) => {
+      window.__samples.push(typeof input === 'string' ? input.slice(0, 80) : 'TURNS:' + input.length);
+      if (Array.isArray(input)) window.__turns.push(input.map(t => t.content));
+      await new Promise(r => setTimeout(r, window.__sampleDelay || 50));
+      const n = window.__turns.length;
+      const reply = n === 1 ? 'Entendi: o dançarino de branco vira o Gersinho e o cara de boné vira o Seu Tadeu.' : 'Feito: troquei só o da esquerda.';
+      const data = { swaps: [{ target: 'the dancer in the red shirt, center', replace_with: { kind: 'protagonist', description: 'Gersinho' } },
+                             { target: 'the man in the cap, far left', replace_with: { kind: 'cast', cast_id: 'seu-tadeu', description: 'Seu Tadeu' } }],
+                     scene_prompt: 'A busy São Paulo sidewalk at overcast midday. SCENE_MOCK turn ' + n,
+                     frame_prompt: 'Edit image 1. Make exactly these replacements, one per person or object, and nothing else:\n1. Replace the dancer in the red shirt, center with GERSINHO. FRAME_MOCK turn ' + n,
+                     warnings: ['Mais de uma pessoa: confira o boné.'], questions: n === 1 ? ['Deixo o fundo igual?'] : [] };
+      const text = reply + '\n\n```json\n' + JSON.stringify(data) + '\n```';
+      if (opts.onText) opts.onText({ text: reply, delta: reply });
+      return { text, truncated: false, modelTierApplied: 'default' };
+    };
     sample.limits = async () => ({ maxPromptBytes: 262144, images: { maxCount: 5, maxInputBytes: 20000000, mediaTypes: ['image/jpeg', 'image/png'] } });
     sample.json = async (input, opts = {}) => {
       window.__samples.push(String(input).slice(0, 80));
@@ -41,8 +61,10 @@ const fs = require('fs');
       stop() { this.state = 'inactive'; setTimeout(() => { this.ondataavailable && this.ondataavailable({ data: new Blob([new Uint8Array(4096)], { type: 'video/webm' }) }); this.onstop && this.onstop(); }, 0); }
     };
     const caps = { db, sample, assets, downloads };
+    if (window.__noSample || location.hash === '#nosample') delete caps.sample;
     window.claude = { use: async (n) => caps[n] || null };
-  }, batch);
+  };
+  await page.addInitScript(init, batch);
   await page.goto('file://' + require('path').resolve(process.argv[3]));
   await page.waitForTimeout(500);
   await page.click('[data-tab="saude"]');
@@ -67,6 +89,16 @@ const fs = require('fs');
   if (posts.length) { await page.fill('[data-link]', 'https://instagram.com/reel/abc'); await posts[0].click(); await page.waitForTimeout(100); }
   console.log('post after:', (await page.$$('[data-post]')).length);
   console.log('CAIXA cards:', await page.textContent('#n-caixa'));
+  await page.click('[data-tab="caixa"]');
+  console.log('CAIXA elenco:', (await page.$$('[data-st="elenco"][data-dec="approve"]')).length);
+  await page.click('[data-st="elenco"][data-dec="reject"]');
+  console.log('ELENCO reject w/o reason:', await page.textContent('[data-st="elenco"][data-dec="reject"]'));
+  await page.click('[data-st="elenco"][data-dec="approve"]');
+  await page.waitForTimeout(100);
+  console.log('ELENCO decision:', JSON.stringify(await page.evaluate(() => window.__writes.filter(w => w.c === 'decisoes' && w.d.stage === 'elenco').map(w => ({ ref: w.d.ref, verdict: w.d.verdict })))));
+  console.log('CAIXA elenco after:', (await page.$$('[data-st="elenco"][data-dec="approve"]')).length);
+  await page.click('[data-tab="elenco"]');
+  console.log('ELENCO tab:', (await page.$$('#elenco article')).length, '|', (await page.textContent('#elenco')).replace(/\s+/g, ' ').slice(0, 160));
   console.log('WRITES:', JSON.stringify(await page.evaluate(() => window.__writes.map(w => ({c:w.c, stage:w.d.stage, verdict:w.d.verdict, ref:w.d.ref, notes:w.d.notes})))));
   // ---------- aba Motion control ----------
   await page.click('[data-tab="motion"]');
@@ -83,6 +115,7 @@ const fs = require('fs');
   if (vid) {
     await page.setInputFiles('#mc-file', vid);
     await page.waitForSelector('#mc-stage:not([hidden])', { timeout: 20000 });
+    console.log('MC cost load:', await page.textContent('#mc-cost'), '| cls:', await page.getAttribute('#mc-cost', 'class'));
     console.log('MC range:', await page.inputValue('#mc-start-n'), await page.inputValue('#mc-end-n'), '| crop shown:', await page.$eval('#mc-crop-wrap', e => !e.hidden));
     await page.fill('#mc-end-n', '20'); await page.dispatchEvent('#mc-end-n', 'change');
     console.log('MC clamp:', await page.inputValue('#mc-start-n'), await page.inputValue('#mc-end-n'));
@@ -99,8 +132,29 @@ const fs = require('fs');
     console.log('MC flags:', (await page.textContent('#mc-flags')).replace(/\s+/g, ' '));
     await page.click('#mc-people [data-person="1"]');
     await page.click('#mc-people [data-person="0"]');
+    console.log('MC chat shown:', await page.$eval('#mc-chat-wrap', e => !e.hidden), '| swaps:', (await page.$$('#mc-swaps .mc-swap')).length);
+    await page.fill('#mc-instr', 'troca o dançarino de vermelho pelo Gersinho e o cara de boné pelo Seu Tadeu');
+    await page.click('#mc-chat-send');
+    await page.waitForFunction(() => /SCENE_MOCK turn 1/.test(document.querySelector('#mc-scene').value), null, { timeout: 10000 });
+    console.log('MC chat 1:', (await page.textContent('#mc-chat')).replace(/\s+/g, ' ').slice(0, 200));
+    console.log('MC notes:', (await page.textContent('#mc-agent-notes')).replace(/\s+/g, ' '));
+    console.log('MC swaps after 1:', (await page.$$('#mc-swaps .mc-swap')).length, await page.$eval('#mc-swaps select[data-f="cast_id"]', s => s.value).catch(() => 'none'));
+    const ctx = await page.evaluate(() => window.__turns[0]);
+    console.log('MC ctx has:', ['C5', 'seu-tadeu', 'the man in the cap, far left', 'troca o dançarino', 'image 4'].map(k => ctx.join('\n').includes(k)).join(','));
+    // edição manual vence: o Caio mexe no frame enquanto o agente responde
+    await page.fill('#mc-scene', 'MANUAL scene edit');
+    await page.evaluate(() => { window.__sampleDelay = 600; });
+    await page.fill('#mc-chat-in', 'não, troca só o da esquerda');
+    await page.click('#mc-chat-send');
+    await page.waitForTimeout(150);
+    await page.fill('#mc-frame', 'Edit image 1. MANUAL frame edit');
+    await page.waitForFunction(() => /troquei só/.test(document.querySelector('#mc-chat').textContent), null, { timeout: 10000 });
+    const last = await page.evaluate(() => window.__turns[1]);
+    console.log('MC turn2 turns:', last.length, '| sent manual scene:', last[last.length - 1].includes('MANUAL scene edit'), '| history:', last.some(t => /troquei|Entendi/.test(t)));
+    console.log('MC manual wins:', await page.inputValue('#mc-frame'), '|', await page.inputValue('#mc-scene'));
+    await page.evaluate(() => { window.__sampleDelay = 50; });
     await page.click('#mc-write');
-    await page.waitForFunction(() => /SCENE_MOCK/.test(document.querySelector('#mc-scene').value), null, { timeout: 10000 });
+    await page.waitForFunction(() => /SCENE_MOCK turn 3/.test(document.querySelector('#mc-scene').value), null, { timeout: 10000 });
     await page.fill('#mc-consent', 'gravado pelo Caio, autorizado');
     console.log('MC send before deadpan:', await page.$eval('#mc-send', b => b.disabled));
     await page.check('#mc-deadpan');
@@ -119,6 +173,27 @@ const fs = require('fs');
     console.log('UPLOADS:', JSON.stringify(await page.evaluate(() => window.__uploads)), 'SAVES:', JSON.stringify(await page.evaluate(() => window.__saves)));
     console.log('MC list:', (await page.textContent('#mc-list')).replace(/\s+/g, ' ').slice(0, 300));
   }
+  console.log('MC cost:', await page.textContent('#mc-cost'));
+  await page.setViewportSize({ width: 375, height: 800 });
+  await page.click('[data-tab="elenco"]');
+  console.log('ELENCO overflow at 375px:', await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth));
+  await page.setViewportSize({ width: 1280, height: 900 });
+  // sem sample: sem conversa; trocas à mão e prompts pelo modelo da página
+  const p2 = await browser.newPage();
+  p2.on('pageerror', e => console.log('PAGEERROR', e.message));
+  await p2.addInitScript(() => { window.__noSample = true; });
+  await p2.addInitScript(init, batch);
+  await p2.goto('file://' + require('path').resolve(process.argv[3]) + '#motion');
+  await p2.waitForTimeout(400);
+  console.log('NOSAMPLE chat hidden:', await p2.$eval('#mc-chat-wrap', e => e.hidden), '| caps:', (await p2.textContent('#mc-caps')).slice(0, 120));
+  await p2.fill('#mc-subject', 'the dancer, center');
+  await p2.click('#mc-swap-add');
+  await p2.fill('#mc-swaps .mc-swap:nth-child(2) [data-f="target"]', 'the green bottle');
+  await p2.selectOption('#mc-swaps .mc-swap:nth-child(2) [data-f="kind"]', 'object');
+  await p2.fill('#mc-swaps .mc-swap:nth-child(2) [data-f="description"]', 'a closed black umbrella');
+  await p2.click('#mc-write');
+  console.log('NOSAMPLE frame:', (await p2.inputValue('#mc-frame')).split('\n').slice(0, 3).join(' / '));
+  await p2.close();
   await page.setViewportSize({ width: 375, height: 800 });
   await page.click('[data-tab="motion"]');
   console.log('MC overflow at 375px:', await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth));
