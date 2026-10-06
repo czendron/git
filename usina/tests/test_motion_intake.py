@@ -190,3 +190,66 @@ def test_panel_motion_tab_round_trip(usina, tmp_path):
     assert d["scene_prompt"].endswith("SCENE_MOCK") and d["consent"] and d["sourceDeadpan"] is True
     res = intake(usina, write(tmp_path, [{"id": d.pop("id"), "data": d}]))
     assert len(res["created"]) == 1 and res["created"][0]["asset_id"] == "c" * 31 + "1"
+
+
+SWAPS = [{"target": "the dancer in the white tank top, center",
+          "replace_with": {"kind": "protagonist", "description": "Gersinho"}},
+         {"target": "the man in the cap, far left", "replace_with": {"kind": "cast", "cast_id": "seu-tadeu",
+                                                                      "description": "Seu Tadeu"}},
+         {"target": "the green bottle", "replace_with": {"kind": "object", "description": "a closed black umbrella"}}]
+
+
+def test_intake_keeps_swaps_instructions_and_chat(usina, tmp_path):
+    d = doc(replace_subject="", swaps=SWAPS, instructions="troca o dançarino de branco pelo Gersinho e o cara de boné "
+                                                         "pelo Seu Tadeu; a garrafa vira guarda-chuva",
+            chat=[{"role": "user", "text": "troca só o da esquerda"}, {"role": "assistant", "text": "Feito."}])
+    out = intake(usina, write(tmp_path, [{"id": "s1", "data": d}]))
+    assert len(out["created"]) == 1 and out["warnings"] == []
+    ik = item(usina)["intake"]
+    assert ik["replace_subject"] == "the dancer in the white tank top, center"   # back-compat: 1ª troca pelo protagonista
+    assert [s["replace_with"]["kind"] for s in ik["swaps"]] == ["protagonist", "cast", "object"]
+    assert ik["swaps"][1]["replace_with"]["cast_id"] == "seu-tadeu"
+    assert ik["instructions"].startswith("troca o dançarino") and ik["chat"][0] == {"role": "user", "text": "troca só o da esquerda"}
+    assert ik["cost"]["est_credits"] == 64 and ik["cost"]["cap_idea"] == 160
+    # cast inexistente ou nenhuma troca pelo personagem: erro com motivo
+    bad = [{"id": "s2", **doc(replace_subject="", swaps=[SWAPS[1]])},
+           {"id": "s3", **doc(swaps=[{"target": "x", "replace_with": {"kind": "cast", "cast_id": "ninguem"}}])}]
+    reasons = {i["id"]: i["reason"] for i in intake(usina, write(tmp_path, bad, "bad.json"))["invalid"]}
+    assert "replace_subject" in reasons["s2"] and "ninguem" in reasons["s3"]
+
+
+def test_intake_30s_warns_cost_and_plan_blocks_before_images(usina, tmp_path):
+    out = intake(usina, write(tmp_path, [{"id": "long", **doc(startS=0, endS=30)}]))
+    assert len(out["created"]) == 1
+    w = out["warnings"][0]["warning"]
+    assert "240 créditos" in w and "160" in w and "20 s" in w
+    ref = f"gersinho/{item(usina)['id']}"
+    long = tmp_path / "long.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=360x640:rate=30:duration=30",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(long)], check=True)
+    r = run(usina, "motion-source", ref, "--file", str(long))
+    assert "loop melhor no Reels" in r.stdout and "240 créditos" in r.stdout
+    s = json.loads((usina / TREND).read_text())
+    s["duration_s"] = 30
+    (tmp_path / "s.json").write_text(json.dumps(s))
+    r = run(usina, "save-script", ref, str(tmp_path / "s.json"))
+    plan = json.loads(run(usina, "plan").stdout)
+    a = next(x for x in plan["actions"] if x.get("item") == ref)
+    assert a["do"] == "blocked" and "240 créditos" in a["why"] and "teto de 160" in a["why"]
+    assert item(usina)["intake"]["cost"]["est_credits"] == 240
+
+
+def test_trend_with_cast_swap_needs_approved_sheet_then_frames(usina, tmp_path):
+    intake(usina, write(tmp_path, [{"id": "c1", **doc(swaps=SWAPS[:2])}]))
+    ref = f"gersinho/{item(usina)['id']}"
+    run(usina, "motion-source", ref, "--file", str(clip(tmp_path / "src.mp4")))
+    run(usina, "save-script", ref, TREND)
+    a = next(x for x in json.loads(run(usina, "plan").stdout)["actions"] if x.get("item") == ref)
+    assert a["cmd"] == "python -m pipeline image gersinho cast-sheet seu-tadeu"
+    run(usina, "image", "gersinho", "cast-sheet", "seu-tadeu")
+    assert "cast approve" in run(usina, "image", ref, "frames", "--variants", "4", ok=False).stderr
+    run(usina, "cast", "approve", "gersinho", "seu-tadeu")
+    run(usina, "image", ref, "frames", "--variants", "4")
+    it = item(usina)
+    p = it["variants"][0]["prompt"]
+    assert "Replace the man in the cap, far left with SEU TADEU CARIMBO" in p and "image 4" in p

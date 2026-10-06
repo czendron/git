@@ -693,6 +693,12 @@ def motion_frame_prompt(script: dict, page: Page, intake: dict | None = None,
             f"scene in: {en['location']}. {en['lighting']}"])
         if not body.lower().startswith("edit image 1"):
             body = "Edit image 1.\n" + body
+        if custom:  # o texto do painel venceu, mas toda troca pedida tem de estar nele (com a sua imagem)
+            miss = [ln for sw, ln in zip(sws, _swap_lines(sws, page, cast_map)) if sw["target"].lower() not in body.lower()
+                    or (sw["kind"] == "cast" and sw["cast_id"] in cast_map
+                        and f"image {cast_map[sw['cast_id']][1]}" not in body.lower())]
+            if miss:
+                body += "\nAlso make these replacements:\n" + "\n".join(miss)
         return "\n".join([
             body,
             " ".join(roles),
