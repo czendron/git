@@ -1,0 +1,145 @@
+{
+  "page": "gersinho",
+  "id": "20261006-101945-baliza-a-pe-na-autoescola",
+  "state": "roteiro",
+  "created_at": 1791281985.2268763,
+  "updated_at": 1791282005.2502296,
+  "idea": {
+    "title": "Baliza a pe na autoescola",
+    "text": "Trend do passo duro (fonte do Caio, estúdio de dança) virando prova de baliza a pé num pátio de autoescola; no fim o examinador põe um cone no topete.",
+    "source": "pauta"
+  },
+  "script": {
+    "page": "gersinho",
+    "title": "Baliza a pe na autoescola",
+    "format": "trend",
+    "premise": "Gersinho faz a prova de baliza da autoescola a pé, com o passo duro da trend, entre os cones do pátio, sério; no fim o examinador põe um cone no topete dele.",
+    "gag_without_sound": "um tiozão brega de topete gigante fazendo a baliza a pé, duro como poste, e virando ele mesmo o cone",
+    "trend": {
+      "name": "passo duro (estilo dança irlandesa), vídeo enviado pelo Caio em 06/10",
+      "source_hint": "recorte 0,8-6,4 s do vídeo do Caio: 1 pessoa, corpo inteiro, mãos visíveis, plano contínuo; câmera acompanha de leve",
+      "consent": "PENDENTE: vídeo enviado pelo Caio; confirmar quem filmou e ter autorização por escrito do dançarino antes de postar (videos-analisados §12)"
+    },
+    "camera": {
+      "mode": "static_passerby",
+      "fov_deg": 63,
+      "height": "altura do peito, 3 m",
+      "movement": "igual à fonte"
+    },
+    "duration_s": 5.7,
+    "music": {
+      "genre": "trend",
+      "bpm": 95,
+      "trend_sound_hint": "som em alta de passinho duro no app",
+      "fallback": "instrumental brega 95 BPM"
+    },
+    "cover": {
+      "from": "end_frame",
+      "text_max4": "baliza a pé"
+    },
+    "caption": "Reprovado de novo. Mas com estilo.",
+    "hashtags": [
+      "#autoescola",
+      "#baliza",
+      "#brega",
+      "#gersonbrilhantina"
+    ],
+    "brand_safety": [
+      "sem marca de carro visível",
+      "sem placa legível",
+      "sem criança em destaque"
+    ],
+    "risks": "a câmera da fonte acompanha de leve; o topete balançar nos pulinhos; identidade derreter quando ele se aproxima da câmera",
+    "self_score": {
+      "hook": 4,
+      "absurdo": 4,
+      "miniatura": 4,
+      "clareza_sem_som": 4
+    },
+    "en": {
+      "location": "a Brazilian driving-school practice lot: grey asphalt with faded white parking-test lines, a row of orange traffic cones marking the parallel-parking box, a white compact hatchback with a 'AUTOESCOLA' roof sign parked at frame-left, a low painted wall and a mango tree in the background",
+      "lighting": "Bright mid-morning sun from frame-right, hard shadows, 5600K.",
+      "extras_count": 2,
+      "extras_tasks": "one instructor in a beige polo writes on a clipboard beside the hatchback at frame-left, one student waits sitting on the low wall in the background looking at her phone",
+      "replace_subject": "the man in the blue striped shirt walking toward the camera",
+      "source_expression": "the source dancer is deadpan: lips closed, lip corners level, brows level, eyes ahead; the source audio is muted"
+    },
+    "gag_followup": {
+      "duration_s": 5,
+      "en": {
+        "stages": [
+          {
+            "t": "0-2.5s",
+            "text": "He finishes the last step between the two front cones, stops with both feet together and rests his right hand on his belly, chin raised, staring into the lens.",
+            "end_state": "standing still between the two front cones, hand on belly, chin raised, eyes on the lens",
+            "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens"
+          },
+          {
+            "t": "2.5-5s",
+            "text": "The instructor's arm in a beige polo sleeve enters from the frame-left edge and sets one orange traffic cone upright on top of his rigid pompadour, then withdraws; he holds the same pose and keeps staring into the lens.",
+            "facing": "chest 0° to the lens, face 0° to the lens, eyes on the lens",
+            "counterpart": {
+              "who": "the driving instructor in a beige polo",
+              "kind": "human",
+              "position": "off-screen beyond the frame-left edge; only his right forearm and hand enter the frame",
+              "limb": "right forearm and hand in a beige polo sleeve",
+              "vector": "the right hand travels screen-left to screen-right and stops on top of his pompadour, then returns screen-right to screen-left out of the frame"
+            },
+            "end_state": "one orange traffic cone stands upright on top of his rigid pompadour; he stares deadpan into the lens"
+          }
+        ],
+        "end_change": "one orange traffic cone standing upright on top of his rigid pompadour while he stares deadpan into the lens",
+        "gag_sentence": "After the steps he stops between the cones and the instructor's arm sets an orange traffic cone on top of his rigid pompadour."
+      }
+    }
+  },
+  "storyboard": {},
+  "frames": {},
+  "variants": [],
+  "motion": {
+    "v": 1,
+    "source_path": "out/gersinho/20261006-101945-baliza-a-pe-na-autoescola/source-v1.mp4",
+    "first_frame": "out/gersinho/20261006-101945-baliza-a-pe-na-autoescola/source-v1-first.jpg",
+    "duration": 5.666667,
+    "cuts": [],
+    "size": [
+      480,
+      854
+    ],
+    "history": []
+  },
+  "gates": {},
+  "attempts": {},
+  "cost": {},
+  "video": {},
+  "post": {
+    "caption": "Reprovado de novo. Mas com estilo.\n\n#autoescola #baliza #brega #gersonbrilhantina",
+    "assets": {
+      "source": "/_blob/11011e9387df9069d73f861d1835b131",
+      "source_first": "/_blob/7ec9a8c26f8bd18d68ec718236c8ab70"
+    },
+    "media": {
+      "source": {
+        "asset": "11011e9387df9069d73f861d1835b131",
+        "path": "out/gersinho/20261006-101945-baliza-a-pe-na-autoescola/source-v1.mp4"
+      },
+      "source_first": {
+        "asset": "7ec9a8c26f8bd18d68ec718236c8ab70",
+        "path": "out/gersinho/20261006-101945-baliza-a-pe-na-autoescola/source-v1-first.jpg"
+      }
+    }
+  },
+  "history": [
+    {
+      "at": 1791282005.2502282,
+      "from": "ideia",
+      "to": "roteiro",
+      "why": "lint ok"
+    }
+  ],
+  "decisions": [],
+  "counterpart": {},
+  "video_opts": {},
+  "intake": {},
+  "notes": ""
+}
