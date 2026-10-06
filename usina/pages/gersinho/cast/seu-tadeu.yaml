@@ -1,0 +1,18 @@
+# Elenco de gersinho: Seu Tadeu Carimbo. Pessoa fictícia, sem semelhança com gente real.
+# Origem: docs/conselho/03-criativo.md (C) e ata D6 (recorrente de crossover, sem página própria);
+# docs/roteiros-crossover.md item 5, "A Visita do Tio".
+cast_id: seu-tadeu
+name: Seu Tadeu Carimbo
+pronoun: he
+role: tio do Gersinho, burocrata de repartição que reprova o topete e carimba tudo no tempo da música
+look: >-
+  short Brazilian man in his late sixties, shiny bald head with one single combed lock of grey hair
+  curled into a tall stiff spiral on top, bushy grey broom mustache, small rectangular reading glasses
+  low on the tip of the nose, tired bureaucratic eyes, beige suit three sizes too big, short brown tie,
+  laminated ID badge on a lanyard, black 007 briefcase in one hand, a wooden rubber stamp in the other
+status: rascunho
+recurring: true
+notes: silhueta T; nunca sorri; dança forró pé de serra mínimo, só os pés (~110 BPM)
+refs:
+  sheet: null
+  higgsfield_id: null

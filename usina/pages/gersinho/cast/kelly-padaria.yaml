@@ -1,0 +1,15 @@
+# Elenco de gersinho: Kelly da padaria. Pessoa fictícia, sem semelhança com gente real.
+cast_id: kelly-padaria
+name: Kelly da Padaria
+pronoun: she
+role: atendente do balcão da padaria do bairro; embala pão francês sem levantar os olhos
+look: >-
+  young Brazilian woman in her early twenties, dark skin, long box braids gathered under a white
+  hairnet, round face with a small nose stud, white bakery uniform polo with a brown collar, a plain
+  brown apron, clear plastic food-service gloves
+status: rascunho
+recurring: true
+notes: mundo do Gersinho (padaria); tarefa padrão: põe pão francês no saco de papel, fecha com uma dobra
+refs:
+  sheet: null
+  higgsfield_id: null
