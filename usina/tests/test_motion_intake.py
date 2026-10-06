@@ -190,7 +190,7 @@ def test_panel_motion_tab_round_trip(usina, tmp_path):
     assert "MC turn2 turns: 4 | sent manual scene: true | history: true" in out
     assert "MC manual wins: Edit image 1. MANUAL frame edit" in out
     assert "MC cost load: Estimativa: ≈ 180 créditos" in out and "acima do teto de 160" in out and "msg bad" in out
-    assert "CAIXA elenco: 1" in out and "Escreva o motivo" in out and '"stage"' not in out.split("ELENCO decision:")[1][:5]
+    assert "CAIXA elenco: 1" in out and "Escreva o motivo" in out
     assert 'ELENCO decision: [{"ref":"gersinho/seu-tadeu","verdict":"approve"}]' in out and "CAIXA elenco after: 0" in out
     assert "ELENCO tab: 4" in out and "ELENCO overflow at 375px: false" in out
     assert "NOSAMPLE chat hidden: true" in out and "2. Replace the green bottle with a closed black umbrella" in out

@@ -4,16 +4,19 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
   const batch = JSON.parse(fs.readFileSync(process.argv[2]));
+  if (process.argv[5]) {  // rodada da aba Motion: uma ficha do elenco esperando o Caio e o Genjutsu caro (aviso de teto)
+    const el = batch.find(w => w.collection === 'elenco' && w.doc_id === 'gersinho--seu-tadeu');
+    const fake = { state: 'aguardando', status: 'rascunho', sheetUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', sheetAt: 1000, usedBy: ['gersinho/x'], updatedAt: 2 };
+    if (el) Object.assign(el.data, fake); else batch.push({ collection: 'elenco', doc_id: 'gersinho--seu-tadeu', data: { page: 'gersinho', castId: 'seu-tadeu', name: 'Seu Tadeu Carimbo', role: 'tio', look: 'bald man', ...fake } });
+    const sa = batch.find(w => w.collection === 'saude');
+    if (sa) sa.data.budget = { mcPerS: 30, maxCreditsIdea: 160, dayCapCredits: 240 };
+  }
     const browser = await chromium.launch({ executablePath: process.argv[4] || undefined });
   const page = await browser.newPage();
   page.on('pageerror', e => console.log('PAGEERROR', e.message));
   const init = (batch) => {
     const cols = {}; window.__writes = [];
     for (const w of batch) { (cols[w.collection] ||= {})[w.doc_id] = w.data; }
-    // elenco: uma ficha nova esperando o Caio (card Elenco da Caixa); custo do Genjutsu alto para testar o aviso de teto
-    (cols.elenco ||= {})['gersinho--seu-tadeu'] = Object.assign({}, (cols.elenco || {})['gersinho--seu-tadeu'] || { page: 'gersinho', castId: 'seu-tadeu', name: 'Seu Tadeu Carimbo', role: 'tio', look: 'bald man', pronoun: 'he' },
-      { state: 'aguardando', status: 'rascunho', sheetUrl: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=', sheetAt: 1000, usedBy: ['gersinho/x'], updatedAt: 2 });
-    if (cols.saude && cols.saude.atual) cols.saude.atual.budget = { mcPerS: 30, maxCreditsIdea: 160, dayCapCredits: 240 };
     const fx = batch.find(w=>w.collection==="fila" && ["pronto","postado"].includes(w.data.state)) || batch.find(w=>w.collection==="fila");
     cols.placar = fx ? { "x": { ref: fx.data.ref, title:"t", views: 1200, views7: 7000, shares: 3, follows: 1, ret3: 40, createdAt: 1 } } : {};
     const snapOf = (c) => ({ docs: Object.entries(cols[c]||{}).map(([id,d]) => ({ id, data: () => d })) });
@@ -91,11 +94,13 @@ const fs = require('fs');
   console.log('CAIXA cards:', await page.textContent('#n-caixa'));
   await page.click('[data-tab="caixa"]');
   console.log('CAIXA elenco:', (await page.$$('[data-st="elenco"][data-dec="approve"]')).length);
-  await page.click('[data-st="elenco"][data-dec="reject"]');
-  console.log('ELENCO reject w/o reason:', await page.textContent('[data-st="elenco"][data-dec="reject"]'));
-  await page.click('[data-st="elenco"][data-dec="approve"]');
-  await page.waitForTimeout(100);
-  console.log('ELENCO decision:', JSON.stringify(await page.evaluate(() => window.__writes.filter(w => w.c === 'decisoes' && w.d.stage === 'elenco').map(w => ({ ref: w.d.ref, verdict: w.d.verdict })))));
+  if (await page.$('[data-st="elenco"][data-dec="reject"]')) {
+    await page.click('[data-st="elenco"][data-dec="reject"]');
+    console.log('ELENCO reject w/o reason:', await page.textContent('[data-st="elenco"][data-dec="reject"]'));
+    await page.click('[data-st="elenco"][data-dec="approve"]');
+    await page.waitForTimeout(100);
+    console.log('ELENCO decision:', JSON.stringify(await page.evaluate(() => window.__writes.filter(w => w.c === 'decisoes' && w.d.stage === 'elenco').map(w => ({ ref: w.d.ref, verdict: w.d.verdict })))));
+  }
   console.log('CAIXA elenco after:', (await page.$$('[data-st="elenco"][data-dec="approve"]')).length);
   await page.click('[data-tab="elenco"]');
   console.log('ELENCO tab:', (await page.$$('#elenco article')).length, '|', (await page.textContent('#elenco')).replace(/\s+/g, ' ').slice(0, 160));

@@ -52,8 +52,8 @@ def test_motion_source_refuses_cuts_and_bad_duration(usina, tmp_path):
     ref = trend_item(usina, tmp_path, with_source=False)
     r = run(usina, "motion-source", ref, "--file", str(clip(tmp_path / "c.mp4", cut=True)), ok=False)
     assert r.returncode == 1 and "cortes" in r.stderr
-    r = run(usina, "motion-source", ref, "--file", str(clip(tmp_path / "l.mp4", dur=20)), ok=False)
-    assert r.returncode == 1 and "3-15" in r.stderr
+    r = run(usina, "motion-source", ref, "--file", str(clip(tmp_path / "l.mp4", dur=32)), ok=False)
+    assert r.returncode == 1 and "3-30" in r.stderr                    # Genjutsu e Seedance 2.5: até 30 s
     assert not item_json(usina)["motion"]
     run(usina, "motion-source", ref, "--file", str(tmp_path / "c.mp4"), "--force")   # intencional: aceita com aviso
     assert item_json(usina)["motion"]["cuts"]

@@ -430,7 +430,7 @@ def frame_a_prompt(script: dict, page: Page, with_storyboard: bool, counterpart=
         (f"Background: {crowd(en['extras_count'])}, ordinary people busy with their own tasks — {en['extras_tasks']} — "
          f"none of them looking at {obj}." if int(en.get("extras_count") or 0) else _alone(sub, counterpart)),
         f"Props: {en.get('props') or 'none besides the location'}.",
-        _featured_line(en),
+        _featured_line(en, page),
         counterpart_lines(counterpart, noun),
         f"{en['lighting']} Deep depth of field, everything sharp, smartphone HDR look, real skin texture.",
         "Exactly one main character. No text, no captions, no speech balloons, no watermarks.",
@@ -482,7 +482,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         refs.append(" ".join(filter(None, [
             "The start frame defines the opening composition, positions, pose and camera." if has_start else "",
             "The end frame defines the final composition and the gag's end state." if has_end else ""])))
-    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]) + _extra_cast(en, counterpart), _sheet_map(counterpart))
+    refs += _ref_lines(nm, pos, part, _human_cast(en["stages"]) + _extra_cast(en, counterpart, page), _sheet_map(counterpart))
     if has_storyboard:
         stg = en["stages"]
         mapping = ", ".join(f"panel {i + 1} is {s['t']}" for i, s in enumerate(stg))
@@ -503,7 +503,7 @@ def video_prompt(script: dict, page: Page, *, has_start: bool, has_end: bool, ha
         "SCENE CONTEXT",
         (f"EXACTLY 1 main character — {who} — plus {crowd(extras)} in the background. " if extras else
          f"EXACTLY 1 main character — {who} — and no one else in the set. ") + en["gag_sentence"]
-        + (" " + _featured_line(en) if _featured_line(en) else ""),
+        + (" " + _featured_line(en, page) if _featured_line(en, page) else ""),
         "",
         "ACTIVE REFERENCES",
         *refs,
@@ -740,12 +740,29 @@ def _sheet_map(counterpart) -> dict:
     return {w: n for w, n in _cps(counterpart)}
 
 
-def _extra_cast(en: dict, counterpart=None) -> list[str]:
+def _extras(en: dict, page: Page | None = None) -> list[dict]:
+    """featured_extras com o nome resolvido: figurante do elenco sem `who` usa o nome do membro (igual ao pipeline)."""
+    members = {}
+    if page is not None:
+        from . import cast as _cast
+        try:
+            members = _cast.load(page.slug)
+        except Exception:  # noqa: BLE001
+            members = {}
+    out = []
+    for ex in _lint.featured_extras({"en": en}):
+        if not ex.get("who") and ex.get("cast_id") in members:
+            ex = dict(ex, who=_cast.who(members[ex["cast_id"]]))
+        out.append(ex)
+    return out
+
+
+def _extra_cast(en: dict, counterpart=None, page: Page | None = None) -> list[str]:
     """Figurantes em destaque (en.featured_extras) e quem tem ficha mas não é contraparte: entram no ACTIVE
     REFERENCES com a linha de papel (ficha) ou de exclusão (sem ficha)."""
     have = {w.lower() for w in _human_cast(en.get("stages") or [])}
     out: list[str] = []
-    for ex in _lint.featured_extras({"en": en}):
+    for ex in _extras(en, page):
         w = ex.get("who") or ""
         if w and w.lower() not in have and w not in out:
             out.append(w)
@@ -755,10 +772,10 @@ def _extra_cast(en: dict, counterpart=None) -> list[str]:
     return out
 
 
-def _featured_line(en: dict) -> str:
+def _featured_line(en: dict, page: Page | None = None) -> str:
     """Figurantes em destaque: nome, posição e tarefa (B4.6), fora da contagem de passantes."""
     parts = []
-    for ex in _lint.featured_extras({"en": en}):
+    for ex in _extras(en, page):
         if not ex.get("who"):
             continue
         bits = ", ".join(x for x in (_lc(ex.get("position", "")), _lc(ex.get("task", ""))) if x)
